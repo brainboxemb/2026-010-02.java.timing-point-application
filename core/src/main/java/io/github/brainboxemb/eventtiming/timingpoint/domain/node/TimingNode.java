@@ -56,6 +56,7 @@ public final class TimingNode extends LifecycleComponent {
     private final AntennaId antennaId;
     private final TimeSource timeSource;
     private final LogBook logBook;
+    private final NodeService nodeService;
     private final TagProcessor tagProcessor;
     private final SerialTaskRunner taskRunner;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
@@ -114,6 +115,7 @@ public final class TimingNode extends LifecycleComponent {
         this.antennaId = antennaId;
         this.timeSource = timeSource;
         this.logBook = logBook;
+        this.nodeService = nodeService;
         this.NEW_DATA_ENTRY = logBook.NEW_DATA_ENTRY;
         this.tagProcessor = tagProcessor;
         this.taskRunner = taskRunner;
@@ -200,6 +202,7 @@ public final class TimingNode extends LifecycleComponent {
                     locationIdProp.set(locationId);
                     functionalStateProp.set(FunctionalState.OPEN);
                     logBook.execute(LogBookCommands.commitNodeOpen(locationId));
+                    nodeService.locationOpened(locationId);
                 }
                 properties.update();
                 result = OpenResult.OPENED;
@@ -228,6 +231,7 @@ public final class TimingNode extends LifecycleComponent {
                 synchronized (stateLock) {
                     functionalStateProp.set(FunctionalState.CLOSED);
                     logBook.execute(LogBookCommands.commitNodeClose(currentLocation));
+                    nodeService.locationClosed();
                 }
                 properties.update();
                 result = CloseResult.CLOSED;

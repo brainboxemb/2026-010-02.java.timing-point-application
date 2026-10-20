@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -15,200 +14,187 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Retains the current unique registered-team membership for each WP.
+ * Retains unique registered-team membership for the currently open WP.
  *
- * <p>This is the second Task Lane-owned registration projection. ActiveRegistrations reports
- * actual ADD/REV validity transitions; NodeService resolves the affected RegistrationId to the
- * current TeamId and applies that fact here. Live RACE_DATA assignment changes are applied
- * separately through {@link #teamAssignmentChanged(RegistrationId, TeamId)}.</p>
+ * <p>ActiveRegistrations supplies actual ADD/REV validity transitions after filtering LogBook
+ * history to the active LocationId. This projection therefore needs no LocationId key of its own.
+ * It counts active occurrences per RegistrationId and maps those counts through the current
+ * RaceData TeamId assignment.</p>
  *
- * <p>A team is present at a WP while at least one valid registration occurrence at that WP
- * resolves to that team. Repeated passages therefore increase an internal occurrence count but
- * do not create duplicate team entries. A team membership ADDED event is emitted only on a
- * zero-to-nonzero transition and REMOVED only on nonzero-to-zero. An unresolved RegistrationId
- * is retained for later reassignment but contributes to no team set until a TeamId is known.</p>
+ * <p>A team is present while at least one valid occurrence resolves to that TeamId. Repeated
+ * passages change only occurrence counts. Live membership ADDED is emitted only on a zero-to-
+ * nonzero transition and REMOVED only on nonzero-to-zero. An unresolved RegistrationId remains
+ * counted so a later assignment can contribute all of its existing occurrences.</p>
  *
- * <p>The complete team visitor is the smart-display synchronization source. Membership is a set:
- * visitation order has no domain meaning and no temporary ordered list is created. CAN encoding,
- * burst acknowledgement and display synchronization state belong to the display transport, not
- * to this class.</p>
+ * <p>LogBook reconstruction is deliberately silent: beginRebuild clears the previous WP state
+ * and suppresses incremental events until completeRebuild. A display synchronizing after OPEN
+ * obtains the complete set through visit(); only later live mutations produce +/- events.</p>
  */
 public final class RegisteredTeams {
     private final Map<RegistrationId, RegistrationState> registrationsById = new HashMap<>();
-    private final Map<LocationId, Map<TeamId, Integer>> teamsByLocation = new HashMap<>();
+    private final Map<TeamId, Integer> teamCounts = new HashMap<>();
     private final Event<Change> changedEvent = new Event<>();
 
+    private boolean active;
+    private boolean publishChanges;
+
     /**
-     * Incremental unique-team membership transitions.
+     * Incremental membership transitions for the currently open WP.
      *
-     * <p>Delivery is synchronous and ordered with the Task Lane mutation that caused the
-     * transition. Repeated registrations that leave membership present emit nothing.</p>
+     * <p>Delivery is synchronous and ordered with the Task Lane mutation that caused it.</p>
      */
     public final EventSource<Change> CHANGED = changedEvent;
 
-    /**
-     * Clears all reconstructed registration/team counts before a full LogBook replay.
-     *
-     * <p>Reset emits no REMOVED events: it is reconstruction housekeeping, not a sequence of
-     * domain removals. A display that lost synchronization must obtain a new full membership
-     * burst after reconstruction.</p>
-     */
-    public void reset() {
+    /** Starts a silent reconstruction for one newly opened WP. */
+    public void beginRebuild() {
 
+        active = true;
+        publishChanges = false;
         registrationsById.clear();
-        teamsByLocation.clear();
+        teamCounts.clear();
     }
 
-    /**
-     * Applies one actual registration validity transition from ActiveRegistrations.
-     *
-     * <p>A null Change means the source TimingData did not alter active registration state and is
-     * intentionally ignored. The supplied TeamId is the current resolution for an ADD; it may be
-     * null when the RegistrationId is not assigned yet.</p>
-     */
+    /** Marks the reconstructed set ready so later live mutations publish incremental changes. */
+    public void completeRebuild() {
+
+        failIfIllegalState(active, "registered-team projection is not active");
+        publishChanges = true;
+    }
+
+    /** Deactivates the projection on CLOSE without publishing synthetic removals. */
+    public void deactivate() {
+
+        active = false;
+        publishChanges = false;
+        registrationsById.clear();
+        teamCounts.clear();
+    }
+
+    /** Applies one registration validity transition for the active WP. */
     public void apply(ActiveRegistrations.Change change, TeamId teamId) {
 
+        failIfIllegalState(active, "registered-team projection is not active");
         if (change != null) {
             if (change.action() == ActiveRegistrations.Change.Action.ADDED) {
-                add(change.registrationId(), change.locationId(), teamId);
+                add(change.registrationId(), teamId);
             } else {
-                remove(change.registrationId(), change.locationId());
+                remove(change.registrationId());
             }
         }
     }
 
     /**
-     * Reaccounts every active occurrence after the TeamId assignment for one RegistrationId changes.
+     * Reaccounts all active occurrences after one RegistrationId's TeamId assignment changes.
      *
-     * <p>The existing occurrence counts stay attached to the RegistrationId. Only their team
-     * membership contribution moves, which may emit one REMOVED and/or ADDED transition per WP.</p>
+     * <p>When no WP is active there is no registration projection to update, so the change is
+     * intentionally ignored. During rebuild the counts move but incremental events stay
+     * suppressed.</p>
      */
     public void teamAssignmentChanged(RegistrationId registrationId, TeamId teamId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
 
-        RegistrationState registration = registrationsById.get(registrationId);
-        if (registration != null && !Objects.equals(registration.teamId, teamId)) {
-            moveCounts(registration, registration.teamId, teamId);
-            registration.teamId = teamId;
+        if (active) {
+            RegistrationState registration = registrationsById.get(registrationId);
+            if (registration != null && !Objects.equals(registration.teamId, teamId)) {
+                moveCount(registration, registration.teamId, teamId);
+                registration.teamId = teamId;
+            }
         }
     }
 
-    /** Returns the number of distinct currently resolved teams present at one WP. */
-    public int uniqueTeamCount(LocationId locationId) {
+    /** Returns the number of distinct currently resolved teams in the open WP. */
+    public int uniqueTeamCount() {
 
-        failIfInvalidArgument(locationId != null, "locationId must not be null");
-
-        Map<TeamId, Integer> teams = teamsByLocation.get(locationId);
-        return teams == null ? 0 : teams.size();
+        failIfIllegalState(active, "registered-team projection is not active");
+        return teamCounts.size();
     }
 
     /**
-     * Visits the full current unique-team set for a display synchronization burst.
+     * Visits the complete current unique-team set for a display synchronization burst.
      *
-     * <p>Team order has no domain meaning. The visitor receives the retained set directly
-     * without constructing or sorting a temporary snapshot list.</p>
+     * <p>Team order has no domain meaning. The retained set is streamed directly without a
+     * temporary snapshot or sort.</p>
      */
-    public int visit(LocationId locationId, Consumer<TeamId> visitor) {
+    public int visit(Consumer<TeamId> visitor) {
 
-        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfIllegalState(active, "registered-team projection is not active");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        Map<TeamId, Integer> teams = teamsByLocation.get(locationId);
-        if (teams == null) {
-            return 0;
-        }
-
-        for (TeamId teamId : teams.keySet()) {
+        for (TeamId teamId : teamCounts.keySet()) {
             visitor.accept(teamId);
         }
-        return teams.size();
+        return teamCounts.size();
     }
 
-    /** Counts one valid occurrence, applying any newer assignment before adding it. */
-    private void add(RegistrationId registrationId, LocationId locationId, TeamId teamId) {
+    /** Counts one valid occurrence, applying the current assignment before adding it. */
+    private void add(RegistrationId registrationId, TeamId teamId) {
 
         RegistrationState registration =
                 registrationsById.computeIfAbsent(registrationId, ignored -> new RegistrationState());
         if (!Objects.equals(registration.teamId, teamId)) {
-            moveCounts(registration, registration.teamId, teamId);
+            moveCount(registration, registration.teamId, teamId);
             registration.teamId = teamId;
         }
 
-        registration.occurrencesByLocation.merge(locationId, 1, Integer::sum);
-        adjustCount(locationId, teamId, 1);
+        registration.occurrences++;
+        adjustCount(teamId, 1);
     }
 
     /** Removes one previously accepted occurrence; unmatched REV records never arrive here. */
-    private void remove(RegistrationId registrationId, LocationId locationId) {
+    private void remove(RegistrationId registrationId) {
 
         RegistrationState registration = registrationsById.get(registrationId);
         failIfIllegalState(registration != null, "missing registered team state for %s", registrationId);
-        Integer count = registration.occurrencesByLocation.get(locationId);
-        failIfIllegalState(count != null && count >= 1, "missing registration count at %s", locationId);
+        failIfIllegalState(registration.occurrences >= 1, "missing registration occurrence for %s", registrationId);
 
-        if (count == 1) {
-            registration.occurrencesByLocation.remove(locationId);
-        } else {
-            registration.occurrencesByLocation.put(locationId, count - 1);
-        }
-        adjustCount(locationId, registration.teamId, -1);
-
-        if (registration.occurrencesByLocation.isEmpty()) {
+        registration.occurrences--;
+        adjustCount(registration.teamId, -1);
+        if (registration.occurrences == 0) {
             registrationsById.remove(registrationId);
         }
     }
 
-    /** Reassigns every active occurrence, emitting only membership transitions. */
-    private void moveCounts(RegistrationState registration, TeamId previousTeam, TeamId newTeam) {
+    /** Moves every active occurrence from the previous assignment to the new assignment. */
+    private void moveCount(RegistrationState registration, TeamId previousTeam, TeamId newTeam) {
 
-        for (Map.Entry<LocationId, Integer> entry : registration.occurrencesByLocation.entrySet()) {
-            adjustCount(entry.getKey(), previousTeam, -entry.getValue());
-            adjustCount(entry.getKey(), newTeam, entry.getValue());
+        if (registration.occurrences > 0) {
+            adjustCount(previousTeam, -registration.occurrences);
+            adjustCount(newTeam, registration.occurrences);
         }
     }
 
-    /** Emits a change only when a team's presence at one WP changes. */
-    private void adjustCount(LocationId locationId, TeamId teamId, int change) {
+    /** Updates one team count and emits only real live membership transitions. */
+    private void adjustCount(TeamId teamId, int change) {
 
         if (teamId == null) {
             return;
         }
 
-        Map<TeamId, Integer> teams =
-                teamsByLocation.computeIfAbsent(locationId, ignored -> new HashMap<>());
-        int previous = teams.getOrDefault(teamId, 0);
+        int previous = teamCounts.getOrDefault(teamId, 0);
         int next = previous + change;
         failIfIllegalState(next >= 0, "registered-team count must not be negative");
 
         if (next == 0) {
-            teams.remove(teamId);
+            teamCounts.remove(teamId);
         } else {
-            teams.put(teamId, next);
-        }
-        if (teams.isEmpty()) {
-            teamsByLocation.remove(locationId);
+            teamCounts.put(teamId, next);
         }
 
-        if (previous == 0 && next > 0) {
-            changedEvent.emit(new Change(Change.Action.ADDED, locationId, teamId));
-        } else if (previous > 0 && next == 0) {
-            changedEvent.emit(new Change(Change.Action.REMOVED, locationId, teamId));
+        if (publishChanges && previous == 0 && next > 0) {
+            changedEvent.emit(new Change(Change.Action.ADDED, teamId));
+        } else if (publishChanges && previous > 0 && next == 0) {
+            changedEvent.emit(new Change(Change.Action.REMOVED, teamId));
         }
     }
 
-    /**
-     * Retained accounting for one RegistrationId.
-     *
-     * <p>Occurrences are counted per WP so a later assignment change can move all existing
-     * contributions without replaying ActiveRegistrations.</p>
-     */
+    /** Retained occurrence count and current assignment for one RegistrationId. */
     private static final class RegistrationState {
-        private final Map<LocationId, Integer> occurrencesByLocation = new HashMap<>();
+        private int occurrences;
         private TeamId teamId;
     }
 
-    /** One immutable unique-team membership transition for one WP. */
+    /** One immutable live unique-team membership transition for the active WP. */
     public static final class Change {
         public enum Action {
             ADDED,
@@ -216,28 +202,23 @@ public final class RegisteredTeams {
         }
 
         private final Action action;
-        private final LocationId locationId;
         private final TeamId teamId;
 
-        private Change(Action action, LocationId locationId, TeamId teamId) {
+        private Change(Action action, TeamId teamId) {
 
             this.action = action;
-            this.locationId = locationId;
             this.teamId = teamId;
         }
 
-        /** Returns whether the TeamId entered or left the WP membership set. */
+        /** Returns whether the TeamId entered or left the active WP set. */
         public Action action() {
+
             return action;
         }
 
-        /** Returns the WP whose unique-team membership changed. */
-        public LocationId locationId() {
-            return locationId;
-        }
-
-        /** Returns the team that entered or left the WP membership set. */
+        /** Returns the team that entered or left the active WP set. */
         public TeamId teamId() {
+
             return teamId;
         }
     }

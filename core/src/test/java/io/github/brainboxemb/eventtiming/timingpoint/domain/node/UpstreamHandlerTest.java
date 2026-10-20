@@ -286,8 +286,13 @@ public class UpstreamHandlerTest {
                             request.pingId()));
             assertTrue(port.inputAvailable());
 
-            // Cross the Task Lane after the already-admitted inbound PING.
-            node.nodeService().uniqueTeamRegistrationCount(new LocationId(1));
+            long deadline =
+                    System.nanoTime()
+                            + TimeUnit.SECONDS.toNanos(1L);
+            while (port.heartbeatStatus().answersReceived() != 1L
+                    && System.nanoTime() < deadline) {
+                Thread.yield();
+            }
 
             UpstreamHandlerTypes.HeartbeatStatus status =
                     port.heartbeatStatus();

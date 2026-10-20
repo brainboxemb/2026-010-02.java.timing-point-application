@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
@@ -20,11 +21,18 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Keeps NodeService data caught up with committed LogBook TimingData.
+ * Maintains the registration projections for the currently open WP from LogBook history.
  *
- * <p>The task owns the LogBook cursor, bounded asynchronous reads and catch-up completion.
- * NodeService only starts a full load after LogBook becomes LOADED and wakes this task
- * after later TimingData commits.</p>
+ * <p>CLOSED requires no projection. OPEN(locationId) requests a fresh bounded replay from LogBook
+ * sequence one; ActiveRegistrations filters that replay to the selected LocationId and
+ * RegisteredTeams rebuilds silently from the resulting validity changes. After catch-up, later
+ * commit signals continue from the retained LogBook cursor and publish only live team membership
+ * transitions.</p>
+ *
+ * <p>Open/close requests may arrive while a bounded LogBook read is pending. A request generation
+ * makes that partial result obsolete: the next task turn discards it, resets the projection and
+ * starts the newly requested WP from sequence one. Reads wait on caughtUp and therefore never
+ * expose that temporary partial state.</p>
  */
 final class DataTask extends AbstractTask {
     private static final int TIMING_DATA_BATCH_SIZE = 64;
@@ -37,11 +45,16 @@ final class DataTask extends AbstractTask {
     private final Consumer<Throwable> failureHandler;
 
     private boolean available;
-    private boolean loadFromStart;
+    private boolean reloadRequested;
+    private int requestedLocationId;
     private long signalVersion;
+
+    private int activeLocationId;
+    private boolean rebuilding;
     private long nextSequence = 1L;
     private CompletableFuture<List<TimingData>> pendingRead;
-    private volatile CompletableFuture<Void> caughtUp = new CompletableFuture<Void>();
+    private volatile CompletableFuture<Void> caughtUp =
+            CompletableFuture.completedFuture(null);
 
     DataTask(
             SerialTaskRunner taskRunner,
@@ -66,49 +79,90 @@ final class DataTask extends AbstractTask {
         this.failureHandler = failureHandler;
     }
 
-    /** Starts a complete load from sequence one after LogBook becomes LOADED. */
-    synchronized void loadAll() {
+    /** Marks LogBook readable; an already-open WP is rebuilt from sequence one. */
+    synchronized void logBookAvailable() {
 
         available = true;
-        loadFromStart = true;
-        signalVersion++;
-        beginCatchUp();
-        wake(taskRunner);
-    }
-
-    /** Wakes catch-up after a new committed TimingData record. */
-    synchronized void dataChanged() {
-
-        if (available) {
+        if (requestedLocationId != 0) {
+            reloadRequested = true;
             signalVersion++;
             beginCatchUp();
             wake(taskRunner);
         }
     }
 
-    /** Makes service reads fail while LogBook is unavailable. */
+    /** Requests activation and complete historical reconstruction for one open WP. */
+    synchronized void locationOpened(LocationId locationId) {
+
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+
+        requestedLocationId = locationId.value();
+        reloadRequested = true;
+        signalVersion++;
+        beginCatchUp();
+        wake(taskRunner);
+    }
+
+    /** Requests deactivation and clearing of the current WP projection. */
+    synchronized void locationClosed() {
+
+        requestedLocationId = 0;
+        reloadRequested = true;
+        signalVersion++;
+        beginCatchUp();
+        wake(taskRunner);
+    }
+
+    /** Wakes incremental catch-up after a new committed TimingData record. */
+    synchronized void dataChanged() {
+
+        if (available && requestedLocationId != 0) {
+            signalVersion++;
+            beginCatchUp();
+            wake(taskRunner);
+        }
+    }
+
+    /** Makes active projection reads fail while LogBook is unavailable. */
     synchronized void unavailable() {
 
         available = false;
-        caughtUp.completeExceptionally(new IllegalStateException("LogBook is in ERROR state"));
+        if (requestedLocationId != 0) {
+            beginCatchUp();
+            caughtUp.completeExceptionally(new IllegalStateException("LogBook is in ERROR state"));
+        }
     }
 
-    /** Returns completion after all signalled LogBook changes have been applied. */
+    /** Returns completion after the requested open WP has caught up to LogBook. */
     CompletionStage<Void> caughtUp() {
 
         return caughtUp;
     }
 
-    /** Cancels active work and resets the task for later activation. */
+    /** Verifies that a fully reconstructed WP projection is currently active. */
+    void requireActive() {
+
+        failIfIllegalState(
+                activeLocationId != 0 && !rebuilding,
+                "registration projection requires an open WP");
+    }
+
+    /** Cancels active work and clears transient registration state. */
     synchronized void stop() {
 
         cancel();
         available = false;
-        loadFromStart = false;
+        reloadRequested = false;
+        requestedLocationId = 0;
+        signalVersion++;
+        activeLocationId = 0;
+        rebuilding = false;
         nextSequence = 1L;
         pendingRead = null;
+        activeRegistrations.deactivate();
+        registeredTeams.deactivate();
         caughtUp.cancel(true);
-        caughtUp = new CompletableFuture<Void>();
+        caughtUp = CompletableFuture.completedFuture(null);
     }
 
     /** Clears one-run asynchronous state before a new run starts. */
@@ -118,14 +172,24 @@ final class DataTask extends AbstractTask {
         pendingRead = null;
     }
 
-    /** Reads and applies missing TimingData until the current LogBook head is reached. */
+    /** Rebuilds or incrementally catches up the currently requested WP projection. */
     @Override
     public TaskStep runStep() {
 
-        if (takeLoadFromStart()) {
-            activeRegistrations.reset();
-            registeredTeams.reset();
-            nextSequence = 1L;
+        if (takeReloadRequest()) {
+            resetProjection();
+        }
+
+        if (activeLocationId == 0) {
+            long observedVersion = currentSignalVersion();
+            if (!completeCatchUp(observedVersion)) {
+                return TaskStep.again();
+            }
+            return TaskStep.done();
+        }
+
+        if (!isAvailable()) {
+            return TaskStep.done();
         }
 
         if (pendingRead != null) {
@@ -159,12 +223,33 @@ final class DataTask extends AbstractTask {
         }
     }
 
-    /** Returns and clears a pending full-load request. */
-    private synchronized boolean takeLoadFromStart() {
+    /** Applies the newest open/close request to Task Lane-owned projection state. */
+    private synchronized boolean takeReloadRequest() {
 
-        boolean requested = loadFromStart;
-        loadFromStart = false;
-        return requested;
+        if (!reloadRequested) {
+            return false;
+        }
+
+        activeLocationId = requestedLocationId;
+        reloadRequested = false;
+        return true;
+    }
+
+    /** Clears stale state and starts either an inactive state or a fresh WP reconstruction. */
+    private void resetProjection() {
+
+        pendingRead = null;
+        nextSequence = 1L;
+
+        if (activeLocationId == 0) {
+            rebuilding = false;
+            activeRegistrations.deactivate();
+            registeredTeams.deactivate();
+        } else {
+            rebuilding = true;
+            activeRegistrations.activate(new LocationId(activeLocationId));
+            registeredTeams.beginRebuild();
+        }
     }
 
     /** Starts the next bounded ordered LogBook range read. */
@@ -175,7 +260,7 @@ final class DataTask extends AbstractTask {
         pendingRead = logBook.submit(LogBookQueries.timingDataRange(nextSequence, limit));
     }
 
-    /** Applies one completed TimingData batch in source order. */
+    /** Applies one completed LogBook batch in source order to the selected WP only. */
     private void applyCompletedRead() {
 
         List<TimingData> records = pendingRead.join();
@@ -195,23 +280,39 @@ final class DataTask extends AbstractTask {
         }
     }
 
-    /** Returns the latest LogBook-change signal generation. */
+    /** Returns whether LogBook can currently serve reconstruction reads. */
+    private synchronized boolean isAvailable() {
+
+        return available;
+    }
+
+    /** Returns the latest open/close/data-change generation. */
     private synchronized long currentSignalVersion() {
 
         return signalVersion;
     }
 
-    /** Completes catch-up only when no newer signal arrived during the final head read. */
+    /**
+     * Completes catch-up only when no newer request or commit signal arrived.
+     *
+     * <p>The first stable completion after OPEN also enables live team +/- publication. All
+     * historical replay before that point is intentionally silent.</p>
+     */
     private synchronized boolean completeCatchUp(long observedVersion) {
 
         if (observedVersion != signalVersion) {
             return false;
         }
+
+        if (activeLocationId != 0 && rebuilding) {
+            registeredTeams.completeRebuild();
+            rebuilding = false;
+        }
         caughtUp.complete(null);
         return true;
     }
 
-    /** Starts a new catch-up completion after the previous catch-up finished. */
+    /** Starts a new completion when the previous requested state was already settled. */
     private void beginCatchUp() {
 
         if (caughtUp.isDone()) {
