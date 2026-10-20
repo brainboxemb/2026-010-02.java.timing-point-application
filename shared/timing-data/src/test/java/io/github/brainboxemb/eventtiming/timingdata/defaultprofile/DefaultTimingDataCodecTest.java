@@ -1,21 +1,20 @@
 package io.github.brainboxemb.eventtiming.timingdata.defaultprofile;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
 public class DefaultTimingDataCodecTest {
@@ -24,358 +23,307 @@ public class DefaultTimingDataCodecTest {
     private static final TimingTimestamp RECORDED =
             TimingTimestamp.parse("2026-09-30T20:01:45.45Z");
 
-    private final DefaultTimingDataFactory factory = new DefaultTimingDataFactory();
     private final DefaultTimingDataCodec codec = new DefaultTimingDataCodec();
 
     @Test
     public void encodesAutomaticRegistrationInCanonicalMemberOrder() throws Exception {
-        TimingData data = factory.createAutomaticRegistration(
-                context(1L),
-                new RegistrationId("A0042"));
+        TimingRecord record = automatic(1L, "A0042");
 
-        String json = new String(codec.encode(data), StandardCharsets.UTF_8);
+        String json = text(codec.encode(record));
 
         assertEquals(
-                "{\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":1,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"AUTO_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"regId\":\"A0042\","
-                        + "\"code\":[\"ADD\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
+                "{"v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":1,"
+                        + ""locId":7,"
+                        + ""recType":"AUTO_REG","
+                        + ""time":"2026-09-30T20:01:39.12Z","
+                        + ""regId":"A0042","
+                        + ""code":["ADD"],"
+                        + ""recTime":"2026-09-30T20:01:45.450Z"}",
                 json);
         assertFalse(json.endsWith("\n"));
     }
 
     @Test
     public void preservesAutomaticProvenanceInRecordAndRecovery() throws Exception {
-        TimingDataFactory.Context contextual = new TimingDataFactory.Context(
-                new NodeId("A"), 1L, new LocationId(7),
-                EFFECTIVE, RECORDED,
-                TimingData.TagSource.API,
-                TimingData.AutomaticTimeSource.NODE);
-        TimingData.AutomaticRegistration record = factory.createAutomaticRegistration(
-                contextual, new RegistrationId("A0001"));
+        TimingRecord record = TimingRecord.automatic(
+                'A',
+                1L,
+                7,
+                effectiveMillis(),
+                recordedMillis(),
+                registrationId("A0001"),
+                TimingRecord.Action.ADD,
+                TimingRecord.TagSource.API,
+                TimingRecord.AutomaticTimeSource.NODE);
 
-        String json = new String(codec.encode(record), StandardCharsets.UTF_8);
+        String json = text(codec.encode(record));
         assertTrue(json.contains(
-                "\"code\":[\"ADD\"],\"tagSrc\":\"API\",\"timeSrc\":\"NODE\""));
-        TimingData.AutomaticRegistration recovered =
-                (TimingData.AutomaticRegistration) codec.decode(codec.encode(record));
-        assertSame(TimingData.TagSource.API, recovered.tagSource());
-        assertSame(TimingData.AutomaticTimeSource.NODE, recovered.registrationTimeSource());
-        assertTrue(new String(codec.encode(recovered), StandardCharsets.UTF_8)
-                .contains("\"timeSrc\":\"NODE\""));
+                ""code":["ADD"],"tagSrc":"API","timeSrc":"NODE""));
 
-        // Old records are valid and must not acquire invented provenance.
-        TimingData.AutomaticRegistration legacy =
-                (TimingData.AutomaticRegistration) codec.decode(
-                        codec.encode(factory.createAutomaticRegistration(
-                                context(1L), new RegistrationId("A0001"))));
-        assertEquals(null, legacy.tagSource());
-        assertEquals(null, legacy.registrationTimeSource());
+        TimingRecord recovered = codec.decode(codec.encode(record));
+        assertSame(TimingRecord.TagSource.API, recovered.tagSource());
+        assertSame(
+                TimingRecord.AutomaticTimeSource.NODE,
+                recovered.automaticTimeSource());
+        assertTrue(text(codec.encode(recovered)).contains(""timeSrc":"NODE""));
 
-        // Partial or unknown attribution is invalid, not silently accepted.
-        String oneMissing = json.replace(",\"timeSrc\":\"NODE\"", "");
-        assertInvalid(json(oneMissing));
-        assertInvalid(json(json.replace("\"tagSrc\":\"API\"", "\"tagSrc\":\"MYSTERY\"")));
-        assertInvalid(json(json.replace("\"timeSrc\":\"NODE\"", "\"timeSrc\":\"CLOCK\"")));
+        TimingRecord legacy = codec.decode(codec.encode(automatic(1L, "A0001")));
+        assertNull(legacy.tagSource());
+        assertNull(legacy.automaticTimeSource());
+
+        assertInvalid(json.replace(","timeSrc":"NODE"", ""));
+        assertInvalid(json.replace(""tagSrc":"API"", ""tagSrc":"MYSTERY""));
+        assertInvalid(json.replace(""timeSrc":"NODE"", ""timeSrc":"CLOCK""));
     }
 
     @Test
     public void encodesAndDecodesManualRegistration() throws Exception {
-        TimingData.ManualRegistration original =
-                factory.createManualRegistration(
-                        context(2L),
-                        new RegistrationId("A0042"),
-                        TimingData.ManualTimeSource.OPERATOR_ENTERED);
+        TimingRecord original = manual(
+                2L,
+                "A0042",
+                TimingRecord.Action.ADD,
+                TimingRecord.ManualTimeSource.OPERATOR_ENTERED);
 
-        String json = new String(codec.encode(original), StandardCharsets.UTF_8);
-        assertTrue(json.contains("\"recType\":\"MAN_REG\""));
-        assertTrue(json.contains("\"code\":[\"ADD\",\"MAN\"]"));
+        String json = text(codec.encode(original));
+        assertTrue(json.contains(""recType":"MAN_REG""));
+        assertTrue(json.contains(""code":["ADD","MAN"]"));
 
-        TimingData decoded = codec.decode(codec.encode(original));
+        TimingRecord decoded = codec.decode(codec.encode(original));
 
-        assertTrue(decoded instanceof TimingData.ManualRegistration);
-        TimingData.ManualRegistration manual =
-                (TimingData.ManualRegistration) decoded;
-        assertCommon(manual, 2L);
-        assertEquals(
-                new RegistrationId("A0042"),
-                manual.registrationId());
+        assertCommon(decoded, 2L);
+        assertSame(TimingRecord.Kind.MANUAL_REGISTRATION, decoded.kind());
+        assertEquals(registrationId("A0042"), decoded.registrationId());
         assertSame(
-                TimingData.ManualTimeSource.OPERATOR_ENTERED,
-                manual.timeSource());
+                TimingRecord.ManualTimeSource.OPERATOR_ENTERED,
+                decoded.manualTimeSource());
     }
 
     @Test
     public void systemAssignedManualTimeUsesAutoCode() throws Exception {
-        TimingData.ManualRegistration original =
-                factory.createManualRegistration(
-                        context(2L),
-                        new RegistrationId("A0042"),
-                        TimingData.ManualTimeSource.AUTOMATIC);
+        TimingRecord original = manual(
+                2L,
+                "A0042",
+                TimingRecord.Action.ADD,
+                TimingRecord.ManualTimeSource.AUTOMATIC);
 
-        String json = new String(codec.encode(original), StandardCharsets.UTF_8);
+        String json = text(codec.encode(original));
 
-        assertTrue(json.contains("\"recType\":\"MAN_REG\""));
-        assertTrue(json.contains("\"code\":[\"ADD\",\"AUTO\"]"));
+        assertTrue(json.contains(""recType":"MAN_REG""));
+        assertTrue(json.contains(""code":["ADD","AUTO"]"));
     }
 
     @Test
     public void encodesAndDecodesNodeOpenLifecycleRecord() throws Exception {
-        TimingData.NodeOpen original =
-                factory.createNodeOpen(
-                        context(3L));
+        TimingRecord original = opened(3L);
 
-        String json = new String(codec.encode(original), StandardCharsets.UTF_8);
+        String json = text(codec.encode(original));
 
         assertEquals(
-                "{\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":3,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"NODE_INFO\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"code\":[\"OPEN\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
+                "{"v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":3,"
+                        + ""locId":7,"
+                        + ""recType":"NODE_INFO","
+                        + ""time":"2026-09-30T20:01:39.12Z","
+                        + ""code":["OPEN"],"
+                        + ""recTime":"2026-09-30T20:01:45.450Z"}",
                 json);
 
-        TimingData decoded = codec.decode(codec.encode(original));
-        assertTrue(decoded instanceof TimingData.NodeOpen);
+        TimingRecord decoded = codec.decode(codec.encode(original));
+        assertSame(TimingRecord.Kind.NODE_OPEN, decoded.kind());
         assertCommon(decoded, 3L);
     }
 
     @Test
     public void encodesAndDecodesNodeCloseLifecycleRecord() throws Exception {
-        TimingData.NodeClose original =
-                factory.createNodeClose(
-                        context(4L));
+        TimingRecord decoded = codec.decode(codec.encode(closed(4L)));
 
-        TimingData decoded = codec.decode(codec.encode(original));
-
-        assertTrue(decoded instanceof TimingData.NodeClose);
+        assertSame(TimingRecord.Kind.NODE_CLOSE, decoded.kind());
         assertCommon(decoded, 4L);
     }
 
     @Test
     public void lifecycleRecordRejectsRegistrationOnlyMembersAndInvalidCodes() throws Exception {
-        assertInvalid(json(
+        assertInvalid(
                 "{"
-                        + "\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":3,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"NODE_INFO\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                        + "\"regId\":\"A0042\","
-                        + "\"code\":[\"OPEN\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
-                        + "}"));
-        assertInvalid(json(
+                        + ""v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":3,"
+                        + ""locId":7,"
+                        + ""recType":"NODE_INFO","
+                        + ""time":"2026-09-30T20:01:39.120Z","
+                        + ""regId":"A0042","
+                        + ""code":["OPEN"],"
+                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "}");
+        assertInvalid(
                 "{"
-                        + "\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":4,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"NODE_INFO\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                        + "\"code\":[\"ADD\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
-                        + "}"));
+                        + ""v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":4,"
+                        + ""locId":7,"
+                        + ""recType":"NODE_INFO","
+                        + ""time":"2026-09-30T20:01:39.120Z","
+                        + ""code":["ADD"],"
+                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "}");
     }
 
     @Test
     public void automaticRevocationUsesRevCodeAndRoundTrips() throws Exception {
-        TimingData.AutomaticRegistration original =
-                factory.createAutomaticRegistration(
-                        context(5L),
-                        new RegistrationId("A0042"),
-                        TimingData.RegistrationAction.REV);
+        TimingRecord original = TimingRecord.automatic(
+                'A',
+                5L,
+                7,
+                effectiveMillis(),
+                recordedMillis(),
+                registrationId("A0042"),
+                TimingRecord.Action.REV,
+                null,
+                null);
 
-        String json =
-                new String(
-                        codec.encode(original),
-                        StandardCharsets.UTF_8);
-        assertTrue(
-                json.contains(
-                        "\"code\":[\"REV\"]"));
+        String json = text(codec.encode(original));
+        assertTrue(json.contains(""code":["REV"]"));
 
-        TimingData.AutomaticRegistration decoded =
-                (TimingData.AutomaticRegistration) codec.decode(
-                        codec.encode(original));
-        assertSame(
-                TimingData.RegistrationAction.REV,
-                decoded.action());
-        assertCommon(
-                decoded,
-                5L);
+        TimingRecord decoded = codec.decode(codec.encode(original));
+        assertSame(TimingRecord.Action.REV, decoded.action());
+        assertSame(TimingRecord.Kind.AUTOMATIC_REGISTRATION, decoded.kind());
+        assertCommon(decoded, 5L);
     }
 
     @Test
     public void manualRevocationRepeatsTimeSourceSubcode() throws Exception {
-        TimingData.ManualRegistration original =
-                factory.createManualRegistration(
-                        context(6L),
-                        new RegistrationId("A0042"),
-                        TimingData.ManualTimeSource.OPERATOR_ENTERED,
-                        TimingData.RegistrationAction.REV);
+        TimingRecord original = manual(
+                6L,
+                "A0042",
+                TimingRecord.Action.REV,
+                TimingRecord.ManualTimeSource.OPERATOR_ENTERED);
 
-        String json =
-                new String(
-                        codec.encode(original),
-                        StandardCharsets.UTF_8);
-        assertTrue(
-                json.contains(
-                        "\"code\":[\"REV\",\"MAN\"]"));
+        String json = text(codec.encode(original));
+        assertTrue(json.contains(""code":["REV","MAN"]"));
 
-        TimingData.ManualRegistration decoded =
-                (TimingData.ManualRegistration) codec.decode(
-                        codec.encode(original));
+        TimingRecord decoded = codec.decode(codec.encode(original));
+        assertSame(TimingRecord.Action.REV, decoded.action());
         assertSame(
-                TimingData.RegistrationAction.REV,
-                decoded.action());
-        assertSame(
-                TimingData.ManualTimeSource.OPERATOR_ENTERED,
-                decoded.timeSource());
-        assertCommon(
-                decoded,
-                6L);
+                TimingRecord.ManualTimeSource.OPERATOR_ENTERED,
+                decoded.manualTimeSource());
+        assertCommon(decoded, 6L);
     }
 
     @Test
     public void decodesAutomaticRegistration() throws Exception {
-        TimingData decoded = codec.decode(json(
+        TimingRecord decoded = codec.decode(json(
                 "{"
-                        + "\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":1,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"AUTO_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                        + "\"regId\":\"A0042\","
-                        + "\"code\":[\"ADD\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\""
+                        + ""v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":1,"
+                        + ""locId":7,"
+                        + ""recType":"AUTO_REG","
+                        + ""time":"2026-09-30T20:01:39.120Z","
+                        + ""regId":"A0042","
+                        + ""code":["ADD"],"
+                        + ""recTime":"2026-09-30T20:01:45.450Z""
                         + "}"));
 
-        assertTrue(decoded instanceof TimingData.AutomaticRegistration);
-        TimingData.AutomaticRegistration automatic =
-                (TimingData.AutomaticRegistration) decoded;
-        assertCommon(automatic, 1L);
-        assertEquals(
-                new RegistrationId("A0042"),
-                automatic.registrationId());
+        assertSame(TimingRecord.Kind.AUTOMATIC_REGISTRATION, decoded.kind());
+        assertCommon(decoded, 1L);
+        assertEquals(registrationId("A0042"), decoded.registrationId());
+        assertSame(TimingRecord.Action.ADD, decoded.action());
     }
 
     @Test
     public void readerIgnoresAdditionalMembersAndCodeOrder() throws Exception {
-        TimingData decoded = codec.decode(json(
+        TimingRecord decoded = codec.decode(json(
                 "{"
-                        + "\"extra\":{\"future\":[1,2,3]},"
-                        + "\"regId\":\"A0042\","
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\","
-                        + "\"v\":1,"
-                        + "\"locId\":7,"
-                        + "\"seqNr\":2,"
-                        + "\"code\":[\"AUTO\",\"ADD\"],"
-                        + "\"recType\":\"MAN_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                        + "\"nodeId\":\"A\""
+                        + ""extra":{"future":[1,2,3]},"
+                        + ""regId":"A0042","
+                        + ""recTime":"2026-09-30T20:01:45.456Z","
+                        + ""v":1,"
+                        + ""locId":7,"
+                        + ""seqNr":2,"
+                        + ""code":["AUTO","ADD"],"
+                        + ""recType":"MAN_REG","
+                        + ""time":"2026-09-30T20:01:39.120Z","
+                        + ""nodeId":"A""
                         + "}"));
 
-        assertTrue(decoded instanceof TimingData.ManualRegistration);
+        assertSame(TimingRecord.Kind.MANUAL_REGISTRATION, decoded.kind());
         assertSame(
-                TimingData.ManualTimeSource.AUTOMATIC,
-                ((TimingData.ManualRegistration) decoded).timeSource());
+                TimingRecord.ManualTimeSource.AUTOMATIC,
+                decoded.manualTimeSource());
     }
 
     @Test
     public void writerRetainsRequiredFractionalZeroes() throws Exception {
-        TimingData data =
-                factory.createAutomaticRegistration(
-                        new TimingDataFactory.Context(
-                                new NodeId("A"),
-                                8L,
-                                new LocationId(7),
-                                TimingTimestamp.parse(
-                                        "2026-09-30T20:01:39.9Z"),
-                                TimingTimestamp.parse(
-                                        "2026-09-30T20:01:45.1Z")),
-                        new RegistrationId(
-                                "A0042"));
+        TimingRecord record = TimingRecord.automatic(
+                'A',
+                8L,
+                7,
+                Instant.parse("2026-09-30T20:01:39.9Z").toEpochMilli(),
+                Instant.parse("2026-09-30T20:01:45.1Z").toEpochMilli(),
+                registrationId("A0042"),
+                TimingRecord.Action.ADD,
+                null,
+                null);
 
-        String json =
-                new String(
-                        codec.encode(data),
-                        StandardCharsets.UTF_8);
+        String json = text(codec.encode(record));
 
-        assertTrue(
-                json.contains(
-                        "\"time\":\"2026-09-30T20:01:39.90Z\""));
-        assertTrue(
-                json.contains(
-                        "\"recTime\":\"2026-09-30T20:01:45.100Z\""));
+        assertTrue(json.contains(""time":"2026-09-30T20:01:39.90Z""));
+        assertTrue(json.contains(""recTime":"2026-09-30T20:01:45.100Z""));
     }
 
     @Test
-    public void factoryStoresFinerInputAtMillisecondPrecisionWithoutChangingV1TextShape() throws Exception {
-        TimingData data =
-                factory.createAutomaticRegistration(
-                        new TimingDataFactory.Context(
-                                new NodeId("A"),
-                                8L,
-                                new LocationId(7),
-                                TimingTimestamp.parse(
-                                        "2026-09-30T20:01:39.129Z"),
-                                RECORDED),
-                        new RegistrationId(
-                                "A0042"));
+    public void recordStoresFinerInputAtMillisecondPrecisionWithoutChangingV1TextShape()
+            throws Exception {
+        long effective = Instant.parse("2026-09-30T20:01:39.129Z").toEpochMilli();
+        TimingRecord record = TimingRecord.automatic(
+                'A',
+                8L,
+                7,
+                effective,
+                recordedMillis(),
+                registrationId("A0042"),
+                TimingRecord.Action.ADD,
+                null,
+                null);
 
-        assertEquals(
-                TimingTimestamp.parse(
-                        "2026-09-30T20:01:39.129Z"),
-                data.effectiveTime());
+        assertEquals(effective, record.effectiveTimeMillis());
         assertTrue(
-                new String(
-                        codec.encode(data),
-                        StandardCharsets.UTF_8)
-                        .contains(
-                                "\"time\":\"2026-09-30T20:01:39.12Z\""));
+                text(codec.encode(record))
+                        .contains(""time":"2026-09-30T20:01:39.12Z""));
     }
 
     @Test
     public void readerStillAcceptsFinerTimestampInput() throws Exception {
-        TimingData decoded =
+        TimingRecord decoded =
                 codec.decode(
                         json(
                                 "{"
-                                        + "\"v\":1,"
-                                        + "\"nodeId\":\"A\","
-                                        + "\"seqNr\":8,"
-                                        + "\"locId\":7,"
-                                        + "\"recType\":\"AUTO_REG\","
-                                        + "\"time\":\"2026-09-30T20:01:39.123456789Z\","
-                                        + "\"regId\":\"A0042\","
-                                        + "\"code\":[\"ADD\"],"
-                                        + "\"recTime\":\"2026-09-30T20:01:45.456789Z\""
+                                        + ""v":1,"
+                                        + ""nodeId":"A","
+                                        + ""seqNr":8,"
+                                        + ""locId":7,"
+                                        + ""recType":"AUTO_REG","
+                                        + ""time":"2026-09-30T20:01:39.123456789Z","
+                                        + ""regId":"A0042","
+                                        + ""code":["ADD"],"
+                                        + ""recTime":"2026-09-30T20:01:45.456789Z""
                                         + "}"));
 
         assertEquals(
-                TimingTimestamp.parse(
-                        "2026-09-30T20:01:39.123Z"),
-                decoded.effectiveTime());
+                Instant.parse("2026-09-30T20:01:39.123Z").toEpochMilli(),
+                decoded.effectiveTimeMillis());
         assertEquals(
-                TimingTimestamp.parse(
-                        "2026-09-30T20:01:45.456Z"),
-                decoded.recordedAt());
+                Instant.parse("2026-09-30T20:01:45.456Z").toEpochMilli(),
+                decoded.recordedAtMillis());
     }
 
     @Test
     public void unsupportedVersionIsReportedSeparately() throws Exception {
         try {
-            codec.decode(json("{\"v\":2}"));
+            codec.decode(json("{"v":2}"));
             fail("expected unsupported version");
         } catch (TimingDataCodec.CodecException expected) {
             assertSame(
@@ -390,13 +338,13 @@ public class DefaultTimingDataCodecTest {
         try {
             codec.decode(json(
                     "{"
-                            + "\"v\":1,"
-                            + "\"nodeId\":\"A\","
-                            + "\"seqNr\":9,"
-                            + "\"locId\":7,"
-                            + "\"recType\":\"FUTURE_RECORD\","
-                            + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                            + "\"recTime\":\"2026-09-30T20:01:45.450Z\""
+                            + ""v":1,"
+                            + ""nodeId":"A","
+                            + ""seqNr":9,"
+                            + ""locId":7,"
+                            + ""recType":"FUTURE_RECORD","
+                            + ""time":"2026-09-30T20:01:39.120Z","
+                            + ""recTime":"2026-09-30T20:01:45.450Z""
                             + "}"));
             fail("expected unsupported record type");
         } catch (TimingDataCodec.CodecException expected) {
@@ -404,9 +352,9 @@ public class DefaultTimingDataCodecTest {
                     TimingDataCodec.CodecException.Reason.UNSUPPORTED_RECORD_TYPE,
                     expected.reason());
             assertEquals(
-                    new TimingData.RecordKey(new NodeId("A"), 9L),
+                    new TimingRecord.RecordKey('A', 9L),
                     expected.key());
-            assertEquals(new LocationId(7), expected.locationId());
+            assertEquals(7, expected.locationId().value());
             assertEquals("FUTURE_RECORD", expected.recordType());
             assertEquals(EFFECTIVE, expected.effectiveTime());
             assertEquals(RECORDED, expected.recordedAt());
@@ -415,58 +363,58 @@ public class DefaultTimingDataCodecTest {
 
     @Test
     public void malformedOrSemanticallyInvalidRecordsAreInvalidData() throws Exception {
-        assertInvalid(json("{\"v\":1"));
-        assertInvalid(json(
+        assertInvalid("{"v":1");
+        assertInvalid(
                 "{"
-                        + "\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":1,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"AUTO_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                        + "\"regId\":\"A0042\","
-                        + "\"code\":[\"REV\",\"AUTO\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
-                        + "}"));
-        assertInvalid(json(
+                        + ""v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":1,"
+                        + ""locId":7,"
+                        + ""recType":"AUTO_REG","
+                        + ""time":"2026-09-30T20:01:39.120Z","
+                        + ""regId":"A0042","
+                        + ""code":["REV","AUTO"],"
+                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "}");
+        assertInvalid(
                 "{"
-                        + "\"v\":1,"
-                        + "\"v\":1,"
-                        + "\"nodeId\":\"A\""
-                        + "}"));
-        assertInvalid(json(
+                        + ""v":1,"
+                        + ""v":1,"
+                        + ""nodeId":"A""
+                        + "}");
+        assertInvalid(
                 "{"
-                        + "\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":1,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"MAN_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                        + "\"regId\":\"A0042\","
-                        + "\"code\":[\"ADD\",\"AUTO\",\"MAN\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
-                        + "}"));
+                        + ""v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":1,"
+                        + ""locId":7,"
+                        + ""recType":"MAN_REG","
+                        + ""time":"2026-09-30T20:01:39.120Z","
+                        + ""regId":"A0042","
+                        + ""code":["ADD","AUTO","MAN"],"
+                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "}");
     }
 
     @Test
     public void rejectsDuplicateCode() throws Exception {
-        assertInvalid(json(
+        assertInvalid(
                 "{"
-                        + "\"v\":1,"
-                        + "\"nodeId\":\"A\","
-                        + "\"seqNr\":1,"
-                        + "\"locId\":7,"
-                        + "\"recType\":\"MAN_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                        + "\"regId\":\"A0042\","
-                        + "\"code\":[\"ADD\",\"ADD\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
-                        + "}"));
+                        + ""v":1,"
+                        + ""nodeId":"A","
+                        + ""seqNr":1,"
+                        + ""locId":7,"
+                        + ""recType":"MAN_REG","
+                        + ""time":"2026-09-30T20:01:39.120Z","
+                        + ""regId":"A0042","
+                        + ""code":["ADD","ADD"],"
+                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "}");
     }
 
     @Test
     public void rejectsUtf8Bom() throws Exception {
-        byte[] body = json("{\"v\":1}");
+        byte[] body = json("{"v":1}");
         byte[] encoded = new byte[body.length + 3];
         encoded[0] = (byte) 0xef;
         encoded[1] = (byte) 0xbb;
@@ -476,25 +424,83 @@ public class DefaultTimingDataCodecTest {
         assertInvalid(encoded);
     }
 
-    private static TimingDataFactory.Context context(long sequence) {
-        return new TimingDataFactory.Context(
-                new NodeId("A"),
+    private static TimingRecord automatic(long sequence, String registrationId) {
+        return TimingRecord.automatic(
+                'A',
                 sequence,
-                new LocationId(7),
-                EFFECTIVE,
-                RECORDED);
+                7,
+                effectiveMillis(),
+                recordedMillis(),
+                registrationId(registrationId),
+                TimingRecord.Action.ADD,
+                null,
+                null);
+    }
+
+    private static TimingRecord manual(
+            long sequence,
+            String registrationId,
+            TimingRecord.Action action,
+            TimingRecord.ManualTimeSource timeSource) {
+        return TimingRecord.manual(
+                'A',
+                sequence,
+                7,
+                effectiveMillis(),
+                recordedMillis(),
+                registrationId(registrationId),
+                action,
+                timeSource);
+    }
+
+    private static TimingRecord opened(long sequence) {
+        return TimingRecord.opened(
+                'A',
+                sequence,
+                7,
+                effectiveMillis(),
+                recordedMillis());
+    }
+
+    private static TimingRecord closed(long sequence) {
+        return TimingRecord.closed(
+                'A',
+                sequence,
+                7,
+                effectiveMillis(),
+                recordedMillis());
+    }
+
+    private static int registrationId(String value) {
+        return new RegistrationId(value).packedValue();
+    }
+
+    private static long effectiveMillis() {
+        return EFFECTIVE.instant().toEpochMilli();
+    }
+
+    private static long recordedMillis() {
+        return RECORDED.instant().toEpochMilli();
+    }
+
+    private static String text(byte[] value) {
+        return new String(value, StandardCharsets.UTF_8);
     }
 
     private static byte[] json(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
     }
 
-    private static void assertCommon(TimingData data, long sequence) {
-        assertEquals(new NodeId("A"), data.timingNodeId());
-        assertEquals(sequence, data.sequenceNumber());
-        assertEquals(new LocationId(7), data.locationId());
-        assertEquals(EFFECTIVE, data.effectiveTime());
-        assertEquals(RECORDED, data.recordedAt());
+    private static void assertCommon(TimingRecord record, long sequence) {
+        assertEquals('A', record.nodeId());
+        assertEquals(sequence, record.sequenceNumber());
+        assertEquals(7, record.locationId());
+        assertEquals(effectiveMillis(), record.effectiveTimeMillis());
+        assertEquals(recordedMillis(), record.recordedAtMillis());
+    }
+
+    private void assertInvalid(String encoded) throws Exception {
+        assertInvalid(json(encoded));
     }
 
     private void assertInvalid(byte[] encoded) throws Exception {
