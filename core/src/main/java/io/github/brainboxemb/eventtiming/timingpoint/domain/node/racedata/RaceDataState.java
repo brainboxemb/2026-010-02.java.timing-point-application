@@ -51,17 +51,6 @@ public final class RaceDataState {
                 : teamAssignments.teamIdFor(registrationId);
     }
 
-    /** Resolves RegistrationId from fixed EventData first, then live assignment state. */
-    public RegistrationId registrationIdFor(TeamId teamId) {
-
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
-        RegistrationId configuredRegistrationId =
-                eventData.registrationIdFor(teamId);
-        return configuredRegistrationId != null
-                ? configuredRegistrationId
-                : teamAssignments.registrationIdFor(teamId);
-    }
-
     /**
      * Validates and atomically applies one complete Central RACE_DATA change set.
      *
