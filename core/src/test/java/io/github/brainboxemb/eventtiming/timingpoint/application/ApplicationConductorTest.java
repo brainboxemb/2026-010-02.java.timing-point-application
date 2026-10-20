@@ -1,9 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
@@ -114,7 +113,6 @@ public class ApplicationConductorTest {
                     TimingNodeFixture.create(
                             new NodeId(nodeId),
                             new NoOpPersistence(),
-                            new DefaultTimingDataFactory(),
                             ApplicationConductorTest::now);
 
             manager =
@@ -159,13 +157,13 @@ public class ApplicationConductorTest {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
         public void append(
-                TimingData data) {
+                TimingRecord record) {
             // Lifecycle test does not persist records.
         }
     }
