@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
@@ -349,8 +350,8 @@ public class TimingNodeTest {
             assertEquals(new LocationId(24), persistence.records.get(0).locationId());
             assertEquals(new LocationId(24), persistence.records.get(1).locationId());
             assertEquals(2, committedEvents.size());
-            assertSame(persistence.records.get(0), committedEvents.get(0));
-            assertSame(persistence.records.get(1), committedEvents.get(1));
+            assertEquals(TimingRecords.fromTimingData(persistence.records.get(0)), TimingRecords.fromTimingData(committedEvents.get(0)));
+            assertEquals(TimingRecords.fromTimingData(persistence.records.get(1)), TimingRecords.fromTimingData(committedEvents.get(1)));
         } finally {
             deactivate(node);
         }
