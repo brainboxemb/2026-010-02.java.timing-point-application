@@ -68,6 +68,8 @@ final class TimingPane {
     private boolean eventsConnected;
     private boolean operationBusy;
     private boolean historyRefreshQueued;
+    private boolean registrationSyncRunning;
+    private boolean registrationSyncAgain;
     // FX-thread-owned generation invalidates obsolete baseline/node history
     // responses after reconnect, disconnect or a newer selection.
     private final ViewRequestEpoch historyRequests = new ViewRequestEpoch();
@@ -392,7 +394,10 @@ final class TimingPane {
     }
 
     void applyStatus(ApiClient.StatusResult status) {
-        if (model.applyStatus(status)) refresh();
+        if (model.applyStatus(status)) {
+            refresh();
+            requestRegistrationProjectionSync();
+        }
     }
 
     void applyStatusEvent(ApiEventClient.StatusEvent event) {
@@ -426,7 +431,12 @@ final class TimingPane {
             return;
         }
 
-        if (model.mergeCommitted(event.timingData())) requestHistoryRefresh();
+        if (model.mergeCommitted(event.timingData())) {
+            requestHistoryRefresh();
+        }
+        if (isRegistrationEvent(event.timingData())) {
+            requestRegistrationProjectionSync();
+        }
     }
 
     /**
@@ -558,6 +568,7 @@ final class TimingPane {
                     rawSink.accept(result.status().rawJson());
                     feedback.accept("OK");
                     refresh();
+                    requestRegistrationProjectionSync();
                 }));
     }
 
@@ -624,7 +635,156 @@ final class TimingPane {
                         historyState.setText("LIVE");
                     }
                     refresh();
+                    requestRegistrationProjectionSync();
                 }));
+    }
+
+    private void requestRegistrationProjectionSync() {
+
+        if (!eventsConnected
+                || model.viewState()
+                        != TimingViewModel.ViewState.LIVE) {
+            return;
+        }
+
+        ApiClient.TimingNodeInfo selectedNode =
+                model.selectedNode();
+        if (selectedNode == null
+                || !"OPEN".equals(selectedNode.state())
+                || selectedNode.locationId() == null) {
+            if (model.registrationProjectionInfo() != null) {
+                model.clearRegistrationProjection();
+                refreshLogBook();
+            }
+            return;
+        }
+
+        if (registrationSyncRunning) {
+            registrationSyncAgain = true;
+            return;
+        }
+
+        registrationSyncRunning = true;
+        registrationSyncAgain = false;
+
+        final long requestGeneration =
+                historyRequests.current();
+        final String selected =
+                selectedNode.id();
+        final int selectedLocation =
+                selectedNode.locationId().intValue();
+        final ApiClient.RegistrationProjectionInfo cachedInfo =
+                model.registrationProjectionInfo();
+        final int cachedCount =
+                model.registrationProjectionRowCount();
+        final long cachedLastSequence =
+                model.latestRegistrationProjectionSequence();
+
+        CompletableFuture
+                .supplyAsync(
+                        () -> {
+                            try {
+                                return RegistrationProjectionReader.read(
+                                        clientSupplier.get(),
+                                        selected,
+                                        cachedInfo,
+                                        cachedCount,
+                                        cachedLastSequence);
+                            } catch (Exception ex) {
+                                throw new CompletionException(ex);
+                            }
+                        },
+                        requests)
+                .whenComplete(
+                        (result, error) ->
+                                Platform.runLater(
+                                        () -> completeRegistrationProjectionSync(
+                                                requestGeneration,
+                                                selected,
+                                                selectedLocation,
+                                                result,
+                                                error)));
+    }
+
+    private void completeRegistrationProjectionSync(
+            long requestGeneration,
+            String selected,
+            int selectedLocation,
+            RegistrationProjectionReader.Update result,
+            Throwable error) {
+
+        registrationSyncRunning = false;
+        boolean runAgain = registrationSyncAgain;
+        registrationSyncAgain = false;
+
+        ApiClient.TimingNodeInfo current =
+                model.selectedNode();
+        boolean currentRequest =
+                eventsConnected
+                        && historyRequests.isCurrent(requestGeneration)
+                        && model.viewState()
+                                == TimingViewModel.ViewState.LIVE
+                        && current != null
+                        && selected.equals(current.id())
+                        && "OPEN".equals(current.state())
+                        && current.locationId() != null
+                        && current.locationId().intValue()
+                                == selectedLocation;
+
+        if (currentRequest) {
+            if (error != null) {
+                Throwable root = rootCause(error);
+                if (root instanceof ApiClient.ApiException apiError
+                        && "NODE_NOT_OPEN".equals(apiError.code())) {
+                    model.clearRegistrationProjection();
+                    refreshLogBook();
+                } else {
+                    clientLog.warn(
+                            "Registration projection sync failed: "
+                                    + rootMessage(error));
+                }
+            } else if (result.info().locationId()
+                    == selectedLocation) {
+                boolean changed =
+                        result.replace()
+                                ? model.replaceRegistrationProjection(
+                                        result.info(),
+                                        result.rows())
+                                : model.appendRegistrationProjection(
+                                        result.info(),
+                                        result.rows());
+                if (changed) {
+                    refreshLogBook();
+                }
+            }
+        }
+
+        if (runAgain && currentRequest) {
+            requestRegistrationProjectionSync();
+        }
+    }
+
+    private boolean isRegistrationEvent(
+            ApiClient.TimingDataInfo data) {
+
+        if (data == null
+                || model.selectedNodeId() == null
+                || !model.selectedNodeId()
+                        .equals(data.timingNodeId())) {
+            return false;
+        }
+        if (!"AUTO_REG".equals(data.recordType())
+                && !"MAN_REG".equals(data.recordType())) {
+            return false;
+        }
+
+        ApiClient.TimingNodeInfo selected =
+                model.selectedNode();
+        return selected != null
+                && "OPEN".equals(selected.state())
+                && selected.locationId() != null
+                && selected.locationId().intValue()
+                        == data.locationId();
     }
 
     private void open() {
