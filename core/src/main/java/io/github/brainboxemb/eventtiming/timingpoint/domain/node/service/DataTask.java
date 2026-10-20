@@ -39,11 +39,17 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 final class DataTask extends AbstractTask {
     private static final int TIMING_DATA_BATCH_SIZE = 64;
 
+    /** Receives one stable OPEN-rebuild completion on the NodeService Task Lane. */
+    interface RebuildCompletedHandler {
+        void completed(int locationId, long recordsProcessed);
+    }
+
     private final SerialTaskRunner taskRunner;
     private final LogBookAccessor logBook;
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations;
     private final RegisteredTeams registeredTeams;
+    private final RebuildCompletedHandler rebuildCompletedHandler;
     private final Consumer<Throwable> failureHandler;
 
     private boolean available;
@@ -65,6 +71,7 @@ final class DataTask extends AbstractTask {
             RaceDataState raceData,
             ActiveRegistrations activeRegistrations,
             RegisteredTeams registeredTeams,
+            RebuildCompletedHandler rebuildCompletedHandler,
             Consumer<Throwable> failureHandler) {
 
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
@@ -72,6 +79,9 @@ final class DataTask extends AbstractTask {
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
         failIfInvalidArgument(registeredTeams != null, "registeredTeams must not be null");
+        failIfInvalidArgument(
+                rebuildCompletedHandler != null,
+                "rebuildCompletedHandler must not be null");
         failIfInvalidArgument(failureHandler != null, "failureHandler must not be null");
 
         this.taskRunner = taskRunner;
@@ -79,6 +89,7 @@ final class DataTask extends AbstractTask {
         this.raceData = raceData;
         this.activeRegistrations = activeRegistrations;
         this.registeredTeams = registeredTeams;
+        this.rebuildCompletedHandler = rebuildCompletedHandler;
         this.failureHandler = failureHandler;
     }
 
@@ -132,7 +143,7 @@ final class DataTask extends AbstractTask {
         }
     }
 
-    /** Wakes incremental catch-up after a new committed TimingData record. */
+    /** Wakes incremental catch-up after a new committed timing record. */
     synchronized void dataChanged() {
 
         if (available && requestedLocationId != 0) {
@@ -287,7 +298,7 @@ final class DataTask extends AbstractTask {
         List<TimingRecord> records = pendingRead.join();
         pendingRead = null;
 
-        failIfIllegalState(!records.isEmpty(), "No TimingData returned for sequence %s", nextSequence);
+        failIfIllegalState(!records.isEmpty(), "No timing record returned for sequence %s", nextSequence);
 
         for (TimingRecord record : records) {
             long sequence = record.sequenceNumber();
@@ -336,6 +347,9 @@ final class DataTask extends AbstractTask {
         if (activeLocationId != 0 && rebuilding) {
             registeredTeams.completeRebuild();
             rebuilding = false;
+            rebuildCompletedHandler.completed(
+                    activeLocationId,
+                    nextSequence - 1L);
         }
         caughtUp.complete(null);
         return true;
