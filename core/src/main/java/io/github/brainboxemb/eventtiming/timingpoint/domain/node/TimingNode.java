@@ -26,6 +26,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.function.Supplier;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
