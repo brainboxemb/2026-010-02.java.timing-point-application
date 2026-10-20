@@ -61,7 +61,7 @@ public final class NodeService extends LifecycleComponent {
     private final MainTask mainTask = new MainTask();
 
     /** Incremental team membership changes for a smart display's own team list. */
-    public final EventSource<RegisteredTeams.Change> REGISTERED_TEAMS_CHANGED = registeredTeams.changes();
+    public final EventSource<RegisteredTeams.Change> REGISTERED_TEAMS_CHANGED = registeredTeams.CHANGED;
 
     /** Creates the service over one LogBook and the node Task Lane. */
     public NodeService(

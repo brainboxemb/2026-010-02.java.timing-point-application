@@ -29,7 +29,7 @@ public class RegisteredTeamsTest {
         ActiveRegistrations registrations = new ActiveRegistrations();
         RegisteredTeams teams = new RegisteredTeams();
         List<RegisteredTeams.Change> changes = new ArrayList<>();
-        teams.changes().subscribe(changes::add);
+        teams.CHANGED.subscribe(changes::add);
 
         accept(registrations, teams, record(1L, 1, "A0001", TimingData.RegistrationAction.ADD), FIRST);
         accept(registrations, teams, record(2L, 1, "A0001", TimingData.RegistrationAction.ADD), FIRST);
@@ -71,7 +71,7 @@ public class RegisteredTeamsTest {
         ActiveRegistrations registrations = new ActiveRegistrations();
         RegisteredTeams teams = new RegisteredTeams();
         List<RegisteredTeams.Change> changes = new ArrayList<>();
-        teams.changes().subscribe(changes::add);
+        teams.CHANGED.subscribe(changes::add);
         accept(registrations, teams, record(1L, 1, "R0001", TimingData.RegistrationAction.ADD), null);
 
         assertEquals(0, changes.size());
