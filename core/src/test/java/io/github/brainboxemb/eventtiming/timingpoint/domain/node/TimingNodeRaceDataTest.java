@@ -165,7 +165,7 @@ public class TimingNodeRaceDataTest {
 
             assertEquals(0, fixture.stream.sentCount());
             assertNull(
-                    fixture.raceData.stageStartTimeFor(
+                    fixture.raceData.stageStartTimeMillisFor(
                             new TeamId("0042")));
         } finally {
             deactivate(fixture.node);

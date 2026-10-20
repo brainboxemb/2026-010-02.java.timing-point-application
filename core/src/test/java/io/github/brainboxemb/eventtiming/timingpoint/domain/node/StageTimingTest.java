@@ -13,18 +13,15 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,7 +34,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.Life
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/** Verifies the stage-passage view derived from active registrations. */
+/** Verifies stage timing uses only already-normalized absolute internal time. */
 public class StageTimingTest {
     private static final NodeId NODE_ID = new NodeId("A");
     private static final LocationId LOCATION_ID = new LocationId(1);
@@ -47,7 +44,7 @@ public class StageTimingTest {
     @Test
     public void keepsMultiplePassagesForOneTeam() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.NOON, null);
+        fixture.setStart("0001", Instant.parse("2026-10-13T12:00:00Z"));
 
         List<StageTimingRecord> passages =
                 stageTimes(
@@ -63,87 +60,64 @@ public class StageTimingTest {
                                                 2L,
                                                 "A0001",
                                                 Instant.parse("2026-10-13T12:00:10Z"),
-                                                TimingData.RegistrationAction.ADD))),
-                        ZoneOffset.UTC);
+                                                TimingData.RegistrationAction.ADD))));
 
         assertEquals(2, passages.size());
         assertEquals(1L, passages.get(0).sequenceNumber());
         assertEquals(2L, passages.get(1).sequenceNumber());
         assertEquals(new TeamId("0001"), passages.get(0).teamId());
-        assertEquals(new TeamId("0001"), passages.get(1).teamId());
         assertEquals(Duration.ofSeconds(20), passages.get(0).elapsed());
         assertEquals(Duration.ofSeconds(10), passages.get(1).elapsed());
     }
 
+    /** Crossing UTC midnight requires no civil-time or ZoneId logic in StageTiming. */
     @Test
-    public void timeOnlyStartUsesPreviousCivilDayAcrossMidnight() {
+    public void absoluteStartCrossesMidnightBySimpleSubtraction() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.of(23, 59, 50), null);
+        fixture.setStart("0001", Instant.parse("2026-10-13T23:59:50Z"));
 
-        List<StageTimingRecord> passages =
+        StageTimingRecord passage =
                 stageTimes(
-                        fixture.raceData,
-                        active(
-                                Collections.<TimingData>singletonList(
-                                        automatic(
-                                                1L,
-                                                "A0001",
-                                                Instant.parse("2026-10-13T22:00:10Z"),
-                                                TimingData.RegistrationAction.ADD))),
-                        ZoneId.of("Europe/Amsterdam"));
+                                fixture.raceData,
+                                active(
+                                        Collections.<TimingData>singletonList(
+                                                automatic(
+                                                        1L,
+                                                        "A0001",
+                                                        Instant.parse("2026-10-14T00:00:10Z"),
+                                                        TimingData.RegistrationAction.ADD))))
+                        .get(0);
 
-        assertEquals(1, passages.size());
-        assertEquals(Duration.ofSeconds(20), passages.get(0).elapsed());
-    }
-
-    @Test
-    public void explicitStartDateIsAuthoritative() {
-        Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.of(23, 59, 50), LocalDate.of(2026, 10, 13));
-
-        List<StageTimingRecord> passages =
-                stageTimes(
-                        fixture.raceData,
-                        active(
-                                Collections.<TimingData>singletonList(
-                                        automatic(
-                                                1L,
-                                                "A0001",
-                                                Instant.parse("2026-10-13T22:00:10Z"),
-                                                TimingData.RegistrationAction.ADD))),
-                        ZoneId.of("Europe/Amsterdam"));
-
-        assertEquals(Duration.ofSeconds(20), passages.get(0).elapsed());
+        assertEquals(Duration.ofSeconds(20), passage.elapsed());
     }
 
     @Test
     public void liveTeamAssignmentResolvesReserveRegistration() {
         Fixture fixture = fixture();
         fixture.assignTeam("R0001", "0042");
-        fixture.setStart("0042", LocalTime.NOON, null);
+        fixture.setStart("0042", Instant.parse("2026-10-13T12:00:00Z"));
 
-        List<StageTimingRecord> passages =
+        StageTimingRecord passage =
                 stageTimes(
-                        fixture.raceData,
-                        active(
-                                Collections.<TimingData>singletonList(
-                                        automatic(
-                                                1L,
-                                                "R0001",
-                                                Instant.parse("2026-10-13T12:00:30Z"),
-                                                TimingData.RegistrationAction.ADD))),
-                        ZoneOffset.UTC);
+                                fixture.raceData,
+                                active(
+                                        Collections.<TimingData>singletonList(
+                                                automatic(
+                                                        1L,
+                                                        "R0001",
+                                                        Instant.parse("2026-10-13T12:00:30Z"),
+                                                        TimingData.RegistrationAction.ADD))))
+                        .get(0);
 
-        assertEquals(1, passages.size());
-        assertEquals(new TeamId("0042"), passages.get(0).teamId());
-        assertEquals(new RegistrationId("R0001"), passages.get(0).registrationId());
-        assertEquals(Duration.ofSeconds(30), passages.get(0).elapsed());
+        assertEquals(new TeamId("0042"), passage.teamId());
+        assertEquals(new RegistrationId("R0001"), passage.registrationId());
+        assertEquals(Duration.ofSeconds(30), passage.elapsed());
     }
 
     @Test
     public void revokedAndUnresolvedRegistrationsDoNotBecomeStageTimingRecords() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.NOON, null);
+        fixture.setStart("0001", Instant.parse("2026-10-13T12:00:00Z"));
 
         TimingData add =
                 automatic(
@@ -166,17 +140,11 @@ public class StageTimingTest {
                         Instant.parse("2026-10-13T12:00:15Z"),
                         TimingData.RegistrationAction.ADD);
 
-        List<StageTimingRecord> passages =
-                stageTimes(
-                        fixture.raceData,
-                        active(Arrays.asList(add, lifecycle, revoke, unresolved)),
-                        ZoneOffset.UTC);
-
-        assertTrue(passages.isEmpty());
+        assertTrue(stageTimes(fixture.raceData, active(Arrays.asList(add, lifecycle, revoke, unresolved))).isEmpty());
     }
 
     @Test
-    public void currentStartStateRecalculatesPassageWithoutChangingTimingData() {
+    public void currentAbsoluteStartStateRecalculatesPassageWithoutChangingTimingData() {
         Fixture fixture = fixture();
         TimingData record =
                 automatic(
@@ -184,22 +152,13 @@ public class StageTimingTest {
                         "A0001",
                         Instant.parse("2026-10-13T12:01:00Z"),
                         TimingData.RegistrationAction.ADD);
+        ActiveRegistrations active = active(Collections.singletonList(record));
 
-        fixture.setStart("0001", LocalTime.NOON, null);
-        StageTimingRecord first =
-                stageTimes(
-                                fixture.raceData,
-                                active(Collections.singletonList(record)),
-                                ZoneOffset.UTC)
-                        .get(0);
+        fixture.setStart("0001", Instant.parse("2026-10-13T12:00:00Z"));
+        StageTimingRecord first = stageTimes(fixture.raceData, active).get(0);
 
-        fixture.setStart("0001", LocalTime.of(12, 0, 30), null);
-        StageTimingRecord second =
-                stageTimes(
-                                fixture.raceData,
-                                active(Collections.singletonList(record)),
-                                ZoneOffset.UTC)
-                        .get(0);
+        fixture.setStart("0001", Instant.parse("2026-10-13T12:00:30Z"));
+        StageTimingRecord second = stageTimes(fixture.raceData, active).get(0);
 
         assertEquals(Instant.parse("2026-10-13T12:00:00Z"), first.startedAt().instant());
         assertEquals(Instant.parse("2026-10-13T12:00:30Z"), second.startedAt().instant());
@@ -209,9 +168,9 @@ public class StageTimingTest {
         assertEquals(1L, record.sequenceNumber());
     }
 
-    /** Verifies NodeService exposes committed passages after current race-data resolution. */
+    /** NodeService receives local IF-06 time but exposes only normalized absolute timing. */
     @Test
-    public void nodeQueryReturnsCurrentPassageFromCommittedLogBook() throws Exception {
+    public void nodeQueryUsesStageStartNormalizedAtRaceDataIngress() {
         TimingData committed =
                 automatic(
                         1L,
@@ -241,43 +200,40 @@ public class StageTimingTest {
             assertTrue(components.upstreamHandler().inputAvailable());
             stream.takeSent();
 
-            List<StageTimingRecord> passages = stageTimes(components.nodeService(), ZoneOffset.UTC);
+            List<StageTimingRecord> passages = stageTimes(components.nodeService());
 
             assertEquals(1, passages.size());
-            assertEquals(1L, passages.get(0).sequenceNumber());
-            assertEquals(new TeamId("0001"), passages.get(0).teamId());
+            assertEquals(Instant.parse("2026-10-13T12:00:00Z"), passages.get(0).startedAt().instant());
             assertEquals(Duration.ofSeconds(20), passages.get(0).elapsed());
         } finally {
             deactivate(node);
         }
     }
 
-    /** Collects a small bounded passage result for assertions only. */
+    /** Collects test results from already-normalized RaceDataState. */
     private static List<StageTimingRecord> stageTimes(
             RaceDataState raceData,
-            ActiveRegistrations activeRegistrations,
-            ZoneId raceTimeZone) {
+            ActiveRegistrations activeRegistrations) {
 
         List<StageTimingRecord> result = new ArrayList<StageTimingRecord>();
         for (ActiveRegistrations.Registration registration : activeRegistrations.values()) {
-            RegistrationId registrationId = registration.registrationId();
-            TeamId teamId = raceData.teamIdFor(registrationId);
-            if (registration.isValid() && teamId != null && raceData.stageStartTimeFor(teamId) != null) {
-                result.add(StageTiming.resolve(registration, teamId, raceData.stageStartTimeFor(teamId), raceTimeZone));
+            TeamId teamId = raceData.teamIdFor(registration.registrationId());
+            Long startMillis = teamId == null ? null : raceData.stageStartTimeMillisFor(teamId);
+            if (registration.isValid() && startMillis != null) {
+                result.add(StageTiming.resolve(registration, teamId, startMillis.longValue()));
             }
         }
         return result;
     }
 
     /** Collects a small bounded NodeService passage result for assertions only. */
-    private static List<StageTimingRecord> stageTimes(NodeService nodeService, ZoneId raceTimeZone) {
+    private static List<StageTimingRecord> stageTimes(NodeService nodeService) {
 
         List<StageTimingRecord> result = new ArrayList<StageTimingRecord>();
-        nodeService.visitStageTimingRecords(raceTimeZone, 16, result::add);
+        nodeService.visitStageTimingRecords(16, result::add);
         return result;
     }
 
-    /** Folds committed test records into the active-registration view used by StageTiming. */
     private static ActiveRegistrations active(Iterable<TimingData> records) {
 
         ActiveRegistrations active = new ActiveRegistrations();
@@ -319,13 +275,9 @@ public class StageTimingTest {
             raceData.teamAssignments().validate();
         }
 
-        private void setStart(String teamId, LocalTime startTime, LocalDate startDate) {
+        private void setStart(String teamId, Instant start) {
 
-            raceData.stageStartTimes().set(
-                    new TeamId(teamId),
-                    startDate == null
-                            ? TimingTimestamp.localTime(startTime)
-                            : TimingTimestamp.localDateTime(startDate, startTime));
+            raceData.stageStartTimes().set(new TeamId(teamId), start.toEpochMilli());
         }
     }
 
