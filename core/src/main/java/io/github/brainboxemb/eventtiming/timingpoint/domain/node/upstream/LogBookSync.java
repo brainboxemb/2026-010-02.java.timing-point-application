@@ -1,8 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
@@ -11,7 +9,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -72,7 +69,7 @@ final class LogBookSync {
         }
 
         long fromSequence = req.fromSequence();
-        failIfInvalidArgument(fromSequence >= 1L && fromSequence <= TimingData.MAX_SEQUENCE_NUMBER,
+        failIfInvalidArgument(fromSequence >= 1L && fromSequence <= TimingRecord.MAX_SEQUENCE_NUMBER,
                 "REQ fromSequence is outside the supported range");
 
         long capturedHead = headSequence();
@@ -135,11 +132,7 @@ final class LogBookSync {
         failIfIllegalState(last.sequenceNumber() <= syncHead,
                 "TimingData synchronization crossed captured head %s", syncHead);
 
-        List<TimingData> transferRecords = new ArrayList<TimingData>(records.size());
-        for (TimingRecord record : records) {
-            transferRecords.add(TimingRecords.asTimingData(record));
-        }
-        stream.send(DefaultUpstreamData.timingData(nodeId, transferRecords));
+        stream.send(DefaultUpstreamData.timingData(nodeId, records));
 
         if (last.sequenceNumber() >= syncHead) {
             syncActive = false;
