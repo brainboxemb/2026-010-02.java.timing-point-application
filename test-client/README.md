@@ -338,6 +338,20 @@ and Client Log use compact two-to-three-pixel panel margins. The Systems
 Explorer hides its redundant **LIVE** heading, while warnings like
 NOT SYNCED / SYNCING / STALE remain visible.
 
+The current-location Registrations table follows SI-01's maintained NodeService
+projection rather than reconstructing validity from local LogBook history. A compact
+status line above the table shows row count, unique-team count and the latest REV
+sequence when present. The **All locations** scope remains the historical LogBook-derived
+view.
+
+Registration projection synchronisation is event-driven. Status/TimingData events are
+invalidation signals: the client first reads the small registration metadata resource.
+ADD-only growth fetches only missing rows after the latest known ADD sequence. A changed
+REV sequence, LocationId, count regression or ambiguous mutation causes a bounded full
+projection reread because a previously shown row may have changed validity. The existing
+**Sync view** action remains the explicit manual recovery path; there is no periodic
+full-list polling loop.
+
 The Registrations and LogBook tables each have one empty final presentation row.
 Selecting that row follows the latest incoming records. Selecting a historical row
 or scrolling upward pauses following for that table only; selecting the empty
@@ -361,7 +375,7 @@ AUTO/MAN time-source classification; normally supported direct capability no
 longer adds an extra status row. Unsupported capability is explained only while
 the connected status is LIVE.
 
-Registration input uses a separate prefix and numeric field plus readable local civil
+Registration input uses one canonical RegistrationId field plus readable local civil
 date and hundredth-second clock time. The UI shows the interpreted client time zone next
 to the field (for example `Europe/Amsterdam`) and converts that explicit local value to
 the canonical UTC API timestamp when sending. **Now** captures the current client
@@ -432,15 +446,17 @@ The SI-02 client/application state uses the following LogBook/live-event synchro
 - composes simulated-tag batches client-side from repeated single-scenario API calls;
   count/range/order/interval belong to the client while profile observation timing remains
   server-side simulation behaviour;
-- composes RegistrationId from the presentation prefix + numeric field, shows the
-  interpreted client time zone explicitly and converts the entered local civil time to
-  a hundredth-second canonical UTC API timestamp;
+- accepts the canonical RegistrationId input, shows the interpreted client time zone
+  explicitly and converts the entered local civil time to a hundredth-second canonical
+  UTC API timestamp;
 - defaults the interpreted Registrations view to the currently OPEN LocationId and
   provides **All** for synchronized history across locations;
 - shows the returned source `seq` as the operation result;
 - shows committed TimingData **Type** and **Code** in separate LogBook columns;
-- projects ADD/REV registration history in the client and uses the original ADD values
-  when the trash action requests an append-only revoke;
+- uses SI-01's maintained active-WP registration projection for current LocationId
+  order/validity and keeps **All locations** as the LogBook-derived historical view;
+- synchronizes that projection automatically from Events-triggered lightweight metadata:
+  ADD-only growth fetches the missing tail while a new REV forces bounded full reread;
 - keeps node lifecycle `NODE_INFO` records in the technical LogBook while excluding
   them from the interpreted Registrations projection;
 - queries LogBook metadata without downloading the full LogBook;
@@ -487,6 +503,8 @@ POST /api/v1/node/{id}/registration/revoke
 GET  /api/v1/node/{id}/logbook
 GET  /api/v1/node/{id}/logbook?from=...&limit=...
 GET  /api/v1/node/{id}/logbook?last=...
+GET  /api/v1/node/{id}/registrations
+GET  /api/v1/node/{id}/registrations?after=...&limit=...
 
 POST /api/v1/dev/node/{id}/auto-reg
 POST /api/v1/dev/node/{id}/simulation/registration
