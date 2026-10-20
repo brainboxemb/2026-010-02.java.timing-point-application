@@ -113,8 +113,6 @@ public class EngineerApiConnectorTest {
                 },
                 connected::incrementAndGet,
                 () -> {
-                },
-                () -> {
                 });
         connector.bindNode(
                 new NodeId("B"),
@@ -203,6 +201,8 @@ public class EngineerApiConnectorTest {
                 components.nodeUpstream()::inputAvailable,
                 () -> {
                     // This test exercises one inbound message only.
+                },
+                () -> {
                 });
 
         LinkedBlockingQueue<UpstreamData> outbound =
@@ -263,6 +263,8 @@ public class EngineerApiConnectorTest {
                 new NodeId("A"),
                 () -> true,
                 () -> {
+                },
+                () -> {
                 });
 
         UpstreamData.Sync input =
@@ -293,6 +295,8 @@ public class EngineerApiConnectorTest {
         connector.bindNode(
                 new NodeId("A"),
                 () -> false,
+                () -> {
+                },
                 () -> {
                 });
         EngineerApiConnector.Output peer =

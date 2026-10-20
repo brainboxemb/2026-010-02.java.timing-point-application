@@ -28,9 +28,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -38,6 +40,14 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class HttpEndpointTest {
+    private final ScheduledThreadPoolExecutor upstreamScheduler =
+            new ScheduledThreadPoolExecutor(1);
+
+    @After
+    public void closeUpstreamScheduler() {
+        upstreamScheduler.shutdownNow();
+    }
+
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
@@ -78,7 +88,7 @@ public class HttpEndpointTest {
                 new PresentationGatewayFixture(
                         identity());
         EngineerApiConnector connector =
-                new EngineerApiConnector();
+                new EngineerApiConnector(upstreamScheduler);
         AtomicInteger inputSignals =
                 new AtomicInteger();
 
@@ -87,6 +97,8 @@ public class HttpEndpointTest {
                 () -> {
                     inputSignals.incrementAndGet();
                     return true;
+                },
+                () -> {
                 },
                 () -> {
                 });
@@ -145,10 +157,12 @@ public class HttpEndpointTest {
                 new PresentationGatewayFixture(
                         identity());
         EngineerApiConnector connector =
-                new EngineerApiConnector();
+                new EngineerApiConnector(upstreamScheduler);
         connector.bindNode(
                 new NodeId("A"),
                 () -> true,
+                () -> {
+                },
                 () -> {
                 });
 
