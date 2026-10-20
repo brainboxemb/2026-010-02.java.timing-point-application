@@ -1,14 +1,11 @@
 package io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
@@ -33,15 +30,20 @@ public class DefaultUpstreamDataCodecTest {
     @Test
     public void composesTimingDataJsonWithoutChangingIdentity() throws Exception {
         NodeId nodeId = new NodeId("A");
-        TimingDataFactory factory = new DefaultTimingDataFactory();
-        TimingData record = factory.createAutomaticRegistration(
-                new TimingDataFactory.Context(
-                        nodeId,
-                        42L,
-                        new LocationId(1),
-                        TimingTimestamp.parse("2026-10-13T08:00:00.12Z"),
-                        TimingTimestamp.parse("2026-10-13T08:00:00.123Z")),
-                new RegistrationId("A0042"));
+        TimingRecord record = TimingRecord.automatic(
+                'A',
+                42L,
+                1,
+                TimingTimestamp.parse("2026-10-13T08:00:00.12Z")
+                        .instant()
+                        .toEpochMilli(),
+                TimingTimestamp.parse("2026-10-13T08:00:00.123Z")
+                        .instant()
+                        .toEpochMilli(),
+                new RegistrationId("A0042").packedValue(),
+                TimingRecord.Action.ADD,
+                null,
+                null);
 
         UpstreamData.TimingDataTransfer transfer =
                 DefaultUpstreamData.timingData(
@@ -59,7 +61,7 @@ public class DefaultUpstreamDataCodecTest {
         assertEquals(nodeId, decoded.timingNodeId());
         assertEquals(1, decoded.records().size());
         assertEquals(42L, decoded.records().get(0).sequenceNumber());
-        assertEquals(nodeId, decoded.records().get(0).timingNodeId());
+        assertEquals(nodeId.value().charAt(0), decoded.records().get(0).nodeId());
     }
 
     @Test
