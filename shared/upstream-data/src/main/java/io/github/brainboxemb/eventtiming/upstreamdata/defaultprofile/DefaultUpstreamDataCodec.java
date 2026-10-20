@@ -5,7 +5,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -131,7 +131,7 @@ public final class DefaultUpstreamDataCodec
         }
 
         generator.writeStartArray();
-        for (TimingData record : transfer.records()) {
+        for (TimingRecord record : transfer.records()) {
             if (record == null
                     || !transfer.timingNodeId().equals(record.timingNodeId())) {
                 throw encodeFailure(
@@ -481,10 +481,10 @@ public final class DefaultUpstreamDataCodec
                 throw invalid("TIMING_DATA data must be an array", null);
             }
 
-            List<TimingData> records = new ArrayList<TimingData>();
+            List<TimingRecord> records = new ArrayList<TimingRecord>();
             while (parser.nextToken() != JsonToken.END_ARRAY) {
                 byte[] recordJson = captureCurrentValue(parser);
-                final TimingData record;
+                final TimingRecord record;
                 try {
                     record = timingDataCodec.decode(recordJson);
                 } catch (TimingDataCodec.CodecException ex) {
@@ -970,20 +970,20 @@ public final class DefaultUpstreamDataCodec
             long sequence,
             String field)
             throws CodecException {
-        if (sequence < 1L || sequence > TimingData.MAX_SEQUENCE_NUMBER) {
+        if (sequence < 1L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
             throw invalid(
                     field + " must be in range 1.."
-                            + TimingData.MAX_SEQUENCE_NUMBER,
+                            + TimingRecord.MAX_SEQUENCE_NUMBER,
                     null);
         }
     }
 
     private static void requireSyncSequence(long sequence)
             throws CodecException {
-        if (sequence < 0L || sequence > TimingData.MAX_SEQUENCE_NUMBER) {
+        if (sequence < 0L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
             throw invalid(
                     "SYNC seq must be in range 0.."
-                            + TimingData.MAX_SEQUENCE_NUMBER,
+                            + TimingRecord.MAX_SEQUENCE_NUMBER,
                     null);
         }
     }
