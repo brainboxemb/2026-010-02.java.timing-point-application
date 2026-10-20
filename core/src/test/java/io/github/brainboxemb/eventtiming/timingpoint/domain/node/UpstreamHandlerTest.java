@@ -196,6 +196,7 @@ public class UpstreamHandlerTest {
                         taskLane,
                         logBook,
                         timeSource,
+                        eventData,
                         raceData,
                         activeRegistrations);
         UpstreamHandler upstreamHandler =
