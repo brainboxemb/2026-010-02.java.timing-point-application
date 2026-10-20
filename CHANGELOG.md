@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stream `RegisteredTeams.visit(...)` directly over the retained unique-team set for CAN/display burst synchronization; remove the temporary sorted list because team order has no domain/protocol meaning.
+
 - Make `ActiveRegistrations` retained state compact and consistent: committed `TimingData` is copied once into primitive scalar fields and no longer retained; `StageTiming` and ranking consume that compact record, while semantic `RegistrationId`, `LocationId`, and `TimingTimestamp` values are reconstructed only at read/output boundaries.
 
 - Align SI-02 registration input with the canonical `A0001`-style RegistrationId: replace legacy configurable prefix + number controls with one validated field, remove `registration.prefix`, and rename visible `Direct auto-reg` wording to direct registration terminology.
