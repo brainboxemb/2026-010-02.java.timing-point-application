@@ -108,6 +108,57 @@ public final class MessageWriter {
         return "{\"seq\":" + record.sequenceNumber() + "}";
     }
 
+    public static String registrationInfo(
+            TimingNodeProxy.RegistrationProjectionInfo info) {
+        return "{"
+                + "\"locId\":" + info.locationId().value() + ","
+                + "\"count\":" + info.count() + ","
+                + "\"uniqueCount\":" + info.uniqueCount() + ","
+                + "\"lastMutationSeq\":" + info.lastMutationSequence() + ","
+                + "\"lastRevokeSeq\":" + info.lastRevokeSequence()
+                + "}";
+    }
+
+    public static String registrationPage(
+            TimingNodeProxy.RegistrationProjectionInfo info,
+            Long nextAfter,
+            CharSequence rows) {
+        return "{"
+                + "\"locId\":" + info.locationId().value() + ","
+                + "\"count\":" + info.count() + ","
+                + "\"uniqueCount\":" + info.uniqueCount() + ","
+                + "\"lastMutationSeq\":" + info.lastMutationSequence() + ","
+                + "\"lastRevokeSeq\":" + info.lastRevokeSequence() + ","
+                + "\"nextAfter\":"
+                + (nextAfter == null
+                        ? "null"
+                        : Long.toString(nextAfter.longValue()))
+                + ","
+                + "\"registrations\":[" + rows + "]"
+                + "}";
+    }
+
+    static void appendRegistration(
+            StringBuilder rows,
+            TimingNodeProxy.RegistrationEntry entry) {
+        if (rows.length() > 0) {
+            rows.append(',');
+        }
+        rows.append('{')
+                .append("\"seqNr\":")
+                .append(entry.sequenceNumber())
+                .append(',')
+                .append("\"regId\":")
+                .append(quote(entry.registrationId().value()))
+                .append(',')
+                .append("\"time\":")
+                .append(quote(entry.effectiveTime().instant().toString()))
+                .append(',')
+                .append("\"valid\":")
+                .append(entry.valid())
+                .append('}');
+    }
+
     public static String logBookInfo(int count) {
         return "{"
                 + "\"count\":" + count + ","
