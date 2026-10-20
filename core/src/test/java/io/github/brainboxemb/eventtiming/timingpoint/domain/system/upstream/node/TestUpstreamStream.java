@@ -45,4 +45,9 @@ final class TestUpstreamStream implements UpstreamStream {
         }
         return data;
     }
+
+    int sentCount() {
+        return outbound.size();
+    }
 }
+

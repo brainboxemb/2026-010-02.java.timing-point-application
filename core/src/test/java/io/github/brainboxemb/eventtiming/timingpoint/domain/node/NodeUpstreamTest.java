@@ -84,6 +84,51 @@ public class NodeUpstreamTest {
     }
 
     @Test
+    public void queuedRaceDataMessagesAreAppliedInOrderAfterOneInputNotification() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNodeFixture.Components node =
+                node("A", stream);
+        activate(node.node());
+        activate(node.nodeUpstream());
+        try {
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "R0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            2L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "R0002",
+                                            "0043")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+
+            // One notification is sufficient: message 2 remains in the stream
+            // queue until the message-1 RaceDataTask has completed.
+            assertTrue(node.nodeUpstream().inputAvailable());
+
+            UpstreamData.Ack first =
+                    (UpstreamData.Ack) stream.takeSent();
+            UpstreamData.Ack second =
+                    (UpstreamData.Ack) stream.takeSent();
+
+            assertEquals(1L, first.sequence());
+            assertEquals(2L, second.sequence());
+        } finally {
+            deactivate(node.nodeUpstream());
+            deactivate(node.node());
+        }
+    }
+
+    @Test
     public void heartbeatUsesSameOutboundStreamAndTracksMissedIntervals() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
@@ -447,6 +492,55 @@ public class NodeUpstreamTest {
             assertEquals(
                     0,
                     stream.sentCount());
+        } finally {
+            deactivate(node.nodeUpstream());
+            deactivate(node.node());
+        }
+    }
+
+    @Test
+    public void secondTimingDataReplayRequestRemainsQueuedUntilFirstCompletes() {
+        List<TimingRecord> records =
+                timingData("A", 5);
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNodeFixture.Components node =
+                node(
+                        "A",
+                        stream,
+                        records);
+        activate(node.node());
+        activate(node.nodeUpstream());
+        try {
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            2L));
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            5L));
+
+            // Only the first arrival wakes NodeUpstream. The second REQ remains
+            // queued until the first TimingDataReplayTask has fully completed.
+            assertTrue(node.nodeUpstream().inputAvailable());
+
+            UpstreamData.TimingDataTransfer first =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+            UpstreamData.TimingDataTransfer second =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+
+            assertEquals(4, first.records().size());
+            assertEquals(2L, first.records().get(0).sequenceNumber());
+            assertEquals(5L, first.records().get(3).sequenceNumber());
+
+            assertEquals(1, second.records().size());
+            assertEquals(5L, second.records().get(0).sequenceNumber());
+            assertEquals(0, stream.sentCount());
         } finally {
             deactivate(node.nodeUpstream());
             deactivate(node.node());

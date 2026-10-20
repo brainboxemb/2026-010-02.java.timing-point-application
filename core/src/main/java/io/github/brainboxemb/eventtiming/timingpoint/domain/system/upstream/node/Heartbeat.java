@@ -8,7 +8,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Owns heartbeat protocol state for one TimingNode.
+ * Owns heartbeat protocol state for one NodeUpstream.
  *
  * <p>This helper has no worker or timer. Runtime scheduling decides when a
  * heartbeat tick occurs; the owning NodeUpstream task lane calls {@link #tick()}
@@ -16,7 +16,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * therefore has one serial owner even though its immutable status snapshot may
  * be read directly.</p>
  */
-final class UpstreamHeartbeat {
+final class Heartbeat {
     private final NodeId nodeId;
     private final UpstreamStream stream;
 
@@ -35,7 +35,7 @@ final class UpstreamHeartbeat {
                     false);
 
     /** Creates heartbeat protocol state for one node-scoped upstream stream. */
-    UpstreamHeartbeat(NodeId nodeId, UpstreamStream stream) {
+    Heartbeat(NodeId nodeId, UpstreamStream stream) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         this.nodeId = nodeId;

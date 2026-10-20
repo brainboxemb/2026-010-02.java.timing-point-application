@@ -17,16 +17,16 @@ import org.junit.Test;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class LogBookSyncTest {
+public class TimingDataSyncTest {
 
     @Test
-    public void raceDataReqIsNotOwnedByLogBookSync() {
+    public void raceDataReqIsNotOwnedByTimingDataSync() {
         NodeId nodeId = new NodeId("A");
-        LogBookSync sync =
-                new LogBookSync(nodeId, new TestUpstreamStream(), emptyLogBook(nodeId));
+        TimingDataSync sync =
+                new TimingDataSync(nodeId, new TestUpstreamStream(), emptyLogBook(nodeId));
 
         try {
-            sync.handleReq(
+            sync.startReplay(
                     DefaultUpstreamData.req(
                             nodeId,
                             UpstreamData.Stream.RACE_DATA,

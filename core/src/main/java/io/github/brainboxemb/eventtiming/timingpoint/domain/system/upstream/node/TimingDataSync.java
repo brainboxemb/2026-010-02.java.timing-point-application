@@ -16,26 +16,27 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Synchronizes this TimingNode's committed LogBook with Central.
+ * Owns TIMING_DATA source-head and replay state for one NodeUpstream.
  *
- * <p>The LogBook is the TIMING_DATA source of truth. A REQ captures the current
+ * <p>The LogBook is the TIMING_DATA source of truth. One REQ captures the current
  * source head once; records committed afterwards are intentionally excluded.
- * Ordered batch reads are submitted asynchronously to the LogBook Data Lane so
- * the owning upstream Task Lane can yield instead of blocking the shared worker.</p>
+ * Ordered batch reads are submitted asynchronously to the LogBook Data Lane.
+ * TimingDataReplayTask owns the CompletableFuture continuation and therefore
+ * releases the shared worker while each batch is being read.</p>
  */
-final class LogBookSync {
+final class TimingDataSync {
     private static final int MAX_RECORDS_PER_BATCH = 256;
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
     private final LogBookAccessor logBook;
 
-    private boolean syncActive;
+    private boolean replayActive;
     private long nextSequence;
-    private long syncHead;
+    private long replayHead;
 
     /** Creates TIMING_DATA synchronization state for one node-scoped upstream stream. */
-    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookAccessor logBook) {
+    TimingDataSync(NodeId nodeId, UpstreamStream stream, LogBookAccessor logBook) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
@@ -45,7 +46,7 @@ final class LogBookSync {
     }
 
     /** Sends the current TIMING_DATA source head. Empty LogBook means sequence 0. */
-    void sendSync() {
+    void sendSourceHead() {
         if (stream.isAvailable()) {
             stream.send(DefaultUpstreamData.sync(
                     nodeId,
@@ -61,8 +62,8 @@ final class LogBookSync {
                 ReadConsistency.CURRENT);
     }
 
-    /** Starts synchronization at the inclusive requested sequence. */
-    void handleReq(UpstreamData.Req req) {
+    /** Starts one replay at the inclusive requested sequence captured by the REQ. */
+    void startReplay(UpstreamData.Req req) {
         failIfInvalidArgument(req != null, "req must not be null");
         if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
             throw new UnsupportedOperationException("Inbound REQ supports TIMING_DATA only");
@@ -74,31 +75,31 @@ final class LogBookSync {
 
         long capturedHead = headSequence();
         if (fromSequence > capturedHead) {
-            syncActive = false;
+            replayActive = false;
         } else {
             nextSequence = fromSequence;
-            syncHead = capturedHead;
-            syncActive = true;
+            replayHead = capturedHead;
+            replayActive = true;
         }
     }
 
-    /** Reports whether the captured synchronization run still has records to send. */
-    boolean syncPending() {
-        return syncActive;
+    /** Reports whether the captured replay still has records to send. */
+    boolean replayPending() {
+        return replayActive;
     }
 
-    /** Cancels the current captured synchronization run without changing LogBook state. */
-    void cancelSync() {
-        syncActive = false;
+    /** Cancels the current replay without changing LogBook state. */
+    void cancelReplay() {
+        replayActive = false;
     }
 
-    /** Submits the next ordered LogBook batch read without blocking the Task Lane. */
+    /** Submits the next ordered LogBook batch read without blocking NodeUpstream. */
     CompletableFuture<List<TimingRecord>> submitNextBatch() {
-        failIfIllegalState(syncActive, "No TIMING_DATA synchronization is active");
+        failIfIllegalState(replayActive, "No TIMING_DATA synchronization is active");
 
         int limit = (int) Math.min(
                 (long) MAX_RECORDS_PER_BATCH,
-                syncHead - nextSequence + 1L);
+                replayHead - nextSequence + 1L);
 
         return logBook.submit(
                 LogBookQueries.timingRecordRange(
@@ -111,31 +112,31 @@ final class LogBookSync {
         failIfInvalidArgument(records != null, "records must not be null");
 
         if (records.isEmpty()) {
-            syncActive = false;
+            replayActive = false;
         }
         failIfIllegalState(!records.isEmpty(),
                 "LogBook head %s advertised record %s but synchronization returned no data",
-                syncHead, nextSequence);
+                replayHead, nextSequence);
 
         TimingRecord first = records.get(0);
         if (first.sequenceNumber() != nextSequence) {
-            syncActive = false;
+            replayActive = false;
         }
         failIfIllegalState(first.sequenceNumber() == nextSequence,
                 "TimingData synchronization expected sequence %s but got %s",
                 nextSequence, first.sequenceNumber());
 
         TimingRecord last = records.get(records.size() - 1);
-        if (last.sequenceNumber() > syncHead) {
-            syncActive = false;
+        if (last.sequenceNumber() > replayHead) {
+            replayActive = false;
         }
-        failIfIllegalState(last.sequenceNumber() <= syncHead,
-                "TimingData synchronization crossed captured head %s", syncHead);
+        failIfIllegalState(last.sequenceNumber() <= replayHead,
+                "TimingData synchronization crossed captured head %s", replayHead);
 
         stream.send(DefaultUpstreamData.timingData(nodeId, records));
 
-        if (last.sequenceNumber() >= syncHead) {
-            syncActive = false;
+        if (last.sequenceNumber() >= replayHead) {
+            replayActive = false;
         } else {
             nextSequence = last.sequenceNumber() + 1L;
         }
