@@ -1,47 +1,19 @@
 package io.github.brainboxemb.eventtiming.timingdata;
 
 /**
- * Translates one TimingData record payload to or from a concrete representation.
+ * Translates one scalar TimingRecord payload to or from a concrete IF-05 representation.
  *
- * <p>Record framing belongs to the caller. For the canonical IF-05 JSON Lines
- * format, for example, a codec handles one JSON record while the store owns
- * LF/CRLF framing and incomplete-tail handling.</p>
+ * <p>Record framing belongs to the caller. A codec handles exactly one record;
+ * JSON Lines framing, incomplete-tail handling and storage recovery belong to
+ * the persistence layer.</p>
  */
 public interface TimingDataCodec {
 
-    /** Encodes the shared scalar timing record directly. */
-    default byte[] encode(TimingRecord record) throws CodecException {
-        return encode(TimingRecords.asTimingData(record));
-    }
+    byte[] encode(TimingRecord record) throws CodecException;
 
-    /** Decodes one payload directly into the shared scalar timing record. */
-    default TimingRecord decodeRecord(byte[] encodedRecord) throws CodecException {
-        return TimingRecords.fromTimingData(decode(encodedRecord));
-    }
+    TimingRecord decode(byte[] encodedRecord) throws CodecException;
 
-    /**
-     * Legacy Java semantic view retained only for compatibility at API boundaries.
-     */
-    default byte[] encode(TimingData data) throws CodecException {
-        return encode(TimingRecords.fromTimingData(data));
-    }
-
-    /**
-     * Legacy Java semantic view retained only for compatibility at API boundaries.
-     */
-    default TimingData decode(byte[] encodedRecord) throws CodecException {
-        return TimingRecords.asTimingData(decodeRecord(encodedRecord));
-    }
-
-    /**
-     * Checked codec failure carrying semantic context for validation and
-     * compatibility handling.
-     *
-     * <p>Consumers normally inspect {@link #reason()} first. Unsupported-version
-     * and unsupported-record-type factories attach the common envelope values
-     * that were safely readable without pretending the record was successfully
-     * decoded.</p>
-     */
+    /** Checked codec failure carrying readable envelope context when available. */
     final class CodecException extends Exception {
 
         public enum Reason {
@@ -53,7 +25,7 @@ public interface TimingDataCodec {
 
         private final Reason reason;
         private final Integer version;
-        private final TimingData.RecordKey key;
+        private final TimingRecord.RecordKey key;
         private final TimingDataTypes.LocationId locationId;
         private final String recordType;
         private final TimingTimestamp effectiveTime;
@@ -72,7 +44,7 @@ public interface TimingDataCodec {
                 String message,
                 Throwable cause,
                 Integer version,
-                TimingData.RecordKey key,
+                TimingRecord.RecordKey key,
                 TimingDataTypes.LocationId locationId,
                 String recordType,
                 TimingTimestamp effectiveTime,
@@ -90,9 +62,7 @@ public interface TimingDataCodec {
             this.recordedAt = recordedAt;
         }
 
-        public static CodecException unsupportedVersion(
-                int version,
-                String message) {
+        public static CodecException unsupportedVersion(int version, String message) {
             return new CodecException(
                     Reason.UNSUPPORTED_VERSION,
                     message,
@@ -105,13 +75,9 @@ public interface TimingDataCodec {
                     null);
         }
 
-        /**
-         * Reports an unknown record type in an otherwise readable
-         * supported-version envelope. Raw encoded bytes remain owned by the caller.
-         */
         public static CodecException unsupportedRecordType(
                 int version,
-                TimingData.RecordKey key,
+                TimingRecord.RecordKey key,
                 TimingDataTypes.LocationId locationId,
                 String recordType,
                 TimingTimestamp effectiveTime,
@@ -152,7 +118,7 @@ public interface TimingDataCodec {
             return version;
         }
 
-        public TimingData.RecordKey key() {
+        public TimingRecord.RecordKey key() {
             return key;
         }
 
