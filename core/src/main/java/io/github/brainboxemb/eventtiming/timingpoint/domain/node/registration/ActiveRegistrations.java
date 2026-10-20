@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -57,30 +57,25 @@ public final class ActiveRegistrations {
      * <p>Registration records for other LocationIds, non-registration records and unmatched REV
      * records leave this projection unchanged.</p>
      */
-    public Change apply(TimingData data) {
+    public Change apply(TimingRecord record) {
 
-        failIfInvalidArgument(data != null, "data must not be null");
+        failIfInvalidArgument(record != null, "record must not be null");
         failIfIllegalState(locationId != 0, "registration projection is not active");
 
         Change change = null;
-        RegistrationId registrationId = registrationIdOrNull(data);
-        if (registrationId != null && data.locationId().value() == locationId) {
-            TimingTimestamp effectiveTime = data.effectiveTime();
-            failIfIllegalState(effectiveTime.isAbsolute(), "committed registration time must be absolute");
+        if (isRegistration(record) && record.locationId() == locationId) {
+            int packedRegistrationId = record.registrationId();
+            long effectiveTimeMillis = record.effectiveTimeMillis();
 
-            int packedRegistrationId = registrationId.packedValue();
-            long effectiveTimeMillis = effectiveTime.instant().toEpochMilli();
-            TimingData.RegistrationAction action = registrationAction(data);
-
-            if (action == TimingData.RegistrationAction.ADD) {
+            if (record.action() == TimingRecord.Action.ADD) {
                 Registration registration =
                         new Registration(
-                                data.sequenceNumber(),
+                                record.sequenceNumber(),
                                 effectiveTimeMillis,
                                 packedRegistrationId);
                 registrations.add(registration);
                 change = new Change(Change.Action.ADDED, registration);
-            } else if (action == TimingData.RegistrationAction.REV) {
+            } else if (record.action() == TimingRecord.Action.REV) {
                 change = revoke(packedRegistrationId, effectiveTimeMillis);
             }
         }
@@ -150,28 +145,11 @@ public final class ActiveRegistrations {
         return change;
     }
 
-    /** Returns the identity of an automatic or manual registration, otherwise null. */
-    private static RegistrationId registrationIdOrNull(TimingData data) {
+    /** Reports whether this record changes registration state. */
+    private static boolean isRegistration(TimingRecord record) {
 
-        RegistrationId registrationId = null;
-        if (data instanceof TimingData.AutomaticRegistration) {
-            registrationId = ((TimingData.AutomaticRegistration) data).registrationId();
-        } else if (data instanceof TimingData.ManualRegistration) {
-            registrationId = ((TimingData.ManualRegistration) data).registrationId();
-        }
-        return registrationId;
-    }
-
-    /** Returns the registration action, or null for other TimingData records. */
-    private static TimingData.RegistrationAction registrationAction(TimingData data) {
-
-        TimingData.RegistrationAction action = null;
-        if (data instanceof TimingData.AutomaticRegistration) {
-            action = ((TimingData.AutomaticRegistration) data).action();
-        } else if (data instanceof TimingData.ManualRegistration) {
-            action = ((TimingData.ManualRegistration) data).action();
-        }
-        return action;
+        return record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION
+                || record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION;
     }
 
     /**
