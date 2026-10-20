@@ -31,12 +31,20 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 /** Shared line-oriented command session used by local and remote terminal transports. */
 public final class TerminalSession {
+    private static final int REGISTRATION_PAGE_SIZE = 100;
+    private static final int MAX_REGISTRATION_PAGE_SIZE = 1000;
+    private static final DateTimeFormatter REGISTRATION_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("HHmmssSS")
+                    .withZone(ZoneOffset.UTC);
 
     private final PresentationGateway presentationGateway;
     private final LoggingLevelControl loggingLevelControl;
@@ -199,6 +207,9 @@ public final class TerminalSession {
                 case "reg":
                     registration(arguments, nodeId, output);
                     return false;
+                case "regs":
+                    registrations(arguments, nodeId, output);
+                    return false;
                 case "test":
                     test(arguments, nodeId, output);
                     return false;
@@ -320,6 +331,125 @@ public final class TerminalSession {
                             + result.timingRecord().sequenceNumber());
         } else {
             output.println("Registration: " + result.outcome().name());
+        }
+    }
+
+    private void registrations(
+            String[] arguments,
+            NodeId nodeId,
+            PrintWriter output) {
+
+        TimingNodeProxy timingNode = timingNode(nodeId);
+        TimingNodeProxy.RegistrationProjectionInfo info =
+                timingNode.registrationProjectionInfo();
+
+        if (arguments.length == 2
+                && "count".equalsIgnoreCase(arguments[1])) {
+            printRegistrationInfo(info, output);
+            return;
+        }
+
+        if (arguments.length == 1
+                || arguments.length == 2
+                        && "all".equalsIgnoreCase(arguments[1])) {
+            printRegistrationInfo(info, output);
+            long after = 0L;
+            int printed = 0;
+            while (printed < info.count()) {
+                List<TimingNodeProxy.RegistrationEntry> page =
+                        registrationPage(
+                                timingNode,
+                                after,
+                                REGISTRATION_PAGE_SIZE);
+                if (page.isEmpty()) {
+                    break;
+                }
+                printRegistrationPage(page, output);
+                printed += page.size();
+                after = page.get(page.size() - 1).sequenceNumber();
+            }
+            return;
+        }
+
+        if (arguments.length < 2 || arguments.length > 3) {
+            output.println("Usage: regs [count|all|<afterSeq> [limit]]");
+            return;
+        }
+
+        long after;
+        int limit = REGISTRATION_PAGE_SIZE;
+        try {
+            after = Long.parseLong(arguments[1]);
+            if (arguments.length == 3) {
+                limit = Integer.parseInt(arguments[2]);
+            }
+        } catch (NumberFormatException ex) {
+            output.println("Usage: regs [count|all|<afterSeq> [limit]]");
+            return;
+        }
+
+        if (after < 0L || limit < 1 || limit > MAX_REGISTRATION_PAGE_SIZE) {
+            output.println(
+                    "regs requires afterSeq >= 0 and limit 1.."
+                            + MAX_REGISTRATION_PAGE_SIZE);
+            return;
+        }
+
+        printRegistrationInfo(info, output);
+        printRegistrationPage(
+                registrationPage(
+                        timingNode,
+                        after,
+                        limit),
+                output);
+    }
+
+    private static List<TimingNodeProxy.RegistrationEntry> registrationPage(
+            TimingNodeProxy timingNode,
+            long after,
+            int limit) {
+
+        List<TimingNodeProxy.RegistrationEntry> rows =
+                new ArrayList<TimingNodeProxy.RegistrationEntry>();
+        timingNode.visitRegistrationsAfter(
+                after,
+                limit,
+                rows::add);
+        return rows;
+    }
+
+    private static void printRegistrationInfo(
+            TimingNodeProxy.RegistrationProjectionInfo info,
+            PrintWriter output) {
+
+        output.println(
+                "Registrations: location="
+                        + info.locationId().value()
+                        + " count="
+                        + info.count()
+                        + " unique="
+                        + info.uniqueCount()
+                        + " lastMutation="
+                        + info.lastMutationSequence()
+                        + " lastRevoke="
+                        + info.lastRevokeSequence());
+    }
+
+    private static void printRegistrationPage(
+            List<TimingNodeProxy.RegistrationEntry> rows,
+            PrintWriter output) {
+
+        for (TimingNodeProxy.RegistrationEntry row : rows) {
+            output.println(
+                    "  seq="
+                            + row.sequenceNumber()
+                            + " id="
+                            + row.registrationId().value()
+                            + " time="
+                            + REGISTRATION_TIME_FORMAT.format(
+                                    row.effectiveTime().instant())
+                            + " state="
+                            + (row.valid() ? "ACTIVE" : "REVOKED"));
         }
     }
 
@@ -658,6 +788,7 @@ public final class TerminalSession {
                 || "close".equals(command)
                 || "status".equals(command)
                 || "reg".equals(command)
+                || "regs".equals(command)
                 || "test".equals(command)
                 || "config".equals(command);
     }
@@ -669,6 +800,7 @@ public final class TerminalSession {
                 || "close".equals(command)
                 || "status".equals(command)
                 || "reg".equals(command)
+                || "regs".equals(command)
                 || "test".equals(command)) {
             return true;
         }
@@ -866,6 +998,12 @@ public final class TerminalSession {
         output.println("                               Example: reg A0001 12345678");
         output.println(
                 "                               Example: reg A0001 2026-10-19T13:00:00Z");
+        output.println(
+                "  regs [count|all|<after> [n]]  Show active-WP registration projection");
+        output.println(
+                "                               Example: regs count");
+        output.println(
+                "                               Example: regs 100 50");
         output.println(
                 "  test logbook write <fail|timeout>"
                         + "  Fail or delay next LogBook write");
