@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.characterization;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -435,7 +434,7 @@ final class RuntimeCharacterizationHarness
                 System.nanoTime();
         int total =
                 logBook.process(
-                        LogBookQueries.visitLatestTimingData(
+                        LogBookQueries.visitLatestTimingRecords(
                                 config.queryLimit(),
                                 ignored ->
                                         visited.incrementAndGet()));
