@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -7,7 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -15,24 +14,43 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Keeps registration history in original sequence order as compact retained state.
+ * Retains the node's chronological registration rows reconstructed from committed LogBook data.
  *
- * <p>TimingData is accepted only at the input boundary. Each ADD is copied into one
- * primitive-backed Registration and the TimingData object is not retained. A matching
- * REV marks the existing row invalid without changing its sequence or position.</p>
+ * <p>This is Task Lane-owned derived state, not another TimingData store. DataTask applies
+ * committed TimingData in sequence order. Every registration ADD is copied once into a compact
+ * primitive-backed row; the TimingData object itself is not retained. Non-registration
+ * TimingData is ignored.</p>
+ *
+ * <p>An ADD row is append-only: its sequence, WP, RegistrationId and effective time never
+ * change and the row is never removed or reordered. A REV searches newest-to-oldest and marks
+ * the newest still-valid row with the same RegistrationId, WP and effective timestamp invalid.
+ * Keeping invalid rows preserves the chronological display list and lets a display observe that
+ * a previously shown row was revoked.</p>
+ *
+ * <p>The bounded visit methods are the read boundary for the chronological smart-display view.
+ * The display owns paging/synchronization cursors; this class owns no display state, CAN
+ * encoding, team assignment, ranking or persistence.</p>
  */
 public final class ActiveRegistrations {
     private final List<Registration> registrations = new ArrayList<>();
-    private final Iterable<Registration> registrationView =
-            Collections.unmodifiableList(registrations);
 
-    /** Clears the reconstructed registration list before LogBook replay. */
+    /**
+     * Clears all derived rows before DataTask replays the LogBook from sequence one.
+     *
+     * <p>Reset is reconstruction housekeeping; it does not represent registration revocation
+     * and therefore publishes no domain change by itself.</p>
+     */
     public void reset() {
 
         registrations.clear();
     }
 
-    /** Applies one committed ADD or REV and reports an actual validity change. */
+    /**
+     * Applies one committed TimingData record in LogBook sequence order.
+     *
+     * <p>Returns a Change only for an appended ADD or a REV that actually invalidated a retained
+     * row. Non-registration records and unmatched REV records leave this projection unchanged.</p>
+     */
     public Change apply(TimingData data) {
 
         failIfInvalidArgument(data != null, "data must not be null");
@@ -64,7 +82,12 @@ public final class ActiveRegistrations {
         return change;
     }
 
-    /** Visits at most limit rows of one WP in source order, including invalid rows. */
+    /**
+     * Visits at most {@code limit} rows of one WP in original ADD sequence order.
+     *
+     * <p>Invalidated rows remain visible. The visitor executes synchronously during the
+     * NodeService read turn and therefore must remain short and non-blocking.</p>
+     */
     public int visit(LocationId locationId, int limit, Consumer<Registration> visitor) {
 
         return visitAfter(locationId, 0L, limit, visitor);
@@ -100,12 +123,6 @@ public final class ActiveRegistrations {
             }
         }
         return visited;
-    }
-
-    /** Returns the ordered read-only list view for internal same-lane calculations. */
-    public Iterable<Registration> values() {
-
-        return registrationView;
     }
 
     /** Revokes the newest still-valid ADD matching identity, WP and effective timestamp. */
@@ -158,10 +175,12 @@ public final class ActiveRegistrations {
     }
 
     /**
-     * One retained display registration.
+     * One retained chronological registration row.
      *
-     * <p>Only scalar state is retained. Semantic TimingData value objects are reconstructed
-     * by getters when a caller actually crosses the read/output boundary.</p>
+     * <p>The object stores only scalar state because rows can remain for the complete node
+     * session. Semantic RegistrationId, LocationId and TimingTimestamp values are reconstructed
+     * only when a read/output boundary asks for them. Validity is the only mutable field and may
+     * change from true to false after a matching REV.</p>
      */
     public static final class Registration {
         private final long sequenceNumber;
@@ -182,43 +201,43 @@ public final class ActiveRegistrations {
             this.locationId = locationId;
         }
 
+        /** Returns the original committed ADD sequence number used for display paging. */
         public long sequenceNumber() {
 
             return sequenceNumber;
         }
 
+        /** Returns the absolute effective registration time reconstructed at the read boundary. */
         public TimingTimestamp effectiveTime() {
 
             return new TimingTimestamp(Instant.ofEpochMilli(effectiveTimeMillis));
         }
 
+        /** Returns the registration identity reconstructed from its compact packed value. */
         public RegistrationId registrationId() {
 
             return RegistrationId.fromPackedValue(registrationId);
         }
 
+        /** Returns the WP at which this registration row was committed. */
         public LocationId locationId() {
 
             return new LocationId(locationId);
         }
 
+        /** Returns whether this ADD row is still valid after all applied REV records. */
         public boolean isValid() {
 
             return valid;
         }
-
-        long effectiveTimeMillis() {
-
-            return effectiveTimeMillis;
-        }
-
-        int locationIdValue() {
-
-            return locationId;
-        }
     }
 
-    /** An actual ADD or matched REV for downstream registered-team accounting. */
+    /**
+     * One actual validity transition consumed by RegisteredTeams.
+     *
+     * <p>ADDED identifies a newly appended valid row; REMOVED identifies the retained row that a
+     * matching REV just invalidated. Unmatched REV and unrelated TimingData produce no Change.</p>
+     */
     public static final class Change {
         public enum Action {
             ADDED,
@@ -234,16 +253,19 @@ public final class ActiveRegistrations {
             this.registration = registration;
         }
 
+        /** Returns whether the retained row was added or invalidated. */
         public Action action() {
 
             return action;
         }
 
+        /** Returns the RegistrationId whose active occurrence count changed. */
         public RegistrationId registrationId() {
 
             return registration.registrationId();
         }
 
+        /** Returns the WP whose active occurrence count changed. */
         public LocationId locationId() {
 
             return registration.locationId();

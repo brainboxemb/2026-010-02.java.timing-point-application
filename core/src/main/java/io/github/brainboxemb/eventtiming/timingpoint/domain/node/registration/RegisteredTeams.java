@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -15,27 +15,57 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Maintains unique registered teams per WP, independently of the display's registration list.
+ * Retains the current unique registered-team membership for each WP.
  *
- * <p>Only a transition between zero and nonzero valid registrations emits a + or - change.
- * The full team list can be visited for a compact display synchronization burst.</p>
+ * <p>This is the second Task Lane-owned registration projection. ActiveRegistrations reports
+ * actual ADD/REV validity transitions; NodeService resolves the affected RegistrationId to the
+ * current TeamId and applies that fact here. Live RACE_DATA assignment changes are applied
+ * separately through {@link #teamAssignmentChanged(RegistrationId, TeamId)}.</p>
+ *
+ * <p>A team is present at a WP while at least one valid registration occurrence at that WP
+ * resolves to that team. Repeated passages therefore increase an internal occurrence count but
+ * do not create duplicate team entries. A team membership ADDED event is emitted only on a
+ * zero-to-nonzero transition and REMOVED only on nonzero-to-zero. An unresolved RegistrationId
+ * is retained for later reassignment but contributes to no team set until a TeamId is known.</p>
+ *
+ * <p>The complete team visitor is the smart-display synchronization source. Membership is a set:
+ * visitation order has no domain meaning and no temporary ordered list is created. CAN encoding,
+ * burst acknowledgement and display synchronization state belong to the display transport, not
+ * to this class.</p>
  */
 public final class RegisteredTeams {
     private final Map<RegistrationId, RegistrationState> registrationsById = new HashMap<>();
     private final Map<LocationId, Map<TeamId, Integer>> teamsByLocation = new HashMap<>();
     private final Event<Change> changedEvent = new Event<>();
 
-    /** Ordered + and - membership changes emitted synchronously on the calling Task Lane. */
+    /**
+     * Incremental unique-team membership transitions.
+     *
+     * <p>Delivery is synchronous and ordered with the Task Lane mutation that caused the
+     * transition. Repeated registrations that leave membership present emit nothing.</p>
+     */
     public final EventSource<Change> CHANGED = changedEvent;
 
-    /** Clears reconstructed counts; display consumers must request a new full burst after reset. */
+    /**
+     * Clears all reconstructed registration/team counts before a full LogBook replay.
+     *
+     * <p>Reset emits no REMOVED events: it is reconstruction housekeeping, not a sequence of
+     * domain removals. A display that lost synchronization must obtain a new full membership
+     * burst after reconstruction.</p>
+     */
     public void reset() {
 
         registrationsById.clear();
         teamsByLocation.clear();
     }
 
-    /** Applies one actual registration ADD or matching REV from ActiveRegistrations. */
+    /**
+     * Applies one actual registration validity transition from ActiveRegistrations.
+     *
+     * <p>A null Change means the source TimingData did not alter active registration state and is
+     * intentionally ignored. The supplied TeamId is the current resolution for an ADD; it may be
+     * null when the RegistrationId is not assigned yet.</p>
+     */
     public void apply(ActiveRegistrations.Change change, TeamId teamId) {
 
         if (change != null) {
@@ -47,7 +77,12 @@ public final class RegisteredTeams {
         }
     }
 
-    /** Moves all active registrations for one registration ID to the currently assigned team. */
+    /**
+     * Reaccounts every active occurrence after the TeamId assignment for one RegistrationId changes.
+     *
+     * <p>The existing occurrence counts stay attached to the RegistrationId. Only their team
+     * membership contribution moves, which may emit one REMOVED and/or ADDED transition per WP.</p>
+     */
     public void teamAssignmentChanged(RegistrationId registrationId, TeamId teamId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
@@ -59,7 +94,7 @@ public final class RegisteredTeams {
         }
     }
 
-    /** Returns how many different teams have a valid registration at this WP. */
+    /** Returns the number of distinct currently resolved teams present at one WP. */
     public int uniqueTeamCount(LocationId locationId) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
@@ -162,13 +197,18 @@ public final class RegisteredTeams {
         }
     }
 
-    /** One registration ID's active occurrences and currently resolved team. */
+    /**
+     * Retained accounting for one RegistrationId.
+     *
+     * <p>Occurrences are counted per WP so a later assignment change can move all existing
+     * contributions without replaying ActiveRegistrations.</p>
+     */
     private static final class RegistrationState {
         private final Map<LocationId, Integer> occurrencesByLocation = new HashMap<>();
         private TeamId teamId;
     }
 
-    /** One immutable + or - team membership change for one WP. */
+    /** One immutable unique-team membership transition for one WP. */
     public static final class Change {
         public enum Action {
             ADDED,
@@ -186,14 +226,17 @@ public final class RegisteredTeams {
             this.teamId = teamId;
         }
 
+        /** Returns whether the TeamId entered or left the WP membership set. */
         public Action action() {
             return action;
         }
 
+        /** Returns the WP whose unique-team membership changed. */
         public LocationId locationId() {
             return locationId;
         }
 
+        /** Returns the team that entered or left the WP membership set. */
         public TeamId teamId() {
             return teamId;
         }

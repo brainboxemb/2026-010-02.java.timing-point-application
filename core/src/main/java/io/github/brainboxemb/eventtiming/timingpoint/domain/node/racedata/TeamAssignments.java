@@ -11,16 +11,17 @@ import java.util.Set;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Active RegistrationId-to-TeamId assignments for one TimingNode.
+ * Package-private live RegistrationId-to-TeamId assignment state owned by RaceDataState.
  *
- * <p>The storage representation is private. Callers work only with semantic
- * assignment operations.</p>
+ * <p>Copies are used to validate a complete RACE_DATA message before replacing live state.
+ * This type is an implementation detail; callers outside the race-data package resolve teams
+ * through RaceDataState rather than mutating the assignment map directly.</p>
  */
-public final class TeamAssignments {
+final class TeamAssignments {
     private final Map<RegistrationId, TeamId> assignments;
 
     /** Creates empty live assignment state. */
-    public TeamAssignments() {
+    TeamAssignments() {
         this.assignments = new LinkedHashMap<RegistrationId, TeamId>();
     }
 
@@ -30,31 +31,31 @@ public final class TeamAssignments {
     }
 
     /** Returns an independent mutable copy for transactional validation. */
-    public TeamAssignments copy() {
+    TeamAssignments copy() {
         return new TeamAssignments(assignments);
     }
 
     /** Returns the live TeamId assignment for one RegistrationId, or null when absent. */
-    public TeamId teamIdFor(RegistrationId registrationId) {
+    TeamId teamIdFor(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return assignments.get(registrationId);
     }
 
     /** Sets the live TeamId assignment for one RegistrationId. */
-    public void assign(RegistrationId registrationId, TeamId teamId) {
+    void assign(RegistrationId registrationId, TeamId teamId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         failIfInvalidArgument(teamId != null, "teamId must not be null");
         assignments.put(registrationId, teamId);
     }
 
     /** Removes any live assignment for the RegistrationId. */
-    public void remove(RegistrationId registrationId) {
+    void remove(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         assignments.remove(registrationId);
     }
 
     /** Validates the invariant that one TeamId cannot be assigned to multiple registrations. */
-    public void validate() {
+    void validate() {
         Set<TeamId> teams = new LinkedHashSet<TeamId>();
         for (TeamId teamId : assignments.values()) {
             failIfInvalidArgument(
@@ -65,7 +66,7 @@ public final class TeamAssignments {
     }
 
     /** Replaces live state with a validated transactional assignment copy. */
-    public void replaceWith(TeamAssignments updatedAssignments) {
+    void replaceWith(TeamAssignments updatedAssignments) {
         failIfInvalidArgument(updatedAssignments != null, "updatedAssignments must not be null");
         updatedAssignments.validate();
         assignments.clear();

@@ -8,12 +8,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRanking;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -34,10 +30,18 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Coordinates node-local Task Lane data.
+ * Coordinates node-local state that must remain ordered on the TimingNode Task Lane.
  *
- * <p>MainTask handles only LogBook availability. DataTask owns TimingData catch-up and
- * bounded LogBook reads. The individual domain objects own their data.</p>
+ * <p>MainTask reacts only to LogBook availability. DataTask owns the LogBook sequence cursor and
+ * reconstructs the registration projections from committed TimingData in bounded batches.
+ * RaceDataState owns live Central RACE_DATA. ActiveRegistrations and RegisteredTeams own the
+ * derived registration state; NodeService coordinates changes between those owners but does not
+ * duplicate their collections.</p>
+ *
+ * <p>The public read boundary exposes maintained production facts needed by node/display
+ * integration: chronological registration rows and current unique-team membership. It does not
+ * manufacture ranking or other presentation result models merely for tests. Reads first wait for
+ * DataTask catch-up and then execute on the Task Lane so callers observe one ordered state.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
@@ -137,37 +141,12 @@ public final class NodeService extends LifecycleComponent {
         return read(readCount);
     }
 
-    /** Visits at most {@code limit} active stage passages using already-normalized UTC starts. */
-    public int visitStageTimingRecords(int limit, Consumer<StageTimingRecord> visitor) {
-
-        failIfInvalidArgument(limit >= 0, "limit must not be negative");
-        failIfInvalidArgument(visitor != null, "visitor must not be null");
-
-        return read(() -> visitResolvedRegistrations(limit, visitor));
-    }
-
-    /** Visits active registrations, resolving current team and absolute stage-start state. */
-    private int visitResolvedRegistrations(int limit, Consumer<StageTimingRecord> visitor) {
-
-        int visited = 0;
-        for (ActiveRegistrations.Registration registration : activeRegistrations.values()) {
-            if (visited >= limit) {
-                break;
-            }
-
-            if (registration.isValid()) {
-                TeamId teamId = raceData.teamIdFor(registration.registrationId());
-                Long startMillis = teamId == null ? null : raceData.stageStartTimeMillisFor(teamId);
-                if (startMillis != null) {
-                    visitor.accept(StageTiming.resolve(registration, teamId, startMillis.longValue()));
-                    visited++;
-                }
-            }
-        }
-        return visited;
-    }
-
-    /** Visits registrations of one WP in original order, including invalidated entries. */
+    /**
+     * Visits registrations of one WP in original ADD order, including invalidated rows.
+     *
+     * <p>This is the maintained chronological registration projection used by the smart-display
+     * boundary; it is not a calculated presentation list.</p>
+     */
     public int visitRegistrations(
             LocationId locationId, int limit, Consumer<ActiveRegistrations.Registration> visitor) {
 
@@ -205,15 +184,6 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
         return read(() -> registeredTeams.visit(locationId, visitor));
-    }
-
-    /** Returns the current provisional rank for one retained registration passage. */
-    public RegistrationRank registrationRank(ActiveRegistrations.Registration registration) {
-
-        failIfInvalidArgument(registration != null, "registration must not be null");
-
-        return read(() ->
-                RegistrationRanking.rank(activeRegistrations, raceData, registration));
     }
 
     /** Passes LogBook availability changes to MainTask. */

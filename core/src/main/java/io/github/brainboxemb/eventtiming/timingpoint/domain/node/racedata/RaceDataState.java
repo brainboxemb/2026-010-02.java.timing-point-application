@@ -14,14 +14,20 @@ import java.time.ZoneOffset;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Node-local current race/reference data, owned exclusively by the Task Lane.
+ * Retains the current Central-owned race data for one TimingNode.
  *
- * <p>Each RACE_DATA message is validated on the Task Lane against copies of the current data.
- * Both sets are replaced only if the whole message is valid, before the
- * upstream protocol can acknowledge the accepted sequence. Stage-start boundary values
- * are normalized to absolute UTC while applying that message, so derived timing never
- * needs date or time-zone interpretation. This component is passive; it owns neither an
- * executor nor an upstream transport.</p>
+ * <p>This passive state object is owned exclusively by the Task Lane. NodeService passes each
+ * ordered RACE_DATA change set here after protocol sequence handling. The message is applied to
+ * independent copies of team assignments and stage starts; live state is replaced only after the
+ * complete change set validates, so an invalid message cannot leave a partially applied update.</p>
+ *
+ * <p>Fixed EventData remains authoritative for configured RegistrationId-to-TeamId mappings.
+ * Live RACE_DATA assignments may resolve only registrations that EventData does not already own,
+ * and one TeamId may not be assigned to multiple live RegistrationIds.</p>
+ *
+ * <p>Stage-start protocol values are normalized to absolute UTC epoch milliseconds while the
+ * message enters this state. Partial civil time is therefore never retained. RaceDataState owns
+ * no executor, protocol sequence, ACK behavior, registration list or presentation query model.</p>
  */
 public final class RaceDataState {
     private final EventData eventData;
@@ -35,18 +41,6 @@ public final class RaceDataState {
         this.eventData = eventData;
     }
 
-    /** Internal collaborators used by the node's derived timing view. */
-    public TeamAssignments teamAssignments() {
-
-        return teamAssignments;
-    }
-
-    /** Returns the Task Lane-owned live stage-start state used by derived timing. */
-    public StageStartTimes stageStartTimes() {
-
-        return stageStartTimes;
-    }
-
     /** Resolves TeamId from fixed EventData first, then live upstream assignment state. */
     public TeamId teamIdFor(RegistrationId registrationId) {
 
@@ -55,12 +49,6 @@ public final class RaceDataState {
         return configuredTeamId != null
                 ? configuredTeamId
                 : teamAssignments.teamIdFor(registrationId);
-    }
-
-    /** Returns the current absolute UTC stage start, or null when none is assigned. */
-    public Long stageStartTimeMillisFor(TeamId teamId) {
-
-        return stageStartTimes.startMillisFor(teamId);
     }
 
     /**

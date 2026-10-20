@@ -164,55 +164,10 @@ public class TimingNodeRaceDataTest {
                                             LocalTime.of(12, 0)))));
 
             assertEquals(0, fixture.stream.sentCount());
-            assertNull(
-                    fixture.raceData.stageStartTimeMillisFor(
-                            new TeamId("0042")));
-        } finally {
-            deactivate(fixture.node);
-        }
-    }
-
-    /** Verifies stage-start changes are applied and deleted in RACE_DATA order. */
-    @Test
-    public void stageStartTimesFollowRaceDataSequence() {
-        Fixture fixture = fixture();
-        activate(fixture.node);
-        try {
-            fixture.receive(
-                    DefaultUpstreamData.raceData(
-                            new NodeId("A"),
-                            1L,
-                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                            Collections.singletonList(
-                                    DefaultUpstreamData.stageStartSet(
-                                            "0042",
-                                            LocalTime.of(12, 30)))));
             assertEquals(
-                    1L,
-                    ((UpstreamData.Ack)
-                            fixture.stream.takeSent())
-                            .sequence());
-            assertEquals(
-                    Long.valueOf(Instant.parse("2026-10-13T12:30:00Z").toEpochMilli()),
-                    fixture.raceData.stageStartTimeMillisFor(
-                            new TeamId("0042")));
-
-            fixture.receive(
-                    DefaultUpstreamData.raceData(
-                            new NodeId("A"),
-                            2L,
-                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                            Collections.singletonList(
-                                    DefaultUpstreamData.stageStartDelete(
-                                            "0042"))));
-            assertEquals(
-                    2L,
-                    ((UpstreamData.Ack)
-                            fixture.stream.takeSent())
-                            .sequence());
-            assertNull(
-                    fixture.raceData.stageStartTimeMillisFor(
-                            new TeamId("0042")));
+                    new TeamId("0001"),
+                    fixture.raceData.teamIdFor(
+                            new RegistrationId("A0001")));
         } finally {
             deactivate(fixture.node);
         }
