@@ -30,7 +30,7 @@ public final class LogBookData {
         if (head == 0L) {
             return 1L;
         }
-        failIfIllegalState(head < TimingRecord.MAX_SEQUENCE_NUMBER, "TimingData sequence space is exhausted");
+        failIfIllegalState(head < TimingRecord.MAX_SEQUENCE_NUMBER, "IF-05 sequence space is exhausted");
         return head + 1L;
     }
 
