@@ -11,10 +11,10 @@ import java.time.Instant;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
 public class DefaultTimingDataCodecTest {
@@ -29,20 +29,20 @@ public class DefaultTimingDataCodecTest {
     public void encodesAutomaticRegistrationInCanonicalMemberOrder() throws Exception {
         TimingRecord record = automatic(1L, "A0042");
 
-        String json = text(codec.encode(record));
+        String encoded = text(codec.encode(record));
 
         assertEquals(
-                "{"v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":1,"
-                        + ""locId":7,"
-                        + ""recType":"AUTO_REG","
-                        + ""time":"2026-09-30T20:01:39.12Z","
-                        + ""regId":"A0042","
-                        + ""code":["ADD"],"
-                        + ""recTime":"2026-09-30T20:01:45.450Z"}",
-                json);
-        assertFalse(json.endsWith("\n"));
+                "{\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":1,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"AUTO_REG\","
+                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"regId\":\"A0042\","
+                        + "\"code\":[\"ADD\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
+                encoded);
+        assertFalse(encoded.endsWith("\n"));
     }
 
     @Test
@@ -58,24 +58,24 @@ public class DefaultTimingDataCodecTest {
                 TimingRecord.TagSource.API,
                 TimingRecord.AutomaticTimeSource.NODE);
 
-        String json = text(codec.encode(record));
-        assertTrue(json.contains(
-                ""code":["ADD"],"tagSrc":"API","timeSrc":"NODE""));
+        String encoded = text(codec.encode(record));
+        assertTrue(encoded.contains(
+                "\"code\":[\"ADD\"],\"tagSrc\":\"API\",\"timeSrc\":\"NODE\""));
 
         TimingRecord recovered = codec.decode(codec.encode(record));
         assertSame(TimingRecord.TagSource.API, recovered.tagSource());
         assertSame(
                 TimingRecord.AutomaticTimeSource.NODE,
                 recovered.automaticTimeSource());
-        assertTrue(text(codec.encode(recovered)).contains(""timeSrc":"NODE""));
+        assertTrue(text(codec.encode(recovered)).contains("\"timeSrc\":\"NODE\""));
 
         TimingRecord legacy = codec.decode(codec.encode(automatic(1L, "A0001")));
         assertNull(legacy.tagSource());
         assertNull(legacy.automaticTimeSource());
 
-        assertInvalid(json.replace(","timeSrc":"NODE"", ""));
-        assertInvalid(json.replace(""tagSrc":"API"", ""tagSrc":"MYSTERY""));
-        assertInvalid(json.replace(""timeSrc":"NODE"", ""timeSrc":"CLOCK""));
+        assertInvalid(encoded.replace(",\"timeSrc\":\"NODE\"", ""));
+        assertInvalid(encoded.replace("\"tagSrc\":\"API\"", "\"tagSrc\":\"MYSTERY\""));
+        assertInvalid(encoded.replace("\"timeSrc\":\"NODE\"", "\"timeSrc\":\"CLOCK\""));
     }
 
     @Test
@@ -86,9 +86,9 @@ public class DefaultTimingDataCodecTest {
                 TimingRecord.Action.ADD,
                 TimingRecord.ManualTimeSource.OPERATOR_ENTERED);
 
-        String json = text(codec.encode(original));
-        assertTrue(json.contains(""recType":"MAN_REG""));
-        assertTrue(json.contains(""code":["ADD","MAN"]"));
+        String encoded = text(codec.encode(original));
+        assertTrue(encoded.contains("\"recType\":\"MAN_REG\""));
+        assertTrue(encoded.contains("\"code\":[\"ADD\",\"MAN\"]"));
 
         TimingRecord decoded = codec.decode(codec.encode(original));
 
@@ -108,28 +108,28 @@ public class DefaultTimingDataCodecTest {
                 TimingRecord.Action.ADD,
                 TimingRecord.ManualTimeSource.AUTOMATIC);
 
-        String json = text(codec.encode(original));
+        String encoded = text(codec.encode(original));
 
-        assertTrue(json.contains(""recType":"MAN_REG""));
-        assertTrue(json.contains(""code":["ADD","AUTO"]"));
+        assertTrue(encoded.contains("\"recType\":\"MAN_REG\""));
+        assertTrue(encoded.contains("\"code\":[\"ADD\",\"AUTO\"]"));
     }
 
     @Test
     public void encodesAndDecodesNodeOpenLifecycleRecord() throws Exception {
         TimingRecord original = opened(3L);
 
-        String json = text(codec.encode(original));
+        String encoded = text(codec.encode(original));
 
         assertEquals(
-                "{"v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":3,"
-                        + ""locId":7,"
-                        + ""recType":"NODE_INFO","
-                        + ""time":"2026-09-30T20:01:39.12Z","
-                        + ""code":["OPEN"],"
-                        + ""recTime":"2026-09-30T20:01:45.450Z"}",
-                json);
+                "{\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":3,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_INFO\","
+                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"code\":[\"OPEN\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
+                encoded);
 
         TimingRecord decoded = codec.decode(codec.encode(original));
         assertSame(TimingRecord.Kind.NODE_OPEN, decoded.kind());
@@ -148,26 +148,26 @@ public class DefaultTimingDataCodecTest {
     public void lifecycleRecordRejectsRegistrationOnlyMembersAndInvalidCodes() throws Exception {
         assertInvalid(
                 "{"
-                        + ""v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":3,"
-                        + ""locId":7,"
-                        + ""recType":"NODE_INFO","
-                        + ""time":"2026-09-30T20:01:39.120Z","
-                        + ""regId":"A0042","
-                        + ""code":["OPEN"],"
-                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":3,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_INFO\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"regId\":\"A0042\","
+                        + "\"code\":[\"OPEN\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}");
         assertInvalid(
                 "{"
-                        + ""v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":4,"
-                        + ""locId":7,"
-                        + ""recType":"NODE_INFO","
-                        + ""time":"2026-09-30T20:01:39.120Z","
-                        + ""code":["ADD"],"
-                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":4,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_INFO\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"code\":[\"ADD\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}");
     }
 
@@ -184,8 +184,8 @@ public class DefaultTimingDataCodecTest {
                 null,
                 null);
 
-        String json = text(codec.encode(original));
-        assertTrue(json.contains(""code":["REV"]"));
+        String encoded = text(codec.encode(original));
+        assertTrue(encoded.contains("\"code\":[\"REV\"]"));
 
         TimingRecord decoded = codec.decode(codec.encode(original));
         assertSame(TimingRecord.Action.REV, decoded.action());
@@ -201,8 +201,8 @@ public class DefaultTimingDataCodecTest {
                 TimingRecord.Action.REV,
                 TimingRecord.ManualTimeSource.OPERATOR_ENTERED);
 
-        String json = text(codec.encode(original));
-        assertTrue(json.contains(""code":["REV","MAN"]"));
+        String encoded = text(codec.encode(original));
+        assertTrue(encoded.contains("\"code\":[\"REV\",\"MAN\"]"));
 
         TimingRecord decoded = codec.decode(codec.encode(original));
         assertSame(TimingRecord.Action.REV, decoded.action());
@@ -216,15 +216,15 @@ public class DefaultTimingDataCodecTest {
     public void decodesAutomaticRegistration() throws Exception {
         TimingRecord decoded = codec.decode(json(
                 "{"
-                        + ""v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":1,"
-                        + ""locId":7,"
-                        + ""recType":"AUTO_REG","
-                        + ""time":"2026-09-30T20:01:39.120Z","
-                        + ""regId":"A0042","
-                        + ""code":["ADD"],"
-                        + ""recTime":"2026-09-30T20:01:45.450Z""
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":1,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"AUTO_REG\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"regId\":\"A0042\","
+                        + "\"code\":[\"ADD\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\""
                         + "}"));
 
         assertSame(TimingRecord.Kind.AUTOMATIC_REGISTRATION, decoded.kind());
@@ -237,16 +237,16 @@ public class DefaultTimingDataCodecTest {
     public void readerIgnoresAdditionalMembersAndCodeOrder() throws Exception {
         TimingRecord decoded = codec.decode(json(
                 "{"
-                        + ""extra":{"future":[1,2,3]},"
-                        + ""regId":"A0042","
-                        + ""recTime":"2026-09-30T20:01:45.456Z","
-                        + ""v":1,"
-                        + ""locId":7,"
-                        + ""seqNr":2,"
-                        + ""code":["AUTO","ADD"],"
-                        + ""recType":"MAN_REG","
-                        + ""time":"2026-09-30T20:01:39.120Z","
-                        + ""nodeId":"A""
+                        + "\"extra\":{\"future\":[1,2,3]},"
+                        + "\"regId\":\"A0042\","
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\","
+                        + "\"v\":1,"
+                        + "\"locId\":7,"
+                        + "\"seqNr\":2,"
+                        + "\"code\":[\"AUTO\",\"ADD\"],"
+                        + "\"recType\":\"MAN_REG\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"nodeId\":\"A\""
                         + "}"));
 
         assertSame(TimingRecord.Kind.MANUAL_REGISTRATION, decoded.kind());
@@ -268,10 +268,10 @@ public class DefaultTimingDataCodecTest {
                 null,
                 null);
 
-        String json = text(codec.encode(record));
+        String encoded = text(codec.encode(record));
 
-        assertTrue(json.contains(""time":"2026-09-30T20:01:39.90Z""));
-        assertTrue(json.contains(""recTime":"2026-09-30T20:01:45.100Z""));
+        assertTrue(encoded.contains("\"time\":\"2026-09-30T20:01:39.90Z\""));
+        assertTrue(encoded.contains("\"recTime\":\"2026-09-30T20:01:45.100Z\""));
     }
 
     @Test
@@ -292,7 +292,7 @@ public class DefaultTimingDataCodecTest {
         assertEquals(effective, record.effectiveTimeMillis());
         assertTrue(
                 text(codec.encode(record))
-                        .contains(""time":"2026-09-30T20:01:39.12Z""));
+                        .contains("\"time\":\"2026-09-30T20:01:39.12Z\""));
     }
 
     @Test
@@ -301,15 +301,15 @@ public class DefaultTimingDataCodecTest {
                 codec.decode(
                         json(
                                 "{"
-                                        + ""v":1,"
-                                        + ""nodeId":"A","
-                                        + ""seqNr":8,"
-                                        + ""locId":7,"
-                                        + ""recType":"AUTO_REG","
-                                        + ""time":"2026-09-30T20:01:39.123456789Z","
-                                        + ""regId":"A0042","
-                                        + ""code":["ADD"],"
-                                        + ""recTime":"2026-09-30T20:01:45.456789Z""
+                                        + "\"v\":1,"
+                                        + "\"nodeId\":\"A\","
+                                        + "\"seqNr\":8,"
+                                        + "\"locId\":7,"
+                                        + "\"recType\":\"AUTO_REG\","
+                                        + "\"time\":\"2026-09-30T20:01:39.123456789Z\","
+                                        + "\"regId\":\"A0042\","
+                                        + "\"code\":[\"ADD\"],"
+                                        + "\"recTime\":\"2026-09-30T20:01:45.456789Z\""
                                         + "}"));
 
         assertEquals(
@@ -323,7 +323,7 @@ public class DefaultTimingDataCodecTest {
     @Test
     public void unsupportedVersionIsReportedSeparately() throws Exception {
         try {
-            codec.decode(json("{"v":2}"));
+            codec.decode(json("{\"v\":2}"));
             fail("expected unsupported version");
         } catch (TimingDataCodec.CodecException expected) {
             assertSame(
@@ -338,13 +338,13 @@ public class DefaultTimingDataCodecTest {
         try {
             codec.decode(json(
                     "{"
-                            + ""v":1,"
-                            + ""nodeId":"A","
-                            + ""seqNr":9,"
-                            + ""locId":7,"
-                            + ""recType":"FUTURE_RECORD","
-                            + ""time":"2026-09-30T20:01:39.120Z","
-                            + ""recTime":"2026-09-30T20:01:45.450Z""
+                            + "\"v\":1,"
+                            + "\"nodeId\":\"A\","
+                            + "\"seqNr\":9,"
+                            + "\"locId\":7,"
+                            + "\"recType\":\"FUTURE_RECORD\","
+                            + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                            + "\"recTime\":\"2026-09-30T20:01:45.450Z\""
                             + "}"));
             fail("expected unsupported record type");
         } catch (TimingDataCodec.CodecException expected) {
@@ -363,36 +363,36 @@ public class DefaultTimingDataCodecTest {
 
     @Test
     public void malformedOrSemanticallyInvalidRecordsAreInvalidData() throws Exception {
-        assertInvalid("{"v":1");
+        assertInvalid("{\"v\":1");
         assertInvalid(
                 "{"
-                        + ""v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":1,"
-                        + ""locId":7,"
-                        + ""recType":"AUTO_REG","
-                        + ""time":"2026-09-30T20:01:39.120Z","
-                        + ""regId":"A0042","
-                        + ""code":["REV","AUTO"],"
-                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":1,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"AUTO_REG\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"regId\":\"A0042\","
+                        + "\"code\":[\"REV\",\"AUTO\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}");
         assertInvalid(
                 "{"
-                        + ""v":1,"
-                        + ""v":1,"
-                        + ""nodeId":"A""
+                        + "\"v\":1,"
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\""
                         + "}");
         assertInvalid(
                 "{"
-                        + ""v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":1,"
-                        + ""locId":7,"
-                        + ""recType":"MAN_REG","
-                        + ""time":"2026-09-30T20:01:39.120Z","
-                        + ""regId":"A0042","
-                        + ""code":["ADD","AUTO","MAN"],"
-                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":1,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"MAN_REG\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"regId\":\"A0042\","
+                        + "\"code\":[\"ADD\",\"AUTO\",\"MAN\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}");
     }
 
@@ -400,21 +400,21 @@ public class DefaultTimingDataCodecTest {
     public void rejectsDuplicateCode() throws Exception {
         assertInvalid(
                 "{"
-                        + ""v":1,"
-                        + ""nodeId":"A","
-                        + ""seqNr":1,"
-                        + ""locId":7,"
-                        + ""recType":"MAN_REG","
-                        + ""time":"2026-09-30T20:01:39.120Z","
-                        + ""regId":"A0042","
-                        + ""code":["ADD","ADD"],"
-                        + ""recTime":"2026-09-30T20:01:45.456Z""
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":1,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"MAN_REG\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"regId\":\"A0042\","
+                        + "\"code\":[\"ADD\",\"ADD\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}");
     }
 
     @Test
     public void rejectsUtf8Bom() throws Exception {
-        byte[] body = json("{"v":1}");
+        byte[] body = json("{\"v\":1}");
         byte[] encoded = new byte[body.length + 3];
         encoded[0] = (byte) 0xef;
         encoded[1] = (byte) 0xbb;
