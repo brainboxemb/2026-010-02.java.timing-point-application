@@ -15,10 +15,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Synchronizes Central-owned RACE_DATA into one TimingNode.
  *
  * <p>The helper owns the highest contiguous RACE_DATA sequence applied locally.
- * It does not own a worker: every state-changing method is called while the
- * TimingNode Task Lane is current. TIMING_DATA synchronization is handled by
- * {@link LogBookSync} on that same Task Lane; ordered LogBook reads yield while
- * the LogBook Data Lane completes them.</p>
+ * It does not own a worker: every state-changing method is called by a focused
+ * task on the owning NodeUpstream task runner. TIMING_DATA synchronization is
+ * handled independently by {@link TimingDataSyncTask}.</p>
  */
 final class UpstreamDataSync {
     private final NodeId nodeId;
@@ -51,7 +50,7 @@ final class UpstreamDataSync {
      * <p>Duplicate/old data receives a cumulative ACK. A gap receives REQ for
      * the first missing sequence. Live state changes only after every change in
      * the message has validated. The returned completion represents the node-local
- * application; the caller must invoke completeRaceData on its own protocol lane
+ * application; the caller must invoke completeRaceData on its own NodeUpstream task
  * before the cumulative ACK is sent.</p>
      */
     CompletionStage<Void> handleRaceData(UpstreamData.RaceData raceData) {

@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
@@ -10,11 +9,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExec
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
@@ -46,6 +44,7 @@ public final class NodeUpstream extends LifecycleComponent {
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
     private final InputTask inputTask = new InputTask();
+    private CompletableFuture<Void> activeInputOperation;
 
     /** Creates one node's upstream protocol state and independent logical task lane. */
     public NodeUpstream(
@@ -101,13 +100,14 @@ public final class NodeUpstream extends LifecycleComponent {
     @Override
     protected void onDeactivate() {
         inputTask.cancel();
+        cancelActiveInputOperation();
         logBookSync.cancelSync();
         upstreamDataSync.cancelPending();
         taskRunner.close();
     }
 
-    /** Handles one semantic upstream message while the protocol lane is current. */
-    private CompletionStage<Void> handleMessage(UpstreamData data) {
+    /** Creates one focused task for one inbound semantic message. */
+    private YieldingTask inputOperation(UpstreamData data) {
         failIfInvalidArgument(data instanceof UpstreamData.NodeScoped,
                 "UpstreamData is not node-scoped: %s", data.family());
 
@@ -119,38 +119,102 @@ public final class NodeUpstream extends LifecycleComponent {
             case RACE_DATA:
                 failIfInvalidArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                return upstreamDataSync.handleRaceData(
+                return new RaceDataTask(
+                        stream,
+                        upstreamDataSync,
                         (UpstreamData.RaceData) data);
-
-            case SYNC:
-                failIfInvalidArgument(data instanceof UpstreamData.Sync,
-                        "SYNC has incompatible semantic type");
-                UpstreamData.Sync sync = (UpstreamData.Sync) data;
-                if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
-                    upstreamDataSync.handleSync(sync);
-                } else {
-                    throw new UnsupportedOperationException(
-                            "Inbound SYNC supports RACE_DATA only");
-                }
-                break;
 
             case REQ:
                 failIfInvalidArgument(data instanceof UpstreamData.Req,
                         "REQ has incompatible semantic type");
-                logBookSync.handleReq((UpstreamData.Req) data);
-                break;
+                return new TimingDataSyncTask(
+                        stream,
+                        logBookSync,
+                        (UpstreamData.Req) data);
+
+            case SYNC:
+                failIfInvalidArgument(data instanceof UpstreamData.Sync,
+                        "SYNC has incompatible semantic type");
+                return oneStepTask(
+                        () -> upstreamDataSync.handleSync(
+                                (UpstreamData.Sync) data));
 
             case PING:
                 failIfInvalidArgument(data instanceof UpstreamData.Ping,
                         "PING has incompatible semantic type");
-                heartbeat.handle((UpstreamData.Ping) data);
-                break;
+                return oneStepTask(
+                        () -> heartbeat.handle(
+                                (UpstreamData.Ping) data));
 
             default:
                 throw new UnsupportedOperationException(
-                        "Inbound UpstreamData family is not implemented by TimingNode: " + data.family());
+                        "Inbound UpstreamData family is not implemented by NodeUpstream: "
+                                + data.family());
         }
-        return null;
+    }
+
+    /** Wraps one synchronous protocol operation as one ordinary task-run. */
+    private YieldingTask oneStepTask(Runnable operation) {
+        return () -> {
+            if (stream.isAvailable()) {
+                operation.run();
+            }
+            return TaskStep.done();
+        };
+    }
+
+    /** Starts exactly one inbound operation; the next message waits for its completion. */
+    private void startInputOperation(YieldingTask operation) {
+        CompletableFuture<Void> run = taskRunner.runTask(operation);
+        synchronized (this) {
+            if (activeInputOperation != null) {
+                run.cancel(true);
+                throw new IllegalStateException(
+                        "NodeUpstream already has an active input operation");
+            }
+            activeInputOperation = run;
+        }
+        run.whenComplete(
+                (ignored, failure) ->
+                        inputOperationCompleted(run, failure));
+    }
+
+    private void inputOperationCompleted(
+            CompletableFuture<Void> run,
+            Throwable failure) {
+        synchronized (this) {
+            if (activeInputOperation != run) {
+                return;
+            }
+            activeInputOperation = null;
+        }
+
+        if (failure != null) {
+            logBookSync.cancelSync();
+            upstreamDataSync.cancelPending();
+            LOG.warn(
+                    "Upstream input operation failed for node {}",
+                    nodeId.value(),
+                    failure);
+        }
+
+        if (taskRunner.isRunning()
+                && stream.isAvailable()
+                && stream.hasMessage()) {
+            inputTask.wake(taskRunner);
+        }
+    }
+
+    private synchronized boolean inputOperationActive() {
+        return activeInputOperation != null;
+    }
+
+    private synchronized void cancelActiveInputOperation() {
+        CompletableFuture<Void> run = activeInputOperation;
+        activeInputOperation = null;
+        if (run != null) {
+            run.cancel(true);
+        }
     }
 
     /** Queues one TIMING_DATA source-head publication on the Task Lane. */
@@ -187,82 +251,37 @@ public final class NodeUpstream extends LifecycleComponent {
     }
 
     /**
-     * Reusable inbound/protocol task.
+     * Admits one queued message as one focused task.
      *
-     * <p>One step handles one message, submits one ordered LogBook batch read,
-     * or consumes one completed batch. AGAIN always goes to the back of the Task
-     * Lane, preserving cooperative fairness with other node tasks.</p>
+     * <p>The input task owns no protocol continuation state. A task that must
+     * wait for NodeService or LogBook completion owns that wait itself. The next
+     * inbound message is admitted only after the active message task completes.</p>
      */
     private final class InputTask extends AbstractTask {
-        private CompletableFuture<List<TimingRecord>> pendingTimingData;
-        private UpstreamData.RaceData pendingRaceData;
-        private CompletionStage<Void> pendingRaceDataApply;
-
         @Override
         protected void resetForRun() {
-            pendingTimingData = null;
-            pendingRaceData = null;
-            pendingRaceDataApply = null;
+            // No operation state: this task only admits one message.
         }
 
         @Override
         public TaskStep runStep() {
-            if (!stream.isAvailable()) {
-                pendingTimingData = null;
-                pendingRaceData = null;
-                pendingRaceDataApply = null;
-                logBookSync.cancelSync();
-                upstreamDataSync.cancelPending();
+            if (!stream.isAvailable()
+                    || inputOperationActive()
+                    || !stream.hasMessage()) {
                 return TaskStep.done();
             }
 
-            if (pendingRaceDataApply != null) {
-                pendingRaceDataApply.toCompletableFuture().join();
-                long sequence = pendingRaceData.sequence();
-                pendingRaceData = null;
-                pendingRaceDataApply = null;
-                upstreamDataSync.completeRaceData(sequence);
-                return TaskStep.again();
-            }
-
-            if (pendingTimingData != null) {
-                List<TimingRecord> records = pendingTimingData.join();
-                pendingTimingData = null;
-                logBookSync.sendNextBatch(records);
-                return TaskStep.again();
-            }
-
-            if (logBookSync.syncPending()) {
-                pendingTimingData = logBookSync.submitNextBatch();
-                return TaskStep.await(pendingTimingData);
-            }
-
-            if (stream.hasMessage()) {
-                UpstreamData message = stream.read();
-                CompletionStage<Void> completion =
-                        handleMessage(message);
-                if (completion != null) {
-                    pendingRaceData =
-                            (UpstreamData.RaceData) message;
-                    pendingRaceDataApply = completion;
-                    return TaskStep.await(completion);
-                }
-                return TaskStep.again();
-            }
-
+            UpstreamData message = stream.read();
+            startInputOperation(
+                    inputOperation(message));
             return TaskStep.done();
         }
 
         @Override
         protected void onRunCompleted(Throwable failure) {
-            pendingTimingData = null;
-            pendingRaceData = null;
-            pendingRaceDataApply = null;
             if (failure != null) {
-                logBookSync.cancelSync();
-                upstreamDataSync.cancelPending();
                 LOG.warn(
-                        "Upstream input task failed for node {}",
+                        "Upstream input admission failed for node {}",
                         nodeId.value(),
                         failure);
             }
