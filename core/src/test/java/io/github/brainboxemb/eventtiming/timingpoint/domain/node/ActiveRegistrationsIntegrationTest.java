@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -49,7 +49,7 @@ public class ActiveRegistrationsIntegrationTest {
         components.nodeService().REGISTERED_TEAMS_CHANGED.subscribe(teamChanges::add);
 
         activate(node);
-        activate(components.upstreamHandler());
+        activate(components.nodeUpstream());
         try {
             awaitOperational(node);
             assertEquals(TimingNodeTypes.OpenResult.OPENED, node.open(new LocationId(1)));
@@ -61,7 +61,7 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(1, components.nodeService().visitRegisteredTeams(initialTeams::add));
             assertEquals(new TeamId("0001"), initialTeams.get(0));
 
-            UpstreamHandler port = components.upstreamHandler();
+            NodeUpstream port = components.nodeUpstream();
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
@@ -83,7 +83,7 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(RegisteredTeams.Change.Action.ADDED, teamChanges.get(0).action());
             assertEquals(new TeamId("0042"), teamChanges.get(0).teamId());
         } finally {
-            deactivate(components.upstreamHandler());
+            deactivate(components.nodeUpstream());
             deactivate(node);
         }
     }

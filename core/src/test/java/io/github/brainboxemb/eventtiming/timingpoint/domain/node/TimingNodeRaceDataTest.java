@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDa
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -212,21 +212,21 @@ public class TimingNodeRaceDataTest {
         return new Fixture(
                 components.node(),
                 stream,
-                components.upstreamHandler(),
+                components.nodeUpstream(),
                 components.raceData());
     }
 
     private static final class Fixture {
         private final TimingNode node;
         private final InMemoryUpstreamStream stream;
-        private final UpstreamHandler port;
+        private final NodeUpstream port;
         private final RaceDataState raceData;
 
         /** Creates one direct-lane integration fixture for RACE_DATA handling. */
         private Fixture(
                 TimingNode node,
                 InMemoryUpstreamStream stream,
-                UpstreamHandler port,
+                NodeUpstream port,
                 RaceDataState raceData) {
             this.node = node;
             this.stream = stream;

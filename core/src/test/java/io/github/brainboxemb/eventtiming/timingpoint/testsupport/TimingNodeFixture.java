@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -76,7 +76,7 @@ public final class TimingNodeFixture {
         private final LogBook logBook;
         private final NodeService nodeService;
         private final TagProcessor tagProcessor;
-        private final UpstreamHandler upstreamHandler;
+        private final NodeUpstream nodeUpstream;
         private final RaceDataState raceData;
 
         /** Creates test-only references to one fully composed TimingNode graph. */
@@ -85,13 +85,13 @@ public final class TimingNodeFixture {
                 LogBook logBook,
                 NodeService nodeService,
                 TagProcessor tagProcessor,
-                UpstreamHandler upstreamHandler,
+                NodeUpstream nodeUpstream,
                 RaceDataState raceData) {
             this.node = node;
             this.logBook = logBook;
             this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
-            this.upstreamHandler = upstreamHandler;
+            this.nodeUpstream = nodeUpstream;
             this.raceData = raceData;
         }
 
@@ -116,8 +116,8 @@ public final class TimingNodeFixture {
         }
 
         /** Returns the separately composed upstream protocol boundary. */
-        public UpstreamHandler upstreamHandler() {
-            return upstreamHandler;
+        public NodeUpstream nodeUpstream() {
+            return nodeUpstream;
         }
 
         /** Returns the test-owned RaceDataState used by NodeService. */
@@ -296,13 +296,13 @@ public final class TimingNodeFixture {
                         raceData,
                         activeRegistrations);
 
-        UpstreamHandler upstreamHandler =
-                new UpstreamHandler(
+        NodeUpstream nodeUpstream =
+                new NodeUpstream(
                         nodeId,
                         nodeWorker,
                         upstreamStream,
                         logBook,
-                        nodeService::applyRaceData);
+                        nodeService);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -326,7 +326,7 @@ public final class TimingNodeFixture {
                 logBook,
                 nodeService,
                 tagProcessor,
-                upstreamHandler,
+                nodeUpstream,
                 raceData);
     }
 }

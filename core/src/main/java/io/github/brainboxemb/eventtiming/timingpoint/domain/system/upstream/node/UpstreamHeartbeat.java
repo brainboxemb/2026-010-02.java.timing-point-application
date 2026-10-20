@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -11,7 +11,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Owns heartbeat protocol state for one TimingNode.
  *
  * <p>This helper has no worker or timer. Runtime scheduling decides when a
- * heartbeat tick occurs; the owning TimingNode Task Lane calls {@link #tick()}
+ * heartbeat tick occurs; the owning NodeUpstream task lane calls {@link #tick()}
  * and {@link #handle(UpstreamData.Ping)}. Mutable heartbeat protocol state
  * therefore has one serial owner even though its immutable status snapshot may
  * be read directly.</p>
@@ -26,9 +26,9 @@ final class UpstreamHeartbeat {
     private boolean answerPending;
     private String pendingPingId;
 
-    /** Latest immutable Task Lane-owned heartbeat state for direct reads. */
-    private volatile UpstreamHandlerTypes.HeartbeatStatus publishedStatus =
-            new UpstreamHandlerTypes.HeartbeatStatus(
+    /** Latest immutable NodeUpstream lane-owned heartbeat state for direct reads. */
+    private volatile NodeUpstreamTypes.HeartbeatStatus publishedStatus =
+            new NodeUpstreamTypes.HeartbeatStatus(
                     0L,
                     0L,
                     0L,
@@ -92,15 +92,15 @@ final class UpstreamHeartbeat {
         }
     }
 
-    /** Returns the latest immutable heartbeat status published by the Task Lane. */
-    UpstreamHandlerTypes.HeartbeatStatus status() {
+    /** Returns the latest immutable heartbeat status published by the NodeUpstream lane. */
+    NodeUpstreamTypes.HeartbeatStatus status() {
         return publishedStatus;
     }
 
     /** Publishes the current mutable heartbeat counters as one immutable direct-read snapshot. */
     private void publishStatus() {
         publishedStatus =
-                new UpstreamHandlerTypes.HeartbeatStatus(
+                new NodeUpstreamTypes.HeartbeatStatus(
                         requestsSent,
                         answersReceived,
                         missedIntervals,

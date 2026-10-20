@@ -25,21 +25,6 @@ public final class TimingSystem extends LifecycleComponent {
     private final Upstream upstream;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
-    /** Backward-compatible test composition without a transport implementation. */
-    public TimingSystem(
-            String id,
-            TimingNodeList timingNodes,
-            AntennaManager antennaManager,
-            TimingSystemConductor timingSystemConductor) {
-
-        this(
-                id,
-                timingNodes,
-                antennaManager,
-                timingSystemConductor,
-                Upstream.unavailable());
-    }
-
     /** Creates one complete TimingSystem and fixes its internal event graph. */
     public TimingSystem(
             String id,

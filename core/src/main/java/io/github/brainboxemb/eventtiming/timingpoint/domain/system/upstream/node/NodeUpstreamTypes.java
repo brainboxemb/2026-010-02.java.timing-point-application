@@ -1,14 +1,14 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 /**
- * Public value types exposed by the TimingNode upstream boundary.
+ * Immutable diagnostic value types for one node's upstream protocol.
  *
  * <p>This class is only a Java source-code grouping. It has no runtime state,
  * worker or protocol responsibility of its own.</p>
  */
-public final class UpstreamHandlerTypes {
+public final class NodeUpstreamTypes {
     /** Prevents instantiation of this source-code grouping class. */
-    private UpstreamHandlerTypes() {
+    private NodeUpstreamTypes() {
     }
 
     /**

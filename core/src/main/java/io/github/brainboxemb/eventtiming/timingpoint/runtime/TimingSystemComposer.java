@@ -4,7 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.Upstream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
@@ -138,20 +138,20 @@ final class TimingSystemComposer {
             List<TimingNodeComposition> compositions,
             UpstreamGateway gateway) {
 
-        List<UpstreamHandler> handlers =
-                new ArrayList<UpstreamHandler>();
+        List<NodeUpstream> handlers =
+                new ArrayList<NodeUpstream>();
         for (TimingNodeComposition composition
                 : compositions) {
             TimingNode node = composition.node();
             handlers.add(
-                    new UpstreamHandler(
+                    new NodeUpstream(
                             node.nodeId(),
                             executors.timingNodeScheduler(),
                             UpstreamStream.forNode(
                                     gateway,
                                     node.nodeId()),
                             composition.logBook(),
-                            composition.nodeService()::applyRaceData));
+                            composition.nodeService()));
         }
         return new Upstream(
                 gateway,

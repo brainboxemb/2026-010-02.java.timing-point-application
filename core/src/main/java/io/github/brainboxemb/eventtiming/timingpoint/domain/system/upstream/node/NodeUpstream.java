@@ -1,8 +1,9 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -17,7 +18,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,8 +34,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * complete. Transport/session I/O belongs to {@link UpstreamStream}; none of
  * these domain helpers owns a transport thread or executor.</p>
  */
-public final class UpstreamHandler extends LifecycleComponent {
-    private static final Logger LOG = LoggerFactory.getLogger(UpstreamHandler.class);
+public final class NodeUpstream extends LifecycleComponent {
+    private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
     private static final int TASK_MAX_ITEMS_PER_RUN = 32;
 
@@ -47,18 +47,18 @@ public final class UpstreamHandler extends LifecycleComponent {
     private final LogBookSync logBookSync;
     private final InputTask inputTask = new InputTask();
 
-    /** Creates the node-scoped upstream coordinator over TimingNode's Task Lane. */
-    public UpstreamHandler(
+    /** Creates one node's upstream protocol state and independent logical task lane. */
+    public NodeUpstream(
             NodeId nodeId,
             ScheduledExecutorService scheduler,
             UpstreamStream stream,
             LogBookAccessor logBook,
-            Function<UpstreamData.RaceData, CompletionStage<Void>> raceDataConsumer) {
+            NodeService nodeService) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
-        failIfInvalidArgument(raceDataConsumer != null, "raceDataConsumer must not be null");
+        failIfInvalidArgument(nodeService != null, "nodeService must not be null");
 
         this.nodeId = nodeId;
         this.taskRunner =
@@ -69,7 +69,7 @@ public final class UpstreamHandler extends LifecycleComponent {
                         scheduler);
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
-        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, raceDataConsumer);
+        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, nodeService::applyRaceData);
         this.logBookSync = new LogBookSync(nodeId, stream, logBook);
     }
 
@@ -164,7 +164,7 @@ public final class UpstreamHandler extends LifecycleComponent {
     }
 
     /** Returns the latest immutable heartbeat snapshot without a lane hop. */
-    public UpstreamHandlerTypes.HeartbeatStatus heartbeatStatus() {
+    public NodeUpstreamTypes.HeartbeatStatus heartbeatStatus() {
         return heartbeat.status();
     }
 
