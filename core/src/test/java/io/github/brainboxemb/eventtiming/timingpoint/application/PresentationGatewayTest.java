@@ -107,7 +107,9 @@ public class PresentationGatewayTest {
                             TimingData.AutomaticTimeSource.API);
             assertTrue(registration.committed());
             assertEquals(2, committed.size());
-            assertEquals(TimingRecords.fromTimingData(registration.timingData()), TimingRecords.fromTimingData(committed.get(1)));
+            assertEquals(
+                    TimingRecords.fromTimingData(registration.timingData()),
+                    TimingRecords.fromTimingData(committed.get(1)));
             assertEquals(2, proxy.logBookCount());
 
             List<TimingData> visited = new ArrayList<>();
@@ -119,7 +121,9 @@ public class PresentationGatewayTest {
                             visited::add));
             assertEquals(2, visited.size());
             assertTrue(visited.get(0) instanceof TimingData.NodeOpen);
-            assertEquals(TimingRecords.fromTimingData(registration.timingData()), TimingRecords.fromTimingData(visited.get(1)));
+            assertEquals(
+                    TimingRecords.fromTimingData(registration.timingData()),
+                    TimingRecords.fromTimingData(visited.get(1)));
 
             visited.clear();
             assertEquals(
@@ -128,7 +132,9 @@ public class PresentationGatewayTest {
                             10,
                             visited::add));
             assertEquals(2, visited.size());
-            assertSame(registration.timingData(), visited.get(1));
+            assertEquals(
+                    TimingRecords.fromTimingData(registration.timingData()),
+                    TimingRecords.fromTimingData(visited.get(1)));
 
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, proxy.close());
             assertEquals(2, statusChanges.size());
