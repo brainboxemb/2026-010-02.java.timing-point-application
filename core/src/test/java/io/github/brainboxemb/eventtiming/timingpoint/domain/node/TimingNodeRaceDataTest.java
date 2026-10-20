@@ -3,10 +3,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixtu
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -196,7 +195,6 @@ public class TimingNodeRaceDataTest {
                 TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
                         new EmptyPersistence(),
-                        new DefaultTimingDataFactory(),
                         () -> Instant.parse(
                                 "2026-10-13T12:00:00Z"),
                         new DefaultEventData(),
@@ -241,13 +239,13 @@ public class TimingNodeRaceDataTest {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         /** Rejects unexpected TimingData commits in RACE_DATA-only tests. */
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // RACE_DATA-only tests do not commit TimingData.
         }
     }
