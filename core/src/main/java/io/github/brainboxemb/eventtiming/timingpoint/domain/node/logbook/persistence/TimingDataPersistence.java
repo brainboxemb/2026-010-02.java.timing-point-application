@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -9,32 +9,30 @@ import java.util.List;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * TimingData-specific persistence contract used by TimingNode.
+ * Persistence contract for the shared scalar timing record.
  *
- * <p>The domain contract exposes TimingData semantics only. Its default
- * implementation maps those semantics onto the generic lower-layer record
- * storage boundary.</p>
+ * <p>The historical class name remains temporarily stable for source
+ * compatibility. The contract itself no longer transports TimingData objects.</p>
  */
 public interface TimingDataPersistence {
 
-    /** Loads and validates the complete persisted TimingData stream. */
+    /** Loads and validates the complete persisted timing-record stream. */
     LoadResult load() throws PersistenceException;
 
-    /** Appends one committed TimingData record durably. */
-    void append(TimingData data) throws PersistenceException;
+    /** Appends one committed scalar record durably. */
+    void append(TimingRecord record) throws PersistenceException;
 
-    /** Immutable result of loading persisted TimingData history. */
+    /** Immutable result of loading persisted timing history. */
     final class LoadResult {
-        private final List<TimingData> records;
+        private final List<TimingRecord> records;
         private final boolean repairedIncompleteTail;
 
-        /** Creates one immutable load result from validated records and tail-repair state. */
         public LoadResult(
-                List<TimingData> records,
+                List<TimingRecord> records,
                 boolean repairedIncompleteTail) {
             failIfInvalidArgument(records != null, "records must not be null");
-            List<TimingData> copy = new ArrayList<>(records.size());
-            for (TimingData record : records) {
+            List<TimingRecord> copy = new ArrayList<TimingRecord>(records.size());
+            for (TimingRecord record : records) {
                 failIfInvalidArgument(record != null, "records must not contain null");
                 copy.add(record);
             }
@@ -42,25 +40,20 @@ public interface TimingDataPersistence {
             this.repairedIncompleteTail = repairedIncompleteTail;
         }
 
-        /** Returns the immutable validated TimingData records in source order. */
-        public List<TimingData> records() {
+        public List<TimingRecord> records() {
             return records;
         }
 
-        /** Reports whether the lower append-only store repaired an incomplete final record. */
         public boolean repairedIncompleteTail() {
             return repairedIncompleteTail;
         }
     }
 
-    /** Checked failure while loading, validating or appending TimingData persistence. */
     final class PersistenceException extends Exception {
-        /** Creates a persistence failure without a lower-level cause. */
         public PersistenceException(String message) {
             super(message);
         }
 
-        /** Creates a persistence failure with its lower-level cause. */
         public PersistenceException(String message, Throwable cause) {
             super(message, cause);
         }
