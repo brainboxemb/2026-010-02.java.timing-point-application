@@ -24,7 +24,6 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.time.Instant;
 import java.time.LocalTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -157,22 +156,18 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(2L, secondPage.get(0).sequenceNumber());
 
             List<StageTimingRecord> passages = new ArrayList<StageTimingRecord>();
-            components.nodeService().visitStageTimingRecords(ZoneOffset.UTC, 16, passages::add);
+            components.nodeService().visitStageTimingRecords(16, passages::add);
 
-            List<RegistrationRank> ranking = new ArrayList<RegistrationRank>();
-            components.nodeService()
-                    .visitRegistrationRanking(
-                            new LocationId(1),
-                            ZoneOffset.UTC,
-                            16,
-                            ranking::add);
+            RegistrationRank firstRank =
+                    components.nodeService().registrationRank(firstPage.get(0));
+            RegistrationRank secondRank =
+                    components.nodeService().registrationRank(secondPage.get(0));
 
             assertEquals(2, passages.size());
-            assertEquals(2, ranking.size());
-            assertEquals(2L, ranking.get(0).timingRecord().sequenceNumber());
-            assertEquals(1L, ranking.get(1).timingRecord().sequenceNumber());
-            assertEquals(1, ranking.get(0).rank());
-            assertEquals(2, ranking.get(1).rank());
+            assertEquals(2, firstRank.rank());
+            assertEquals(1L, firstRank.timingRecord().sequenceNumber());
+            assertEquals(1, secondRank.rank());
+            assertEquals(2L, secondRank.timingRecord().sequenceNumber());
         } finally {
             deactivate(components.node());
         }

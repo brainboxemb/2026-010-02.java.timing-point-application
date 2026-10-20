@@ -199,6 +199,7 @@ public class UpstreamHandlerTest {
                         new NodeId("A"),
                         taskLane,
                         logBook,
+                        timeSource,
                         raceData,
                         activeRegistrations);
         UpstreamHandler upstreamHandler =

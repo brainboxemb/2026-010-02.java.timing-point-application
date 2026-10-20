@@ -13,217 +13,116 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDa
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalTime;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 
-/** Verifies every valid registration receives a provisional ranking position. */
+/** Verifies one-passage provisional rank calculation without a materialized ranking list. */
 public class RegistrationRankingTest {
     private static final NodeId NODE_ID = new NodeId("A");
     private static final LocationId LOCATION_ID = new LocationId(1);
     private static final DefaultTimingDataFactory FACTORY = new DefaultTimingDataFactory();
+    private static final Instant START = Instant.parse("2026-10-13T12:00:00Z");
 
-    /** Every valid passage is ranked, including multiple passages of the same team. */
     @Test
-    public void ranksEveryValidPassageForOneTeam() {
+    public void ranksEachRepeatedPassageIndependently() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.NOON);
+        fixture.setStart("0001", START);
+        fixture.add(automatic(1L, "A0001", START.plusSeconds(20), TimingData.RegistrationAction.ADD));
+        fixture.add(automatic(2L, "A0001", START.plusSeconds(10), TimingData.RegistrationAction.ADD));
 
-        fixture.add(
-                automatic(
-                        1L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:20Z"),
-                        TimingData.RegistrationAction.ADD));
-        fixture.add(
-                automatic(
-                        2L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:10Z"),
-                        TimingData.RegistrationAction.ADD));
+        RegistrationRank first = fixture.rank(1L);
+        RegistrationRank second = fixture.rank(2L);
 
-        List<RegistrationRank> ranking = fixture.ranking();
-
-        assertEquals(2, ranking.size());
-        assertEquals(1, ranking.get(0).rank());
-        assertEquals(2L, ranking.get(0).timingRecord().sequenceNumber());
-        assertEquals(Duration.ofSeconds(10), ranking.get(0).elapsed());
-        assertEquals(2, ranking.get(1).rank());
-        assertEquals(1L, ranking.get(1).timingRecord().sequenceNumber());
+        assertEquals(2, first.rank());
+        assertEquals(Duration.ofSeconds(20), first.elapsed());
+        assertEquals(1, second.rank());
+        assertEquals(Duration.ofSeconds(10), second.elapsed());
     }
 
-    /** Revoking the fastest passage removes it from the ranking but not the display history. */
     @Test
-    public void revokeRemovesInvalidPassageFromRanking() {
+    public void revokedPassageIsNotRankableAndRemainingPassageMovesToFirst() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.NOON);
+        fixture.setStart("0001", START);
+        fixture.add(automatic(1L, "A0001", START.plusSeconds(20), TimingData.RegistrationAction.ADD));
+        fixture.add(automatic(2L, "A0001", START.plusSeconds(10), TimingData.RegistrationAction.ADD));
+        ActiveRegistrations.Registration fastest = fixture.registration(2L);
+        fixture.add(automatic(3L, "A0001", START.plusSeconds(10), TimingData.RegistrationAction.REV));
 
-        fixture.add(
-                automatic(
-                        1L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:20Z"),
-                        TimingData.RegistrationAction.ADD));
-        fixture.add(
-                automatic(
-                        2L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:10Z"),
-                        TimingData.RegistrationAction.ADD));
-        fixture.add(
-                automatic(
-                        3L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:10Z"),
-                        TimingData.RegistrationAction.REV));
-
-        List<RegistrationRank> ranking = fixture.ranking();
-
-        assertEquals(1, ranking.size());
-        assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
-        assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
+        assertNull(fixture.rank(fastest));
+        assertEquals(1, fixture.rank(1L).rank());
     }
 
-    /** An unmatched REV leaves the current ranking unchanged. */
     @Test
-    public void unmatchedRevokeDoesNotChangeRanking() {
+    public void equalElapsedTimesShareCompetitionRank() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.NOON);
+        fixture.setStart("0001", START);
+        fixture.setStart("0002", START);
+        fixture.add(automatic(1L, "A0001", START.plusSeconds(10), TimingData.RegistrationAction.ADD));
+        fixture.add(automatic(2L, "A0002", START.plusSeconds(10), TimingData.RegistrationAction.ADD));
 
-        fixture.add(
-                automatic(
-                        1L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:20Z"),
-                        TimingData.RegistrationAction.ADD));
-        fixture.add(
-                automatic(
-                        2L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:30Z"),
-                        TimingData.RegistrationAction.REV));
-
-        List<RegistrationRank> ranking = fixture.ranking();
-
-        assertEquals(1, ranking.size());
-        assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
+        assertEquals(1, fixture.rank(1L).rank());
+        assertEquals(1, fixture.rank(2L).rank());
     }
 
-    /** Equal elapsed times share a competition rank across registrations. */
     @Test
-    public void equalElapsedTimesShareRank() {
+    public void rankingOnlyCountsRegistrationsAtTheSameLocation() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.NOON);
-        fixture.setStart("0002", LocalTime.NOON);
+        fixture.setStart("0001", START);
+        fixture.add(automaticAt(1L, 1, "A0001", START.plusSeconds(20), TimingData.RegistrationAction.ADD));
+        fixture.add(automaticAt(2L, 2, "A0001", START.plusSeconds(10), TimingData.RegistrationAction.ADD));
 
-        fixture.add(
-                automatic(
-                        1L,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:10Z"),
-                        TimingData.RegistrationAction.ADD));
-        fixture.add(
-                automatic(
-                        2L,
-                        "A0002",
-                        Instant.parse("2026-10-13T12:00:10Z"),
-                        TimingData.RegistrationAction.ADD));
-
-        List<RegistrationRank> ranking = fixture.ranking();
-
-        assertEquals(2, ranking.size());
-        assertEquals(1, ranking.get(0).rank());
-        assertEquals(1, ranking.get(1).rank());
+        assertEquals(1, fixture.rank(1L).rank());
+        assertEquals(1, fixture.rank(2L).rank());
     }
 
-    /** Ranking registrations stay scoped to their TimingData location. */
     @Test
-    public void rankingIsScopedPerLocation() {
+    public void currentAssignmentDeterminesWhetherReservePassageCanBeRanked() {
         Fixture fixture = fixture();
-        fixture.setStart("0001", LocalTime.NOON);
+        fixture.setStart("0042", START);
+        fixture.add(automatic(1L, "R0001", START.plusSeconds(30), TimingData.RegistrationAction.ADD));
+        ActiveRegistrations.Registration registration = fixture.registration(1L);
 
-        fixture.add(
-                automaticAt(
-                        1L,
-                        1,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:20Z"),
-                        TimingData.RegistrationAction.ADD));
-        fixture.add(
-                automaticAt(
-                        2L,
-                        2,
-                        "A0001",
-                        Instant.parse("2026-10-13T12:00:10Z"),
-                        TimingData.RegistrationAction.ADD));
-
-        assertEquals(1L, fixture.ranking(new LocationId(1)).get(0).timingRecord().sequenceNumber());
-        assertEquals(2L, fixture.ranking(new LocationId(2)).get(0).timingRecord().sequenceNumber());
-    }
-
-    /** A reserve registration enters ranking when its live team assignment appears. */
-    @Test
-    public void assignmentChangeChangesRankingWithoutReapplyingRegistrations() {
-        Fixture fixture = fixture();
-        fixture.setStart("0042", LocalTime.NOON);
-
-        fixture.add(
-                automatic(
-                        1L,
-                        "R0001",
-                        Instant.parse("2026-10-13T12:00:30Z"),
-                        TimingData.RegistrationAction.ADD));
-
-        assertTrue(fixture.ranking().isEmpty());
+        assertNull(fixture.rank(registration));
 
         RegistrationId registrationId = new RegistrationId("R0001");
         TeamId teamId = new TeamId("0042");
         fixture.raceData.teamAssignments().assign(registrationId, teamId);
-
-        List<RegistrationRank> ranking = fixture.ranking();
-
-        assertEquals(1, ranking.size());
-        assertEquals(teamId, ranking.get(0).timingRecord().teamId());
-        assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
+        assertEquals(1, fixture.rank(registration).rank());
 
         fixture.raceData.teamAssignments().remove(registrationId);
-        assertTrue(fixture.ranking().isEmpty());
+        assertNull(fixture.rank(registration));
     }
 
-    /** 400 passages by 350 teams must produce 400 ranked rows but only 350 unique registered teams. */
+    /** One rank query over 400 passages remains one scan and keeps repeated teams separate. */
     @Test
-    public void ranksFourHundredRegistrationsFromThreeHundredFiftyTeams() {
+    public void ranksOneOfFourHundredPassagesWithoutBuildingFullRanking() {
         Fixture fixture = fixture();
         RegisteredTeams registeredTeams = new RegisteredTeams();
 
         for (int team = 1; team <= 350; team++) {
-            fixture.setStart(String.format(Locale.ROOT, "%04d", team), LocalTime.NOON);
+            fixture.setStart(String.format(Locale.ROOT, "%04d", team), START);
         }
 
         for (int sequence = 1; sequence <= 400; sequence++) {
             int team = (sequence - 1) % 350 + 1;
             String registrationId = String.format(Locale.ROOT, "A%04d", team);
-            TimingData registration = automatic(
-                    sequence, registrationId, Instant.parse("2026-10-13T12:00:00Z").plusMillis(sequence),
-                    TimingData.RegistrationAction.ADD);
+            TimingData registration =
+                    automatic(
+                            sequence,
+                            registrationId,
+                            START.plusMillis(sequence),
+                            TimingData.RegistrationAction.ADD);
             ActiveRegistrations.Change change = fixture.activeRegistrations.apply(registration);
             registeredTeams.apply(change, fixture.raceData.teamIdFor(change.registrationId()));
         }
 
-        List<RegistrationRank> ranking = new ArrayList<>();
-        RegistrationRanking.visit(fixture.activeRegistrations, fixture.raceData, LOCATION_ID, ZoneOffset.UTC, 400, ranking::add);
-
-        assertEquals(400, ranking.size());
         assertEquals(350, registeredTeams.uniqueTeamCount(LOCATION_ID));
-        assertEquals(1, ranking.get(0).rank());
-        assertEquals(400, ranking.get(399).rank());
+        assertEquals(1, fixture.rank(1L).rank());
+        assertEquals(400, fixture.rank(400L).rank());
     }
 
     private static Fixture fixture() {
@@ -266,9 +165,9 @@ public class RegistrationRankingTest {
         private final RaceDataState raceData = new RaceDataState(eventData);
         private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
 
-        private void setStart(String teamId, LocalTime startTime) {
+        private void setStart(String teamId, Instant startTime) {
 
-            raceData.stageStartTimes().set(new TeamId(teamId), TimingTimestamp.localTime(startTime));
+            raceData.stageStartTimes().set(new TeamId(teamId), startTime.toEpochMilli());
         }
 
         private void add(TimingData data) {
@@ -276,16 +175,24 @@ public class RegistrationRankingTest {
             activeRegistrations.apply(data);
         }
 
-        private List<RegistrationRank> ranking() {
+        private ActiveRegistrations.Registration registration(long sequence) {
 
-            return ranking(LOCATION_ID);
+            for (ActiveRegistrations.Registration registration : activeRegistrations.values()) {
+                if (registration.sequenceNumber() == sequence) {
+                    return registration;
+                }
+            }
+            throw new AssertionError("missing registration sequence " + sequence);
         }
 
-        private List<RegistrationRank> ranking(LocationId locationId) {
+        private RegistrationRank rank(long sequence) {
 
-            List<RegistrationRank> result = new ArrayList<RegistrationRank>();
-            RegistrationRanking.visit(activeRegistrations, raceData, locationId, ZoneOffset.UTC, 16, result::add);
-            return result;
+            return rank(registration(sequence));
+        }
+
+        private RegistrationRank rank(ActiveRegistrations.Registration registration) {
+
+            return RegistrationRanking.rank(activeRegistrations, raceData, registration);
         }
     }
 }
