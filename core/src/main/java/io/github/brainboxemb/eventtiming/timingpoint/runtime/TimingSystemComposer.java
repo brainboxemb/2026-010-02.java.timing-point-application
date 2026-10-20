@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.Upstream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
@@ -136,7 +135,7 @@ final class TimingSystemComposer {
     /** Builds one independent protocol-state instance for every TimingNode. */
     private Upstream createUpstream(
             List<TimingNodeComposition> compositions,
-            UpstreamGateway gateway) {
+            EngineerApiConnector upstreamConnector) {
 
         List<NodeUpstream> nodeUpstreams =
                 new ArrayList<NodeUpstream>();
@@ -148,7 +147,7 @@ final class TimingSystemComposer {
                             node.nodeId(),
                             executors.timingNodeScheduler(),
                             UpstreamStream.forNode(
-                                    gateway,
+                                    upstreamConnector,
                                     node.nodeId()),
                             composition.logBook(),
                             composition.nodeService());
@@ -163,7 +162,7 @@ final class TimingSystemComposer {
             nodeUpstreams.add(nodeUpstream);
         }
         return new Upstream(
-                gateway,
+                upstreamConnector,
                 nodeUpstreams);
     }
 
