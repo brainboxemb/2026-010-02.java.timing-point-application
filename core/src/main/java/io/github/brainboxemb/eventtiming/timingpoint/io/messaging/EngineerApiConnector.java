@@ -342,28 +342,19 @@ public final class EngineerApiConnector implements UpstreamGateway {
      * Queues one heartbeat operation for every bound node.
      *
      * <p>The scheduler owns only cadence. NodeUpstream owns heartbeat protocol
-     * state and serial execution. One node callback failure is contained so it
-     * cannot silently cancel the connector's fixed-rate schedule.</p>
+     * state and serial execution. Callbacks only enqueue node work, so the short
+     * connector lock can also guarantee that no old-session callback begins
+     * after disconnect returns. One node callback failure is contained so it
+     * cannot silently cancel the fixed-rate schedule.</p>
      */
-    private void heartbeatTick() {
-        Runnable[] callbacks;
-        synchronized (this) {
-            if (output == null) {
-                return;
-            }
-
-            callbacks =
-                    new Runnable[inputs.size()];
-            int index = 0;
-            for (NodeInput input : inputs.values()) {
-                callbacks[index++] =
-                        input.heartbeatTick;
-            }
+    private synchronized void heartbeatTick() {
+        if (output == null) {
+            return;
         }
 
-        for (Runnable callback : callbacks) {
+        for (NodeInput input : inputs.values()) {
             try {
-                callback.run();
+                input.heartbeatTick.run();
             } catch (RuntimeException failure) {
                 LOG.warn(
                         "Engineering upstream heartbeat callback failed",
