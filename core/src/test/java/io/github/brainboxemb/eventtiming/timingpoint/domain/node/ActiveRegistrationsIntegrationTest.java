@@ -95,8 +95,8 @@ public class ActiveRegistrationsIntegrationTest {
                     2);
             List<TeamId> synchronizedTeams = new ArrayList<>();
             assertEquals(2, components.nodeService().visitRegisteredTeams(new LocationId(1), synchronizedTeams::add));
-            assertEquals(new TeamId("0001"), synchronizedTeams.get(0));
-            assertEquals(new TeamId("0042"), synchronizedTeams.get(1));
+            org.junit.Assert.assertTrue(synchronizedTeams.contains(new TeamId("0001")));
+            org.junit.Assert.assertTrue(synchronizedTeams.contains(new TeamId("0042")));
             assertEquals(2, teamChanges.size());
             assertEquals(RegisteredTeams.Change.Action.ADDED, teamChanges.get(1).action());
             assertEquals(new TeamId("0042"), teamChanges.get(1).teamId());

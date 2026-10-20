@@ -195,7 +195,7 @@ public final class NodeService extends LifecycleComponent {
         return read(() -> activeRegistrations.visitAfter(locationId, afterSequence, limit, visitor));
     }
 
-    /** Visits the complete current unique-team set for a compact display burst. */
+    /** Visits the complete current unique-team set for an order-independent compact display burst. */
     public int visitRegisteredTeams(LocationId locationId, Consumer<TeamId> visitor) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");

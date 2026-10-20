@@ -6,10 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -74,7 +71,12 @@ public final class RegisteredTeams {
         return teams == null ? 0 : teams.size();
     }
 
-    /** Visits the full current unique-team set for a display synchronization burst. */
+    /**
+     * Visits the full current unique-team set for a display synchronization burst.
+     *
+     * <p>Team order has no domain meaning. The visitor receives the retained set directly
+     * without constructing or sorting a temporary snapshot list.</p>
+     */
     public int visit(LocationId locationId, Consumer<TeamId> visitor) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
@@ -85,12 +87,10 @@ public final class RegisteredTeams {
             return 0;
         }
 
-        List<TeamId> ordered = new ArrayList<>(teams.keySet());
-        ordered.sort(Comparator.comparing(TeamId::value));
-        for (TeamId teamId : ordered) {
+        for (TeamId teamId : teams.keySet()) {
             visitor.accept(teamId);
         }
-        return ordered.size();
+        return teams.size();
     }
 
     /** Counts one valid occurrence, applying any newer assignment before adding it. */

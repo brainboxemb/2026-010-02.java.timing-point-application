@@ -59,8 +59,8 @@ public class RegisteredTeamsTest {
 
         List<TeamId> burst = new ArrayList<>();
         assertEquals(2, teams.visit(new LocationId(1), burst::add));
-        assertEquals(FIRST, burst.get(0));
-        assertEquals(SECOND, burst.get(1));
+        org.junit.Assert.assertTrue(burst.contains(FIRST));
+        org.junit.Assert.assertTrue(burst.contains(SECOND));
 
         accept(registrations, teams, record(4L, 1, "A0001", TimingData.RegistrationAction.REV), FIRST);
         assertEquals(2, teams.uniqueTeamCount(new LocationId(1)));
