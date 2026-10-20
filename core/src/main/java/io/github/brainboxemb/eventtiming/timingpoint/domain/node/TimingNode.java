@@ -25,6 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -45,6 +46,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  * TimingData records but does not reconstruct current state from them.</p>
  */
 public final class TimingNode extends LifecycleComponent {
+    private static final int TASK_QUEUE_CAPACITY = 32;
+    private static final int TASK_MAX_ITEMS_PER_RUN = 32;
     /** Typed identity of the functional OPEN/CLOSED property. */
     public static final PropertyKey<FunctionalState> FUNCTIONAL_STATE =
             PropertyKey.of("functionalState");
@@ -103,7 +106,7 @@ public final class TimingNode extends LifecycleComponent {
             LogBook logBook,
             NodeService nodeService,
             TagProcessor tagProcessor,
-            SerialTaskRunner taskRunner) {
+            ScheduledExecutorService scheduler) {
 
         super(
                 () -> new IllegalStateException(
@@ -114,7 +117,7 @@ public final class TimingNode extends LifecycleComponent {
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
         failIfInvalidArgument(tagProcessor != null, "tagProcessor must not be null");
-        failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
+        failIfInvalidArgument(scheduler != null, "scheduler must not be null");
 
         this.timingNodeId = logBook.timingNodeId();
         this.antennaId = antennaId;
@@ -123,7 +126,12 @@ public final class TimingNode extends LifecycleComponent {
         this.nodeService = nodeService;
         this.NEW_DATA_ENTRY = logBook.NEW_DATA_ENTRY;
         this.tagProcessor = tagProcessor;
-        this.taskRunner = taskRunner;
+        this.taskRunner =
+                new SerialTaskRunner(
+                        TASK_QUEUE_CAPACITY,
+                        TASK_MAX_ITEMS_PER_RUN,
+                        "TimingNode-" + timingNodeId.value(),
+                        scheduler);
         lifecycle.register(nodeService);
         lifecycle.register(logBook);
         lifecycle.register(tagProcessor);
