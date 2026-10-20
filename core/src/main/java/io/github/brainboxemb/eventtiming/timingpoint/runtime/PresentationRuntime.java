@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.HttpEndpoint;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.WebSocketEndpoint;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console.LocalConsole;
@@ -13,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.util.List;
 
 /**
  * Owns the concrete Presentation adapters of one composed TimingApplication.
@@ -37,6 +39,7 @@ final class PresentationRuntime {
     PresentationRuntime(
             Presentation configuration,
             PresentationGateway gateway,
+            List<EngineerApiConnector> upstreamConnectors,
             LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
             Runnable shutdownRequest,
@@ -49,6 +52,10 @@ final class PresentationRuntime {
         if (gateway == null) {
             throw new IllegalArgumentException(
                     "gateway must not be null");
+        }
+        if (upstreamConnectors == null) {
+            throw new IllegalArgumentException(
+                    "upstreamConnectors must not be null");
         }
         if (shutdownRequest == null) {
             throw new IllegalArgumentException(
@@ -72,7 +79,8 @@ final class PresentationRuntime {
                         : new HttpEndpoint(
                                 httpConfig.bindAddress(),
                                 httpConfig.port(),
-                                gateway);
+                                gateway,
+                                upstreamConnectors);
 
         Api.WebSocket webSocketConfig =
                 api == null
@@ -84,7 +92,8 @@ final class PresentationRuntime {
                         : new WebSocketEndpoint(
                                 webSocketConfig.bindAddress(),
                                 webSocketConfig.port(),
-                                gateway);
+                                gateway,
+                                upstreamConnectors);
 
         Presentation.RemoteShell shellConfig =
                 configuration.remoteShell();

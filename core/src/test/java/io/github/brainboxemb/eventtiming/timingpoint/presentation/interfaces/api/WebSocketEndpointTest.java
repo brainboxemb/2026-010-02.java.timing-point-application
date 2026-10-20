@@ -13,6 +13,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
@@ -82,6 +85,97 @@ public class WebSocketEndpointTest {
                 second.closeBlocking();
             }
         } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void sendsUpstreamDataOnlyToUpstreamRoleConnection()
+            throws Exception {
+        Fixture fixture =
+                new Fixture();
+        fixture.start();
+
+        EngineerApiConnector connector =
+                new EngineerApiConnector();
+        connector.bindNode(
+                new NodeId("A"),
+                () -> true,
+                () -> connector.send(
+                        DefaultUpstreamData.sync(
+                                new NodeId("A"),
+                                UpstreamData.Stream.TIMING_DATA,
+                                0L)));
+
+        WebSocketEndpoint server =
+                new WebSocketEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler,
+                        Collections.singletonList(
+                                connector),
+                        EVENT_CLOCK);
+        server.start();
+
+        TestClient normal =
+                connect(
+                        server.boundPort());
+        TestClient upstream =
+                connectUpstream(
+                        server.boundPort());
+        try {
+            assertSnapshot(
+                    normal.awaitMessage(),
+                    "A",
+                    "CLOSED",
+                    "null");
+            assertSnapshot(
+                    upstream.awaitMessage(),
+                    "A",
+                    "CLOSED",
+                    "null");
+
+            String syncEvent =
+                    upstream.awaitMessage();
+            assertTrue(
+                    syncEvent.contains(
+                            "\"eventType\":\"UPSTREAM_DATA\""));
+            assertTrue(
+                    syncEvent.contains(
+                            "\"type\":\"SYNC\""));
+            assertTrue(
+                    syncEvent.contains(
+                            "\"nodeId\":\"A\""));
+            assertTrue(
+                    syncEvent.contains(
+                            "\"stream\":\"TIMING_DATA\""));
+            assertNull(
+                    normal.pollMessage(250));
+
+            connector.send(
+                    DefaultUpstreamData.ping(
+                            new NodeId("A"),
+                            UpstreamData.PingOperation.REQ,
+                            null,
+                            "manual-1"));
+
+            String pingEvent =
+                    upstream.awaitMessage();
+            assertTrue(
+                    pingEvent.contains(
+                            "\"eventType\":\"UPSTREAM_DATA\""));
+            assertTrue(
+                    pingEvent.contains(
+                            "\"type\":\"PING\""));
+            assertTrue(
+                    pingEvent.contains(
+                            "\"pingId\":\"manual-1\""));
+            assertNull(
+                    normal.pollMessage(250));
+        } finally {
+            upstream.closeBlocking();
+            normal.closeBlocking();
             server.close();
             fixture.close();
         }
@@ -364,6 +458,22 @@ public class WebSocketEndpointTest {
         TestClient client = new TestClient(
                 new URI("ws://127.0.0.1:" + port + WebSocketEndpoint.EVENTS_PATH));
         assertTrue(client.connectBlocking(2, TimeUnit.SECONDS));
+        return client;
+    }
+
+    private static TestClient connectUpstream(
+            int port)
+            throws Exception {
+        TestClient client =
+                new TestClient(
+                        new URI(
+                                "ws://127.0.0.1:"
+                                        + port
+                                        + WebSocketEndpoint.UPSTREAM_EVENTS_PATH));
+        assertTrue(
+                client.connectBlocking(
+                        2,
+                        TimeUnit.SECONDS));
         return client;
     }
 

@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePrompt
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
@@ -63,6 +64,8 @@ final class TimingApplicationAssembler {
                             platform);
             List<TimingNode> timingNodes = new ArrayList<TimingNode>();
             List<TimingSystem> systems = new ArrayList<TimingSystem>();
+            List<EngineerApiConnector> upstreamConnectors =
+                    new ArrayList<EngineerApiConnector>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
             SimulatedTagScenarioRunner simulationRunner =
@@ -78,6 +81,8 @@ final class TimingApplicationAssembler {
                     : resolvedSystems) {
                 TimeSource timeSource =
                         runtimeTimeSources.createTimeSource();
+                EngineerApiConnector upstreamConnector =
+                        new EngineerApiConnector();
                 TimingSystem system =
                         systemComposer.compose(
                                 resolvedSystem,
@@ -86,7 +91,9 @@ final class TimingApplicationAssembler {
                                                 .configuration()
                                                 .timingSystemId()),
                                 antennaSet,
-                                timeSource);
+                                timeSource,
+                                upstreamConnector);
+                upstreamConnectors.add(upstreamConnector);
                 systems.add(system);
                 applicationConductor.registerTimingSystem(system);
                 for (TimingNode node : system.timingNodes()) {
@@ -127,6 +134,7 @@ final class TimingApplicationAssembler {
                     new PresentationRuntime(
                             config.presentation(),
                             presentationGateway,
+                            upstreamConnectors,
                             loggingLevelControl,
                             consolePromptControl,
                             shutdownSignal::request,

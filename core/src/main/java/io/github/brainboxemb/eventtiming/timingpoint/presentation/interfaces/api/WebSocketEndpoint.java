@@ -7,13 +7,19 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,6 +47,8 @@ import org.slf4j.LoggerFactory;
  */
 public final class WebSocketEndpoint implements AutoCloseable {
     public static final String EVENTS_PATH = "/api/v1/events";
+    public static final String UPSTREAM_EVENTS_PATH =
+            EVENTS_PATH + "?role=upstream";
 
     private static final Logger LOG = LoggerFactory.getLogger(WebSocketEndpoint.class);
     private static final int MAX_INBOUND_FRAME_BYTES = 64 * 1024;
@@ -51,7 +59,13 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final PresentationGateway presentationGateway;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
+    private final UpstreamDataCodec upstreamDataCodec;
+    private final List<EngineerApiConnector> upstreamConnectors;
     private final WebSocketOutboundDelivery outboundDelivery;
+    private final AtomicReference<WebSocket> upstreamConnection =
+            new AtomicReference<WebSocket>();
+    private final AtomicReference<EngineerApiConnector.Output> upstreamOutput =
+            new AtomicReference<EngineerApiConnector.Output>();
 
     private Server server;
 
@@ -59,7 +73,25 @@ public final class WebSocketEndpoint implements AutoCloseable {
             String bindAddress,
             int port,
             PresentationGateway presentationGateway) {
-        this(bindAddress, port, presentationGateway, Clock.systemUTC());
+        this(
+                bindAddress,
+                port,
+                presentationGateway,
+                Collections.<EngineerApiConnector>emptyList(),
+                Clock.systemUTC());
+    }
+
+    public WebSocketEndpoint(
+            String bindAddress,
+            int port,
+            PresentationGateway presentationGateway,
+            List<EngineerApiConnector> upstreamConnectors) {
+        this(
+                bindAddress,
+                port,
+                presentationGateway,
+                upstreamConnectors,
+                Clock.systemUTC());
     }
 
     /**
@@ -72,6 +104,20 @@ public final class WebSocketEndpoint implements AutoCloseable {
             int port,
             PresentationGateway presentationGateway,
             Clock clock) {
+        this(
+                bindAddress,
+                port,
+                presentationGateway,
+                Collections.<EngineerApiConnector>emptyList(),
+                clock);
+    }
+
+    WebSocketEndpoint(
+            String bindAddress,
+            int port,
+            PresentationGateway presentationGateway,
+            List<EngineerApiConnector> upstreamConnectors,
+            Clock clock) {
         if (bindAddress == null || bindAddress.trim().isEmpty()) {
             throw new IllegalArgumentException("bindAddress must not be blank");
         }
@@ -81,14 +127,25 @@ public final class WebSocketEndpoint implements AutoCloseable {
         if (presentationGateway == null) {
             throw new IllegalArgumentException("presentationGateway must not be null");
         }
+        if (upstreamConnectors == null) {
+            throw new IllegalArgumentException("upstreamConnectors must not be null");
+        }
         if (clock == null) {
             throw new IllegalArgumentException("clock must not be null");
         }
+
         this.bindAddress = bindAddress.trim();
         this.port = port;
         this.presentationGateway = presentationGateway;
+        this.upstreamConnectors =
+                Collections.unmodifiableList(
+                        new ArrayList<EngineerApiConnector>(
+                                upstreamConnectors));
         this.clock = clock;
         this.timingDataCodec = new DefaultTimingDataCodec();
+        this.upstreamDataCodec =
+                new DefaultUpstreamDataCodec(
+                        timingDataCodec);
         this.outboundDelivery =
                 new WebSocketOutboundDelivery();
 
@@ -250,6 +307,28 @@ public final class WebSocketEndpoint implements AutoCloseable {
             current.stop(1000);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+        } finally {
+            disconnectUpstreamPeer(
+                    upstreamConnection.get());
+        }
+    }
+
+    private void disconnectUpstreamPeer(
+            WebSocket connection) {
+        if (connection == null
+                || !upstreamConnection.compareAndSet(
+                        connection,
+                        null)) {
+            return;
+        }
+
+        EngineerApiConnector.Output peer =
+                upstreamOutput.getAndSet(null);
+        if (peer != null) {
+            for (EngineerApiConnector connector
+                    : upstreamConnectors) {
+                connector.disconnect(peer);
+            }
         }
     }
 
@@ -285,35 +364,69 @@ public final class WebSocketEndpoint implements AutoCloseable {
 
         @Override
         public void onOpen(WebSocket connection, ClientHandshake handshake) {
-            if (!EVENTS_PATH.equals(handshake.getResourceDescriptor())) {
+            String resource =
+                    handshake.getResourceDescriptor();
+            boolean upstreamRole =
+                    UPSTREAM_EVENTS_PATH.equals(resource);
+            if (!upstreamRole
+                    && !EVENTS_PATH.equals(resource)) {
                 connection.close(
                         CloseFrame.POLICY_VALIDATION,
                         "Unknown IF-03 WebSocket resource");
                 return;
             }
+            if (upstreamRole
+                    && !upstreamConnection.compareAndSet(
+                            null,
+                            connection)) {
+                connection.close(
+                        CloseFrame.POLICY_VALIDATION,
+                        "Engineering upstream peer is already connected");
+                return;
+            }
+
             outboundDelivery.connected(
                     connection);
             try {
                 /*
-                 * INIT is a valid current operational state. A connecting client
-                 * therefore receives a complete snapshot immediately and later
-                 * status changes report recovery becoming OK or ERROR.
+                 * The status snapshot is always the first event. Only after that
+                 * baseline has been accepted does role=upstream make the
+                 * Engineering connector operational.
                  */
                 sendEvent(
                         connection,
                         snapshotJson());
+
+                if (upstreamRole) {
+                    EngineerApiConnector.Output peer =
+                            message ->
+                                    sendUpstreamData(
+                                            connection,
+                                            message);
+                    upstreamOutput.set(peer);
+
+                    for (EngineerApiConnector connector
+                            : upstreamConnectors) {
+                        if (!connector.connect(peer)) {
+                            throw new IllegalStateException(
+                                    "Engineering upstream connector already has a peer");
+                        }
+                    }
+                }
             } catch (RuntimeException ex) {
+                disconnectUpstreamPeer(connection);
                 LOG.warn(
-                        "Unable to create initial IF-03 status snapshot",
+                        "Unable to initialize IF-03 WebSocket client",
                         ex);
                 connection.close(
                         CloseFrame.UNEXPECTED_CONDITION,
-                        "Unable to create status snapshot");
+                        "Unable to initialize IF-03 WebSocket client");
             }
         }
 
         @Override
         public void onClose(WebSocket connection, int code, String reason, boolean remote) {
+            disconnectUpstreamPeer(connection);
             outboundDelivery.disconnected(
                     connection);
             LOG.debug(
@@ -351,6 +464,38 @@ public final class WebSocketEndpoint implements AutoCloseable {
         private void sendEvent(
                 WebSocket connection,
                 String message) {
+            deliverEvent(
+                    connection,
+                    message);
+        }
+
+        private boolean sendUpstreamData(
+                WebSocket connection,
+                UpstreamData message) {
+            final String event;
+            try {
+                event =
+                        MessageWriter.upstreamDataEvent(
+                                clock.instant(),
+                                message,
+                                upstreamDataCodec);
+            } catch (UpstreamDataCodec.CodecException ex) {
+                LOG.warn(
+                        "Could not encode UpstreamData for IF-03",
+                        ex);
+                closeAfterDeliveryFailure(connection);
+                return false;
+            }
+
+            return deliverEvent(
+                    connection,
+                    event)
+                    == WebSocketOutboundDelivery.SendResult.SENT;
+        }
+
+        private WebSocketOutboundDelivery.SendResult deliverEvent(
+                WebSocket connection,
+                String message) {
             try {
                 WebSocketOutboundDelivery.SendResult result =
                         outboundDelivery.send(
@@ -362,6 +507,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
                             "Disconnecting slow IF-03 WebSocket client {} after outbound backlog limit",
                             connection.getRemoteSocketAddress());
                 }
+                return result;
             } catch (RuntimeException ex) {
                 LOG.debug(
                         "IF-03 WebSocket event send failed for {}",
@@ -369,6 +515,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
                         ex);
                 closeAfterDeliveryFailure(
                         connection);
+                return WebSocketOutboundDelivery.SendResult.NOT_CONNECTED;
             }
         }
 

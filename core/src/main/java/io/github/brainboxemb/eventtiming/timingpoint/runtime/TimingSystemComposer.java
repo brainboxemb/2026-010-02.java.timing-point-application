@@ -7,7 +7,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.Upstream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
@@ -61,7 +61,8 @@ final class TimingSystemComposer {
             TimingSystemResolvedData system,
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
-            TimeSource timeSource) {
+            TimeSource timeSource,
+            EngineerApiConnector upstreamConnector) {
 
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
         List<TimingNodeComposition> nodeCompositions =
@@ -82,12 +83,10 @@ final class TimingSystemComposer {
                 antennaManager,
                 executors.createTimingSystemConductorLane());
 
-        UpstreamGateway upstreamGateway =
-                UpstreamGateway.unavailable();
         Upstream upstream =
                 createUpstream(
                         nodeCompositions,
-                        upstreamGateway);
+                        upstreamConnector);
 
         return new TimingSystem(
                 system.configuration().timingSystemId(),
@@ -136,26 +135,35 @@ final class TimingSystemComposer {
     /** Builds one independent protocol-state instance for every TimingNode. */
     private Upstream createUpstream(
             List<TimingNodeComposition> compositions,
-            UpstreamGateway gateway) {
+            EngineerApiConnector upstreamConnector) {
 
-        List<NodeUpstream> handlers =
+        List<NodeUpstream> nodeUpstreams =
                 new ArrayList<NodeUpstream>();
         for (TimingNodeComposition composition
                 : compositions) {
             TimingNode node = composition.node();
-            handlers.add(
+            NodeUpstream nodeUpstream =
                     new NodeUpstream(
                             node.nodeId(),
                             executors.timingNodeScheduler(),
                             UpstreamStream.forNode(
-                                    gateway,
+                                    upstreamConnector,
                                     node.nodeId()),
                             composition.logBook(),
-                            composition.nodeService()));
+                            composition.nodeService());
+
+            upstreamConnector.bindNode(
+                    node.nodeId(),
+                    nodeUpstream::inputAvailable,
+                    () -> {
+                        nodeUpstream.sendTimingDataSync();
+                        nodeUpstream.heartbeatTick();
+                    });
+            nodeUpstreams.add(nodeUpstream);
         }
         return new Upstream(
-                gateway,
-                handlers);
+                upstreamConnector,
+                nodeUpstreams);
     }
 
     /** Resolves an optional node antenna id against the antennas available to this system. */
