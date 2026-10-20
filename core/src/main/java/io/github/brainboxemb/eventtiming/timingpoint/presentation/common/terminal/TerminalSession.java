@@ -25,6 +25,11 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.Writer;
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -191,7 +196,6 @@ public final class TerminalSession {
                     close(arguments, nodeId, output);
                     return false;
                 case "reg":
-                case "auto-reg":
                     registration(arguments, nodeId, output);
                     return false;
                 case "test":
@@ -280,7 +284,8 @@ public final class TerminalSession {
             PrintWriter output) {
 
         if (arguments.length < 2 || arguments.length > 3) {
-            output.println("Usage: reg <registrationId> [now|<UTC timestamp>]");
+            output.println(
+                    "Usage: reg <registrationId> [now|HHMMSShh|<UTC timestamp>]");
             return;
         }
 
@@ -291,6 +296,12 @@ public final class TerminalSession {
         if (arguments.length == 2 || "now".equalsIgnoreCase(arguments[2])) {
             effectiveTime = new TimingTimestamp(timingNode.timeSource().now());
             timeSource = AutomaticTimeSource.NODE;
+        } else if (isCompactRegistrationTime(arguments[2])) {
+            effectiveTime =
+                    compactRegistrationTime(
+                            arguments[2],
+                            timingNode.timeSource().now());
+            timeSource = AutomaticTimeSource.API;
         } else {
             effectiveTime = TimingTimestamp.parseAbsolute(arguments[2]);
             timeSource = AutomaticTimeSource.API;
@@ -308,6 +319,48 @@ public final class TerminalSession {
                             + result.timingRecord().sequenceNumber());
         } else {
             output.println("Registration: " + result.outcome().name());
+        }
+    }
+
+    /** Reports whether text is the compact operator time form HHMMSShh. */
+    private static boolean isCompactRegistrationTime(String text) {
+
+        if (text == null || text.length() != 8) {
+            return false;
+        }
+        for (int index = 0; index < text.length(); index++) {
+            if (!Character.isDigit(text.charAt(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Resolves compact HHMMSShh against the node clock's current UTC date. */
+    private static TimingTimestamp compactRegistrationTime(
+            String text,
+            Instant nodeNow) {
+
+        try {
+            int hour = Integer.parseInt(text.substring(0, 2));
+            int minute = Integer.parseInt(text.substring(2, 4));
+            int second = Integer.parseInt(text.substring(4, 6));
+            int hundredths = Integer.parseInt(text.substring(6, 8));
+
+            LocalTime time =
+                    LocalTime.of(
+                            hour,
+                            minute,
+                            second,
+                            hundredths * 10_000_000);
+            LocalDate date =
+                    nodeNow.atOffset(ZoneOffset.UTC).toLocalDate();
+            return new TimingTimestamp(
+                    date.atTime(time).toInstant(ZoneOffset.UTC));
+        } catch (DateTimeException | NumberFormatException ex) {
+            throw new IllegalArgumentException(
+                    "compact registration time must be HHMMSShh",
+                    ex);
         }
     }
 
@@ -557,7 +610,6 @@ public final class TerminalSession {
                 || "close".equals(command)
                 || "status".equals(command)
                 || "reg".equals(command)
-                || "auto-reg".equals(command)
                 || "test".equals(command)
                 || "config".equals(command);
     }
@@ -569,7 +621,6 @@ public final class TerminalSession {
                 || "close".equals(command)
                 || "status".equals(command)
                 || "reg".equals(command)
-                || "auto-reg".equals(command)
                 || "test".equals(command)) {
             return true;
         }
@@ -758,12 +809,14 @@ public final class TerminalSession {
         output.println("  open <locationId>            Open selected TimingNode at location");
         output.println("  close                        Close selected TimingNode");
         output.println(
-                "  reg <id> [now|<UTC time>]    Register one ID; omitted/now uses node clock");
+                "  reg <id> [time]              Register one ID; omitted/now uses node clock");
+        output.println(
+                "                               time: now, HHMMSShh, or absolute UTC");
         output.println("                               Example: reg A0001");
         output.println("                               Example: reg A0001 now");
+        output.println("                               Example: reg A0001 12345678");
         output.println(
                 "                               Example: reg A0001 2026-10-19T13:00:00Z");
-        output.println("  auto-reg ...                 Compatibility alias for reg");
         output.println(
                 "  test logbook write <fail|timeout>"
                         + "  Fail or delay next LogBook write");
