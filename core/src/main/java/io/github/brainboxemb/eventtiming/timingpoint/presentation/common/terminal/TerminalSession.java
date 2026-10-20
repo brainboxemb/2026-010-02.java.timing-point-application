@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord.AutomaticTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -309,7 +310,7 @@ public final class TerminalSession {
 
         CommandResult result =
                 timingNode.addTestAutomaticRegistration(
-                        new RegistrationId(arguments[1]),
+                        registrationId(arguments[1], timingNode),
                         effectiveTime,
                         timeSource);
 
@@ -320,6 +321,53 @@ public final class TerminalSession {
         } else {
             output.println("Registration: " + result.outcome().name());
         }
+    }
+
+    /** Resolves a numeric team number or accepts an explicit RegistrationId. */
+    private static RegistrationId registrationId(
+            String text,
+            TimingNodeProxy timingNode) {
+
+        if (!isUnsignedNumber(text)) {
+            return new RegistrationId(text);
+        }
+
+        final int teamNumber;
+        try {
+            teamNumber = Integer.parseInt(text);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("team number must be in range 1..9999", ex);
+        }
+        if (teamNumber < 1 || teamNumber > 9999) {
+            throw new IllegalArgumentException("team number must be in range 1..9999");
+        }
+
+        TeamId teamId =
+                new TeamId(
+                        String.format(
+                                Locale.ROOT,
+                                "%04d",
+                                teamNumber));
+        RegistrationId registrationId =
+                timingNode.registrationIdFor(teamId);
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "no RegistrationId is known for team " + teamNumber);
+        }
+        return registrationId;
+    }
+
+    private static boolean isUnsignedNumber(String text) {
+
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        for (int index = 0; index < text.length(); index++) {
+            if (!Character.isDigit(text.charAt(index))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Reports whether text is the compact operator time form HHMMSShh. */
@@ -809,9 +857,10 @@ public final class TerminalSession {
         output.println("  open <locationId>            Open selected TimingNode at location");
         output.println("  close                        Close selected TimingNode");
         output.println(
-                "  reg <id> [time]              Register one ID; omitted/now uses node clock");
+                "  reg <id|team> [time]         Register one ID/team; omitted/now uses node clock");
         output.println(
                 "                               time: now, HHMMSShh, or absolute UTC");
+        output.println("                               Example: reg 7");
         output.println("                               Example: reg A0001");
         output.println("                               Example: reg A0001 now");
         output.println("                               Example: reg A0001 12345678");
