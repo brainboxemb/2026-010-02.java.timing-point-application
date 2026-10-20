@@ -41,6 +41,17 @@ final class TeamAssignments {
         return assignments.get(registrationId);
     }
 
+    /** Returns the live RegistrationId assigned to one TeamId, or null when absent. */
+    RegistrationId registrationIdFor(TeamId teamId) {
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        for (Map.Entry<RegistrationId, TeamId> entry : assignments.entrySet()) {
+            if (teamId.equals(entry.getValue())) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
     /** Sets the live TeamId assignment for one RegistrationId. */
     void assign(RegistrationId registrationId, TeamId teamId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
