@@ -43,7 +43,7 @@ final class TimingNodeComposer {
     }
 
     /** Builds one complete TimingNode from resolved runtime configuration. */
-    TimingNode compose(
+    TimingNodeComposition compose(
             Config.TimingNodeConfig nodeConfig,
             AntennaId antennaId,
             TimingSystemResolvedData system,
@@ -82,7 +82,7 @@ final class TimingNodeComposer {
         NodeService nodeService =
                 new NodeService(
                         nodeConfig.timingNodeId(),
-                        execution.taskRunner(),
+                        execution.nodeScheduler(),
                         logBook,
                         timeSource,
                         system.eventData(),
@@ -97,12 +97,18 @@ final class TimingNodeComposer {
                         new TagProcessingMetrics(),
                         execution.tagProcessorScheduler());
 
-        return new TimingNode(
-                antennaId,
-                timeSource,
-                logBook,
+        TimingNode node =
+                new TimingNode(
+                        antennaId,
+                        timeSource,
+                        logBook,
+                        nodeService,
+                        tagProcessor,
+                        execution.nodeScheduler());
+
+        return new TimingNodeComposition(
+                node,
                 nodeService,
-                tagProcessor,
-                execution.taskRunner());
+                logBook);
     }
 }
