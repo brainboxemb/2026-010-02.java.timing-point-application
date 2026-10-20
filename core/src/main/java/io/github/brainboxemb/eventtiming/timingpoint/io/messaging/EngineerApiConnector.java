@@ -3,13 +3,20 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -25,8 +32,19 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>Receiving never executes protocol semantics. After enqueueing one node-scoped
  * message the connector only signals that node's NodeUpstream. NodeUpstream reads
  * and processes messages from its queue in protocol order.</p>
+ *
+ * <p>The connector also owns connection-scoped heartbeat cadence. It schedules
+ * one fixed-rate callback cycle on the Runtime-provided scheduler while a peer
+ * is connected. The callback only wakes each NodeUpstream heartbeat operation;
+ * heartbeat protocol state remains node-owned.</p>
  */
 public final class EngineerApiConnector implements UpstreamGateway {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(
+                    EngineerApiConnector.class);
+    private static final Duration HEARTBEAT_PERIOD =
+            Duration.ofSeconds(30L);
+
     static final int DEFAULT_INPUT_CAPACITY = 64;
     static final int DEFAULT_OUTPUT_CAPACITY = 64;
 
@@ -53,15 +71,20 @@ public final class EngineerApiConnector implements UpstreamGateway {
                 new ArrayDeque<UpstreamData>();
         private final BooleanSupplier inputAvailable;
         private final Runnable connected;
+        private final Runnable heartbeatTick;
 
         private NodeInput(
                 BooleanSupplier inputAvailable,
-                Runnable connected) {
+                Runnable connected,
+                Runnable heartbeatTick) {
             this.inputAvailable = inputAvailable;
             this.connected = connected;
+            this.heartbeatTick = heartbeatTick;
         }
     }
 
+    private final ScheduledExecutorService scheduler;
+    private final long heartbeatPeriodNanos;
     private final int inputCapacity;
     private final int outputCapacity;
     private final Map<NodeId, NodeInput> inputs =
@@ -70,20 +93,33 @@ public final class EngineerApiConnector implements UpstreamGateway {
             new ArrayDeque<UpstreamData>();
 
     private Output output;
+    private ScheduledFuture<?> heartbeatTask;
 
-    public EngineerApiConnector() {
+    public EngineerApiConnector(
+            ScheduledExecutorService scheduler) {
         this(
+                scheduler,
                 DEFAULT_INPUT_CAPACITY,
-                DEFAULT_OUTPUT_CAPACITY);
+                DEFAULT_OUTPUT_CAPACITY,
+                HEARTBEAT_PERIOD);
     }
 
     EngineerApiConnector(
+            ScheduledExecutorService scheduler,
             int inputCapacity,
-            int outputCapacity) {
+            int outputCapacity,
+            Duration heartbeatPeriod) {
+        failIfInvalidArgument(scheduler != null, "scheduler must not be null");
         failIfInvalidArgument(inputCapacity > 0, "inputCapacity must be positive");
         failIfInvalidArgument(outputCapacity > 0, "outputCapacity must be positive");
+        failIfInvalidArgument(heartbeatPeriod != null
+                && !heartbeatPeriod.isZero()
+                && !heartbeatPeriod.isNegative(),
+                "heartbeatPeriod must be positive");
+        this.scheduler = scheduler;
         this.inputCapacity = inputCapacity;
         this.outputCapacity = outputCapacity;
+        this.heartbeatPeriodNanos = heartbeatPeriod.toNanos();
     }
 
     /**
@@ -95,10 +131,12 @@ public final class EngineerApiConnector implements UpstreamGateway {
     public synchronized void bindNode(
             NodeId nodeId,
             BooleanSupplier inputAvailable,
-            Runnable connected) {
+            Runnable connected,
+            Runnable heartbeatTick) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(inputAvailable != null, "inputAvailable must not be null");
         failIfInvalidArgument(connected != null, "connected must not be null");
+        failIfInvalidArgument(heartbeatTick != null, "heartbeatTick must not be null");
         failIfIllegalState(output == null, "Cannot bind a node while connector is connected");
         failIfInvalidArgument(!inputs.containsKey(nodeId),
                 "duplicate connector node %s", nodeId.value());
@@ -107,7 +145,8 @@ public final class EngineerApiConnector implements UpstreamGateway {
                 nodeId,
                 new NodeInput(
                         inputAvailable,
-                        connected));
+                        connected,
+                        heartbeatTick));
     }
 
     public synchronized boolean handles(
@@ -146,6 +185,7 @@ public final class EngineerApiConnector implements UpstreamGateway {
             for (Runnable connected : connectedCallbacks) {
                 connected.run();
             }
+            startHeartbeat();
             return true;
         } catch (RuntimeException | Error failure) {
             disconnect(newOutput);
@@ -283,8 +323,64 @@ public final class EngineerApiConnector implements UpstreamGateway {
         }
     }
 
+    /** Starts the one connector-owned heartbeat schedule for this connection. */
+    private synchronized void startHeartbeat() {
+        failIfIllegalState(output != null,
+                "Cannot start heartbeat without an Engineering upstream peer");
+        failIfIllegalState(heartbeatTask == null,
+                "Engineering upstream heartbeat is already scheduled");
+
+        heartbeatTask =
+                scheduler.scheduleAtFixedRate(
+                        this::heartbeatTick,
+                        0L,
+                        heartbeatPeriodNanos,
+                        TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * Queues one heartbeat operation for every bound node.
+     *
+     * <p>The scheduler owns only cadence. NodeUpstream owns heartbeat protocol
+     * state and serial execution. One node callback failure is contained so it
+     * cannot silently cancel the connector's fixed-rate schedule.</p>
+     */
+    private void heartbeatTick() {
+        Runnable[] callbacks;
+        synchronized (this) {
+            if (output == null) {
+                return;
+            }
+
+            callbacks =
+                    new Runnable[inputs.size()];
+            int index = 0;
+            for (NodeInput input : inputs.values()) {
+                callbacks[index++] =
+                        input.heartbeatTick;
+            }
+        }
+
+        for (Runnable callback : callbacks) {
+            try {
+                callback.run();
+            } catch (RuntimeException failure) {
+                LOG.warn(
+                        "Engineering upstream heartbeat callback failed",
+                        failure);
+            }
+        }
+    }
+
     /** Clears all transport-session queues without changing node protocol state. */
     private void clearSession() {
+        ScheduledFuture<?> currentHeartbeat =
+                heartbeatTask;
+        heartbeatTask = null;
+        if (currentHeartbeat != null) {
+            currentHeartbeat.cancel(false);
+        }
+
         output = null;
         outputQueue.clear();
         for (NodeInput input : inputs.values()) {

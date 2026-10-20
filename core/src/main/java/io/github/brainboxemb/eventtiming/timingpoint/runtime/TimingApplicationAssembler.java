@@ -82,7 +82,8 @@ final class TimingApplicationAssembler {
                 TimeSource timeSource =
                         runtimeTimeSources.createTimeSource();
                 EngineerApiConnector upstreamConnector =
-                        new EngineerApiConnector();
+                        new EngineerApiConnector(
+                                executors.timingNodeScheduler());
                 TimingSystem system =
                         systemComposer.compose(
                                 resolvedSystem,
