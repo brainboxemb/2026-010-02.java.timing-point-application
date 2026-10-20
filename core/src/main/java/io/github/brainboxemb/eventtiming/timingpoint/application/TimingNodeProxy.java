@@ -152,8 +152,36 @@ public final class TimingNodeProxy {
     /** Returns one stable metadata snapshot of the active registration projection. */
     public RegistrationProjectionInfo registrationProjectionInfo() {
 
+        return registrationProjectionInfo(
+                timingNode.registrationProjectionInfo());
+    }
+
+    /** Visits one bounded page and returns metadata from the same ordered read turn. */
+    public RegistrationProjectionInfo visitRegistrationPage(
+            long afterSequence,
+            int limit,
+            Consumer<RegistrationEntry> visitor) {
+
+        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
         NodeService.RegistrationProjectionInfo info =
-                timingNode.registrationProjectionInfo();
+                timingNode.visitRegistrationPage(
+                        afterSequence,
+                        limit,
+                        registration -> visitor.accept(
+                                new RegistrationEntry(
+                                        registration.sequenceNumber(),
+                                        registration.registrationId(),
+                                        registration.effectiveTime(),
+                                        registration.isValid())));
+        return registrationProjectionInfo(info);
+    }
+
+    private static RegistrationProjectionInfo registrationProjectionInfo(
+            NodeService.RegistrationProjectionInfo info) {
+
         return new RegistrationProjectionInfo(
                 info.locationId(),
                 info.count(),
