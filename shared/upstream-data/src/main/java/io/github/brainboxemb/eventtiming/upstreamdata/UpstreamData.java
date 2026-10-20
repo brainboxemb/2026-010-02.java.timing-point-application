@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.upstreamdata;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -54,7 +54,7 @@ public interface UpstreamData {
     }
 
     interface TimingDataTransfer extends NodeScoped {
-        List<TimingData> records();
+        List<TimingRecord> records();
     }
 
     interface RaceData extends NodeScoped {
