@@ -77,7 +77,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public LogBook(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookMetrics metrics,
@@ -89,7 +88,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
         failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
         failIfInvalidArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
-        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
@@ -121,6 +119,37 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         monotonicClock,
                         metrics.timingDataEventMetrics());
         this.NEW_DATA_ENTRY = newDataEntryEvent;
+    }
+
+    /**
+     * Legacy construction overload retained while callers migrate away from
+     * TimingDataFactory. The factory is deliberately not part of LogBook state.
+     */
+    public LogBook(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            MonotonicClock monotonicClock,
+            LogBookMetrics metrics,
+            Executor dataLaneExecutor,
+            int dataLaneCapacity,
+            int dataLaneMaxItemsPerRun,
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
+
+        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
+        this(
+                timingNodeId,
+                timingDataPersistence,
+                timeSource,
+                monotonicClock,
+                metrics,
+                dataLaneExecutor,
+                dataLaneCapacity,
+                dataLaneMaxItemsPerRun,
+                commitWaitTimeoutMillis,
+                orderedQueryWaitTimeoutMillis);
     }
 
     /** Returns immutable node identity without entering the Data Lane. */
