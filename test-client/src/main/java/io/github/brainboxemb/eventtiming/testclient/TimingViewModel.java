@@ -64,6 +64,9 @@ public final class TimingViewModel {
     private long logBookCount;
     private final Map<ApiClient.TimingDataKey, ApiClient.TimingDataInfo> records =
             new LinkedHashMap<>();
+    private ApiClient.RegistrationProjectionInfo registrationProjectionInfo;
+    private final Map<Long, ApiClient.RegistrationProjectionRow> registrationProjectionRows =
+            new LinkedHashMap<>();
 
     public ViewState viewState() {
         return viewState;
@@ -90,6 +93,17 @@ public final class TimingViewModel {
                 || !problems.equals(status.problems());
         nodes = status.nodes();
         problems = status.problems();
+
+        ApiClient.TimingNodeInfo selected = selectedNode();
+        if (selected == null
+                || !"OPEN".equals(selected.state())
+                || selected.locationId() == null
+                || registrationProjectionInfo != null
+                        && registrationProjectionInfo.locationId()
+                                != selected.locationId().intValue()) {
+            clearRegistrationProjection();
+        }
+
         if (selectedNodeId == null || findNode(selectedNodeId) == null) {
             String previous = selectedNodeId;
             selectNode(nodes.isEmpty() ? null : nodes.get(0).id());
@@ -131,6 +145,7 @@ public final class TimingViewModel {
         }
         selectedNodeId = nodeId;
         clearLogBook();
+        clearRegistrationProjection();
     }
 
     public void applyCapabilities(ApiClient.CapabilitiesResult capabilities) {
@@ -240,6 +255,83 @@ public final class TimingViewModel {
                 && Objects.equals(a.recordedAt(), b.recordedAt());
     }
 
+    public ApiClient.RegistrationProjectionInfo registrationProjectionInfo() {
+        return registrationProjectionInfo;
+    }
+
+    public int registrationProjectionRowCount() {
+        return registrationProjectionRows.size();
+    }
+
+    public long latestRegistrationProjectionSequence() {
+        long latest = 0L;
+        for (Long sequence : registrationProjectionRows.keySet()) {
+            if (sequence.longValue() > latest) {
+                latest = sequence.longValue();
+            }
+        }
+        return latest;
+    }
+
+    /** Replaces the active-WP projection with one complete server snapshot. */
+    public boolean replaceRegistrationProjection(
+            ApiClient.RegistrationProjectionInfo info,
+            List<ApiClient.RegistrationProjectionRow> rows) {
+
+        if (info == null || rows == null) {
+            throw new IllegalArgumentException(
+                    "registration projection info/rows must not be null");
+        }
+
+        Map<Long, ApiClient.RegistrationProjectionRow> replacement =
+                new LinkedHashMap<>();
+        for (ApiClient.RegistrationProjectionRow row : rows) {
+            if (row == null) {
+                throw new IllegalArgumentException(
+                        "registration projection rows must not contain null");
+            }
+            replacement.put(
+                    Long.valueOf(row.sequenceNumber()),
+                    row);
+        }
+
+        boolean changed =
+                !Objects.equals(registrationProjectionInfo, info)
+                        || !registrationProjectionRows.equals(replacement);
+        registrationProjectionInfo = info;
+        registrationProjectionRows.clear();
+        registrationProjectionRows.putAll(replacement);
+        return changed;
+    }
+
+    /** Appends server rows when metadata proves no earlier row was revoked. */
+    public boolean appendRegistrationProjection(
+            ApiClient.RegistrationProjectionInfo info,
+            List<ApiClient.RegistrationProjectionRow> rows) {
+
+        if (info == null || rows == null) {
+            throw new IllegalArgumentException(
+                    "registration projection info/rows must not be null");
+        }
+
+        boolean changed =
+                !Objects.equals(registrationProjectionInfo, info);
+        registrationProjectionInfo = info;
+        for (ApiClient.RegistrationProjectionRow row : rows) {
+            ApiClient.RegistrationProjectionRow previous =
+                    registrationProjectionRows.put(
+                            Long.valueOf(row.sequenceNumber()),
+                            row);
+            changed |= !Objects.equals(previous, row);
+        }
+        return changed;
+    }
+
+    public void clearRegistrationProjection() {
+        registrationProjectionInfo = null;
+        registrationProjectionRows.clear();
+    }
+
     public long logBookCount() {
         return logBookCount;
     }
@@ -272,6 +364,60 @@ public final class TimingViewModel {
         if (zone == null) {
             throw new IllegalArgumentException("zone must not be null");
         }
+
+        List<InterpretedRegistration> local =
+                localInterpretedRegistrations(zone);
+        if (allLocations) {
+            return local;
+        }
+
+        ApiClient.TimingNodeInfo selected =
+                selectedNode();
+        if (selected == null
+                || !"OPEN".equals(selected.state())
+                || selected.locationId() == null
+                || registrationProjectionInfo == null
+                || registrationProjectionInfo.locationId()
+                        != selected.locationId().intValue()) {
+            return List.of();
+        }
+
+        Map<Long, InterpretedRegistration> localBySequence =
+                new LinkedHashMap<>();
+        for (InterpretedRegistration registration : local) {
+            localBySequence.put(
+                    Long.valueOf(registration.firstSequence()),
+                    registration);
+        }
+
+        List<InterpretedRegistration> projected =
+                new ArrayList<>();
+        for (ApiClient.RegistrationProjectionRow row
+                : registrationProjectionRows.values()) {
+            InterpretedRegistration detail =
+                    localBySequence.get(
+                            Long.valueOf(row.sequenceNumber()));
+            projected.add(
+                    new InterpretedRegistration(
+                            row.registrationId(),
+                            detail == null
+                                    ? defaultTeamId(row.registrationId())
+                                    : detail.teamId(),
+                            displayTime(row.effectiveTime(), zone),
+                            detail == null ? "" : detail.type(),
+                            detail == null ? "" : detail.code(),
+                            registrationProjectionInfo.locationId(),
+                            !row.valid(),
+                            row.sequenceNumber(),
+                            detail == null
+                                    ? null
+                                    : detail.revokeSequence()));
+        }
+        return List.copyOf(projected);
+    }
+
+    private List<InterpretedRegistration> localInterpretedRegistrations(
+            ZoneId zone) {
 
         Map<RegistrationProjectionKey, InterpretedRegistration> projected =
                 new LinkedHashMap<>();
@@ -323,33 +469,7 @@ public final class TimingViewModel {
                                     : previous.revokeSequence()));
         }
 
-        List<InterpretedRegistration> values =
-                List.copyOf(
-                        projected.values());
-        if (allLocations) {
-            return values;
-        }
-
-        ApiClient.TimingNodeInfo selected =
-                selectedNode();
-        if (selected == null
-                || !"OPEN".equals(selected.state())
-                || selected.locationId() == null) {
-            return List.of();
-        }
-
-        List<InterpretedRegistration> current =
-                new ArrayList<>();
-        int currentLocation =
-                selected.locationId().intValue();
-        for (InterpretedRegistration registration : values) {
-            if (registration.locationId()
-                    == currentLocation) {
-                current.add(
-                        registration);
-            }
-        }
-        return List.copyOf(current);
+        return List.copyOf(projected.values());
     }
 
     private static String registrationType(ApiClient.TimingDataInfo record) {

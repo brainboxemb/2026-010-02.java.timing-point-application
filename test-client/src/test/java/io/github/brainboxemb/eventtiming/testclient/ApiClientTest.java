@@ -157,6 +157,21 @@ public class ApiClientTest {
                 respond(exchange, 200, "{\"seq\":3}");
             } else if (path.endsWith("/registration/revoke")) {
                 respond(exchange, 200, "{\"seq\":3}");
+            } else if (path.endsWith("/registrations") && query == null) {
+                respond(exchange, 200,
+                        "{\"locId\":24,\"count\":2,\"uniqueCount\":2,"
+                                + "\"lastMutationSeq\":3,\"lastRevokeSeq\":0}");
+            } else if (path.endsWith("/registrations")
+                    && "after=0&limit=100".equals(query)) {
+                respond(exchange, 200,
+                        "{\"locId\":24,\"count\":2,\"uniqueCount\":2,"
+                                + "\"lastMutationSeq\":3,\"lastRevokeSeq\":0,"
+                                + "\"nextAfter\":null,\"registrations\":["
+                                + "{\"seqNr\":2,\"regId\":\"A0001\","
+                                + "\"time\":\"2026-10-01T12:00:00Z\",\"valid\":true},"
+                                + "{\"seqNr\":3,\"regId\":\"A0002\","
+                                + "\"time\":\"2026-10-01T12:00:01Z\",\"valid\":false}"
+                                + "]}");
             } else if (path.endsWith("/logbook") && query == null) {
                 respond(exchange, 200, "{\"count\":2,\"first\":1,\"last\":2}");
             } else if (path.endsWith("/logbook") && "from=1&limit=100".equals(query)) {
@@ -200,6 +215,27 @@ public class ApiClientTest {
                         "2026-10-01T12:00:05.25Z",
                         "AUTO")
                         .seq());
+
+        var projectionInfo =
+                client.getRegistrationProjectionInfo(
+                        "TN-01");
+        assertEquals(24, projectionInfo.locationId());
+        assertEquals(2, projectionInfo.count());
+        assertEquals(2, projectionInfo.uniqueCount());
+        assertEquals(3L, projectionInfo.lastMutationSequence());
+        assertEquals(0L, projectionInfo.lastRevokeSequence());
+
+        var projectionPage =
+                client.getRegistrationProjectionPage(
+                        "TN-01",
+                        0L,
+                        100);
+        assertEquals(2, projectionPage.rows().size());
+        assertEquals("A0001", projectionPage.rows().get(0).registrationId());
+        assertTrue(projectionPage.rows().get(0).valid());
+        assertEquals("A0002", projectionPage.rows().get(1).registrationId());
+        assertFalse(projectionPage.rows().get(1).valid());
+        assertNull(projectionPage.nextAfter());
 
         var info = client.getLogBookInfo("TN-01");
         assertEquals(2L, info.count());
@@ -306,6 +342,24 @@ public class ApiClientTest {
         assertEquals(409, error.statusCode());
         assertEquals("NODE_NOT_OPEN", error.code());
         assertTrue(error.getMessage().contains("OPEN TimingNode"));
+    }
+
+    @Test
+    void validatesRegistrationProjectionBoundsLocally() {
+        ApiClient client = new ApiClient(
+                URI.create("http://127.0.0.1:8081"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> client.getRegistrationProjectionPage(
+                        "TN-01",
+                        -1L,
+                        100));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> client.getRegistrationProjectionPage(
+                        "TN-01",
+                        0L,
+                        1001));
     }
 
     @Test
