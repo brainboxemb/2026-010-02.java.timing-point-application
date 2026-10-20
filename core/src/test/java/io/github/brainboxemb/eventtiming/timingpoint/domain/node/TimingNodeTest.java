@@ -627,7 +627,7 @@ public class TimingNodeTest {
                     node.logBook().process(
                             LogBookQueries.timingRecordRange(1L, 1));
             assertEquals(1, committed.size());
-            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
         } finally {
             deactivate(node);
         }
