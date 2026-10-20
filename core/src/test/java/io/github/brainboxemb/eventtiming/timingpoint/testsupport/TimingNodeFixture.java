@@ -132,12 +132,29 @@ public final class TimingNodeFixture {
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimeSource timeSource) {
-        return create(
+        String suffix =
+                nodeId == null
+                        ? "missing"
+                        : nodeId.value();
+
+        return compose(
                 nodeId,
                 persistence,
                 timeSource,
                 EventData.empty(),
-                UpstreamStream.unavailable());
+                UpstreamStream.unavailable(),
+                NODE_WORKER,
+                32,
+                32,
+                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
+                new SerialTaskRunner(
+                        32,
+                        32,
+                        "test-node-task-" + suffix,
+                        NODE_WORKER),
+                TAG_WORKER)
+                .node();
     }
 
     /** Creates one same-thread TimingNode for deterministic child execution tests. */
@@ -218,7 +235,6 @@ public final class TimingNodeFixture {
         return compose(
                 nodeId,
                 persistence,
-                timingDataFactory,
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
