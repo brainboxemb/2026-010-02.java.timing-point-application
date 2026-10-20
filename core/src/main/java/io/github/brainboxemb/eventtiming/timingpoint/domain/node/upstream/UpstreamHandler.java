@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -161,7 +161,7 @@ public final class UpstreamHandler {
      * Lane, preserving cooperative fairness with other node tasks.</p>
      */
     private final class InputTask extends AbstractTask {
-        private CompletableFuture<List<TimingData>> pendingTimingData;
+        private CompletableFuture<List<TimingRecord>> pendingTimingData;
 
         @Override
         protected void resetForRun() {
@@ -177,7 +177,7 @@ public final class UpstreamHandler {
             }
 
             if (pendingTimingData != null) {
-                List<TimingData> records = pendingTimingData.join();
+                List<TimingRecord> records = pendingTimingData.join();
                 pendingTimingData = null;
                 logBookSync.sendNextBatch(records);
                 return TaskStep.again();
