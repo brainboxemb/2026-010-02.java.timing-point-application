@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 
 import org.junit.Test;
 
@@ -24,7 +25,10 @@ public class UpstreamDataSyncTest {
                         1L,
                         Collections.singletonList(
                                 DefaultUpstreamData.teamAssignmentSet("R0001", "0042")),
-                        Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+                        Collections.<UpstreamData.StageStartTimeChange>emptyList()))
+                .toCompletableFuture()
+                .join();
+        sync.completeRaceData(1L);
         stream.takeSent(); // ACK for sequence 1.
 
         try {
@@ -57,8 +61,6 @@ public class UpstreamDataSyncTest {
         return new UpstreamDataSync(
                 new NodeId("A"),
                 stream,
-                ignored -> {
-                    // Sequence behaviour only; RACE_DATA state is tested separately.
-                });
+                ignored -> CompletableFuture.completedFuture(null));
     }
 }

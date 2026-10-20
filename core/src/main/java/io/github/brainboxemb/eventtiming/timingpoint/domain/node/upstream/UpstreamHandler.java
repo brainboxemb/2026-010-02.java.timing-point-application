@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
@@ -12,8 +13,11 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,16 +25,19 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * TimingNode-owned semantic boundary for node-scoped upstream communication.
+ * TimingSystem-owned semantic boundary for one node's upstream communication.
  *
- * <p>All mutable upstream protocol state runs on TimingNode's Task Lane.
+ * <p>Each node-specific instance owns its own logical protocol lane on the
+ * Runtime-supplied shared scheduler.
  * TIMING_DATA synchronization submits ordered reads to the LogBook Data Lane
- * and yields the Task Lane with {@link TaskStep#await} until those reads
+ * and yields its protocol lane with {@link TaskStep#await} until those reads
  * complete. Transport/session I/O belongs to {@link UpstreamStream}; none of
  * these domain helpers owns a transport thread or executor.</p>
  */
-public final class UpstreamHandler {
+public final class UpstreamHandler extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(UpstreamHandler.class);
+    private static final int TASK_QUEUE_CAPACITY = 32;
+    private static final int TASK_MAX_ITEMS_PER_RUN = 32;
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
@@ -43,18 +50,23 @@ public final class UpstreamHandler {
     /** Creates the node-scoped upstream coordinator over TimingNode's Task Lane. */
     public UpstreamHandler(
             NodeId nodeId,
-            SerialTaskRunner taskRunner,
+            ScheduledExecutorService scheduler,
             UpstreamStream stream,
             LogBookAccessor logBook,
-            Consumer<UpstreamData.RaceData> raceDataConsumer) {
+            Function<UpstreamData.RaceData, CompletionStage<Void>> raceDataConsumer) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
+        failIfInvalidArgument(scheduler != null, "scheduler must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(raceDataConsumer != null, "raceDataConsumer must not be null");
 
         this.nodeId = nodeId;
-        this.taskRunner = taskRunner;
+        this.taskRunner =
+                new SerialTaskRunner(
+                        TASK_QUEUE_CAPACITY,
+                        TASK_MAX_ITEMS_PER_RUN,
+                        "Upstream-" + nodeId.value(),
+                        scheduler);
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, raceDataConsumer);
@@ -74,8 +86,28 @@ public final class UpstreamHandler {
         return inputTask.wake(taskRunner);
     }
 
-    /** Handles one semantic upstream message while the Task Lane is current. */
-    private void handleMessage(UpstreamData data) {
+    /** Returns this node-specific protocol instance identity. */
+    public NodeId nodeId() {
+        return nodeId;
+    }
+
+    /** Starts this node's protocol-owned logical lane. */
+    @Override
+    protected void onActivate() {
+        taskRunner.start();
+    }
+
+    /** Cancels protocol work and closes this node's logical lane. */
+    @Override
+    protected void onDeactivate() {
+        inputTask.cancel();
+        logBookSync.cancelSync();
+        upstreamDataSync.cancelPending();
+        taskRunner.close();
+    }
+
+    /** Handles one semantic upstream message while the protocol lane is current. */
+    private CompletionStage<Void> handleMessage(UpstreamData data) {
         failIfInvalidArgument(data instanceof UpstreamData.NodeScoped,
                 "UpstreamData is not node-scoped: %s", data.family());
 
@@ -87,8 +119,8 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 failIfInvalidArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                upstreamDataSync.handleRaceData((UpstreamData.RaceData) data);
-                break;
+                return upstreamDataSync.handleRaceData(
+                        (UpstreamData.RaceData) data);
 
             case SYNC:
                 failIfInvalidArgument(data instanceof UpstreamData.Sync,
@@ -118,6 +150,7 @@ public final class UpstreamHandler {
                 throw new UnsupportedOperationException(
                         "Inbound UpstreamData family is not implemented by TimingNode: " + data.family());
         }
+        return null;
     }
 
     /** Queues one TIMING_DATA source-head publication on the Task Lane. */
@@ -162,18 +195,34 @@ public final class UpstreamHandler {
      */
     private final class InputTask extends AbstractTask {
         private CompletableFuture<List<TimingRecord>> pendingTimingData;
+        private UpstreamData.RaceData pendingRaceData;
+        private CompletionStage<Void> pendingRaceDataApply;
 
         @Override
         protected void resetForRun() {
             pendingTimingData = null;
+            pendingRaceData = null;
+            pendingRaceDataApply = null;
         }
 
         @Override
         public TaskStep runStep() {
             if (!stream.isAvailable()) {
                 pendingTimingData = null;
+                pendingRaceData = null;
+                pendingRaceDataApply = null;
                 logBookSync.cancelSync();
+                upstreamDataSync.cancelPending();
                 return TaskStep.done();
+            }
+
+            if (pendingRaceDataApply != null) {
+                pendingRaceDataApply.toCompletableFuture().join();
+                long sequence = pendingRaceData.sequence();
+                pendingRaceData = null;
+                pendingRaceDataApply = null;
+                upstreamDataSync.completeRaceData(sequence);
+                return TaskStep.again();
             }
 
             if (pendingTimingData != null) {
@@ -189,7 +238,15 @@ public final class UpstreamHandler {
             }
 
             if (stream.hasMessage()) {
-                handleMessage(stream.read());
+                UpstreamData message = stream.read();
+                CompletionStage<Void> completion =
+                        handleMessage(message);
+                if (completion != null) {
+                    pendingRaceData =
+                            (UpstreamData.RaceData) message;
+                    pendingRaceDataApply = completion;
+                    return TaskStep.await(completion);
+                }
                 return TaskStep.again();
             }
 
@@ -199,8 +256,11 @@ public final class UpstreamHandler {
         @Override
         protected void onRunCompleted(Throwable failure) {
             pendingTimingData = null;
+            pendingRaceData = null;
+            pendingRaceDataApply = null;
             if (failure != null) {
                 logBookSync.cancelSync();
+                upstreamDataSync.cancelPending();
                 LOG.warn(
                         "Upstream input task failed for node {}",
                         nodeId.value(),

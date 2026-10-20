@@ -5,7 +5,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import java.util.function.Consumer;
+import java.util.concurrent.CompletionStage;
+import java.util.function.Function;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -22,16 +23,20 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 final class UpstreamDataSync {
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final Consumer<UpstreamData.RaceData> raceDataConsumer;
+    private final Function<UpstreamData.RaceData, CompletionStage<Void>> raceDataConsumer;
 
     /*
      * Highest contiguous Central sequence committed to live TeamAssignments and
      * StageStartTimes. This protocol state only changes on the Task Lane.
      */
     private long appliedSequence;
+    private long applyingSequence;
 
     /** Creates RACE_DATA synchronization state over the Task Lane-owned state boundary. */
-    UpstreamDataSync(NodeId nodeId, UpstreamStream stream, Consumer<UpstreamData.RaceData> raceDataConsumer) {
+    UpstreamDataSync(
+            NodeId nodeId,
+            UpstreamStream stream,
+            Function<UpstreamData.RaceData, CompletionStage<Void>> raceDataConsumer) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(raceDataConsumer != null, "raceDataConsumer must not be null");
@@ -45,9 +50,11 @@ final class UpstreamDataSync {
      *
      * <p>Duplicate/old data receives a cumulative ACK. A gap receives REQ for
      * the first missing sequence. Live state changes only after every change in
-     * the message has validated.</p>
+     * the message has validated. The returned completion represents the node-local
+ * application; the caller must invoke completeRaceData on its own protocol lane
+ * before the cumulative ACK is sent.</p>
      */
-    void handleRaceData(UpstreamData.RaceData raceData) {
+    CompletionStage<Void> handleRaceData(UpstreamData.RaceData raceData) {
         failIfInvalidArgument(raceData != null, "raceData must not be null");
 
         long receivedSequence = raceData.sequence();
@@ -57,18 +64,41 @@ final class UpstreamDataSync {
         long expectedSequence = appliedSequence + 1L;
         if (receivedSequence <= appliedSequence) {
             sendAck(appliedSequence);
-        } else if (receivedSequence != expectedSequence) {
+            return null;
+        }
+        if (receivedSequence != expectedSequence) {
             stream.send(DefaultUpstreamData.req(
                     nodeId,
                     UpstreamData.Stream.RACE_DATA,
                     expectedSequence));
-        } else {
-            // RaceData is Task Lane-owned. ACK only after the complete change set
-            // validated and was atomically applied to the current task state.
-            raceDataConsumer.accept(raceData);
-            appliedSequence = receivedSequence;
-            sendAck(receivedSequence);
+            return null;
         }
+
+        applyingSequence = receivedSequence;
+        CompletionStage<Void> completion =
+                raceDataConsumer.apply(raceData);
+        if (completion == null) {
+            applyingSequence = 0L;
+            throw new IllegalStateException(
+                    "RACE_DATA consumer returned no completion");
+        }
+        return completion;
+    }
+
+    /** Commits one asynchronously applied RACE_DATA sequence and only then ACKs it. */
+    void completeRaceData(long sequence) {
+        if (applyingSequence != sequence) {
+            throw new IllegalStateException(
+                    "RACE_DATA completion sequence does not match pending apply");
+        }
+        appliedSequence = sequence;
+        applyingSequence = 0L;
+        sendAck(sequence);
+    }
+
+    /** Drops an unfinished apply after stream/task failure without advancing protocol state. */
+    void cancelPending() {
+        applyingSequence = 0L;
     }
 
     /**

@@ -21,6 +21,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -45,6 +47,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
+    private static final int TASK_QUEUE_CAPACITY = 32;
+    private static final int TASK_MAX_ITEMS_PER_RUN = 32;
 
     /** LogBook availability status input. */
     public static final EventInput<NodeService, LogBookStatus> LOGBOOK_STATUS =
@@ -70,7 +74,7 @@ public final class NodeService extends LifecycleComponent {
     /** Creates the service over one LogBook and the node Task Lane. */
     public NodeService(
             NodeId nodeId,
-            SerialTaskRunner taskRunner,
+            ScheduledExecutorService scheduler,
             LogBookAccessor logBook,
             TimeSource timeSource,
             EventData eventData,
@@ -78,7 +82,7 @@ public final class NodeService extends LifecycleComponent {
             ActiveRegistrations activeRegistrations) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
+        failIfInvalidArgument(scheduler != null, "scheduler must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
         failIfInvalidArgument(eventData != null, "eventData must not be null");
@@ -86,7 +90,12 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
 
         this.nodeId = nodeId;
-        this.taskRunner = taskRunner;
+        this.taskRunner =
+                new SerialTaskRunner(
+                        TASK_QUEUE_CAPACITY,
+                        TASK_MAX_ITEMS_PER_RUN,
+                        "NodeService-" + nodeId.value(),
+                        scheduler);
         this.timeSource = timeSource;
         this.eventData = eventData;
         this.raceData = raceData;
@@ -102,19 +111,20 @@ public final class NodeService extends LifecycleComponent {
                         this::dataTaskFailed);
     }
 
-    /** Verifies that TimingNode started the shared Task Lane first. */
+    /** Starts the service-owned logical task lane. */
     @Override
     protected void onActivate() {
 
-        failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
+        taskRunner.start();
     }
 
-    /** Stops service tasks. */
+    /** Stops service tasks and then closes the service-owned lane. */
     @Override
     protected void onDeactivate() {
 
         mainTask.stop();
         dataTask.stop();
+        taskRunner.close();
     }
 
     /**
@@ -124,16 +134,25 @@ public final class NodeService extends LifecycleComponent {
      * TimeSource is sampled once so stage-start boundary values are normalized to UTC
      * before entering RaceDataState. Team assignment changes are reflected in RegisteredTeams.</p>
      */
-    public void applyRaceData(UpstreamData.RaceData changes) {
+    public CompletableFuture<Void> applyRaceData(UpstreamData.RaceData changes) {
 
         failIfInvalidArgument(changes != null, "changes must not be null");
 
-        raceData.applyChanges(changes, timeSource.now());
-        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
-            RegistrationId registrationId = change.registrationId();
-            TeamId teamId = raceData.teamIdFor(registrationId);
-            dataTask.teamAssignmentChanged(registrationId, teamId);
-        }
+        return taskRunner.runTask(
+                () -> {
+                    raceData.applyChanges(changes, timeSource.now());
+                    for (UpstreamData.TeamAssignmentChange change
+                            : changes.teamAssignmentChanges()) {
+                        RegistrationId registrationId =
+                                change.registrationId();
+                        TeamId teamId =
+                                raceData.teamIdFor(registrationId);
+                        dataTask.teamAssignmentChanged(
+                                registrationId,
+                                teamId);
+                    }
+                    return TaskStep.done();
+                });
     }
 
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */

@@ -4,7 +4,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.Upstream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
@@ -22,8 +26,9 @@ import java.util.List;
  * Constructs concrete Domain and I/O components for one configured system.
  *
  * <p>Only the backing executor resources and application coordination are shared.
- * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
- * built independently for each system. Runtime passes the optional AntennaManager
+ * Nodes, their persistence, antenna set, Upstream protocol state and AntennaManager are
+ * built independently for each system. Components create their own logical lanes
+ * on Runtime-owned shared schedulers. Runtime passes the optional AntennaManager
  * directly to the Domain Conductor for non-blocking desired-inventory control.
  * Runtime builds the children; the resulting {@link TimingSystem} owns
  * system-level event wiring and lifecycle.
@@ -59,7 +64,13 @@ final class TimingSystemComposer {
             TimeSource timeSource) {
 
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
-        TimingNodeList nodes = createNodes(system, antennaSet, timeSource);
+        List<TimingNodeComposition> nodeCompositions =
+                createNodeCompositions(
+                        system,
+                        antennaSet,
+                        timeSource);
+        TimingNodeList nodes =
+                timingNodes(nodeCompositions);
 
         AntennaManager antennaManager = antennaSet.isEmpty()
                 ? null : new AntennaManager(
@@ -71,25 +82,80 @@ final class TimingSystemComposer {
                 antennaManager,
                 executors.createTimingSystemConductorLane());
 
+        UpstreamGateway upstreamGateway =
+                UpstreamGateway.unavailable();
+        Upstream upstream =
+                createUpstream(
+                        nodeCompositions,
+                        upstreamGateway);
+
         return new TimingSystem(
                 system.configuration().timingSystemId(),
                 nodes,
                 antennaManager,
-                timingSystemConductor);
+                timingSystemConductor,
+                upstream);
     }
 
-    /** Composes all TimingNodes after resolving their antenna configuration. */
-    private TimingNodeList createNodes(
+    /** Composes all TimingNodes and retains only the seams needed for system upstream. */
+    private List<TimingNodeComposition> createNodeCompositions(
             TimingSystemResolvedData system,
             AntennaSet antennas,
             TimeSource timeSource) {
 
-        List<TimingNode> nodes = new ArrayList<TimingNode>();
-        for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
-            AntennaId antennaId = resolveAntennaId(nodeConfig, antennas);
-            nodes.add(nodeComposer.compose(nodeConfig, antennaId, system, timeSource));
+        List<TimingNodeComposition> nodes =
+                new ArrayList<TimingNodeComposition>();
+        for (Config.TimingNodeConfig nodeConfig
+                : system.configuration().timingNodes()) {
+            AntennaId antennaId =
+                    resolveAntennaId(
+                            nodeConfig,
+                            antennas);
+            nodes.add(
+                    nodeComposer.compose(
+                            nodeConfig,
+                            antennaId,
+                            system,
+                            timeSource));
+        }
+        return nodes;
+    }
+
+    private static TimingNodeList timingNodes(
+            List<TimingNodeComposition> compositions) {
+
+        List<TimingNode> nodes =
+                new ArrayList<TimingNode>();
+        for (TimingNodeComposition composition
+                : compositions) {
+            nodes.add(composition.node());
         }
         return new TimingNodeList(nodes);
+    }
+
+    /** Builds one independent protocol-state instance for every TimingNode. */
+    private Upstream createUpstream(
+            List<TimingNodeComposition> compositions,
+            UpstreamGateway gateway) {
+
+        List<UpstreamHandler> handlers =
+                new ArrayList<UpstreamHandler>();
+        for (TimingNodeComposition composition
+                : compositions) {
+            TimingNode node = composition.node();
+            handlers.add(
+                    new UpstreamHandler(
+                            node.nodeId(),
+                            executors.timingNodeScheduler(),
+                            UpstreamStream.forNode(
+                                    gateway,
+                                    node.nodeId()),
+                            composition.logBook(),
+                            composition.nodeService()::applyRaceData));
+        }
+        return new Upstream(
+                gateway,
+                handlers);
     }
 
     /** Resolves an optional node antenna id against the antennas available to this system. */

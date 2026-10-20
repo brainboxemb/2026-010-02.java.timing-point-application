@@ -88,7 +88,6 @@ final class RuntimeCharacterizationHarness
     private ScheduledThreadPoolExecutor nodeWorker;
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
-    private SerialTaskRunner taskLane;
     private SerialTaskRunner antennaLane;
     private SimulatedAntenna antenna;
     private AntennaManager antennaManager;
@@ -153,12 +152,6 @@ final class RuntimeCharacterizationHarness
         ioWorker.setRemoveOnCancelPolicy(
                 true);
 
-        taskLane =
-                new SerialTaskRunner(
-                        TIMING_NODE_QUEUE_CAPACITY,
-                        TIMING_NODE_QUEUE_CAPACITY,
-                        "TimingNodeTask",
-                        nodeWorker);
         antennaLane =
                 new SerialTaskRunner(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
@@ -211,7 +204,7 @@ final class RuntimeCharacterizationHarness
         nodeService =
                 new NodeService(
                         NODE_ID,
-                        taskLane,
+                        nodeWorker,
                         logBook,
                         timeSource,
                         nodeEventData,
@@ -232,7 +225,7 @@ final class RuntimeCharacterizationHarness
                         logBook,
                         nodeService,
                         tagProcessor,
-                        taskLane);
+                        nodeWorker);
 
         antenna =
                 new SimulatedAntenna();
