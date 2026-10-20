@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
+import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -268,6 +269,119 @@ public class HttpEndpointTest {
                     request(server.boundPort(), "POST", "/api/v1/node/A/close", null);
             assertEquals(200, closed.status);
             assertTrue(closed.body.contains("\"result\":\"CLOSED\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void exposesMaintainedRegistrationProjectionAndRevokeRevision()
+            throws Exception {
+        PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(
+                        identity(),
+                        new DefaultEventData(),
+                        "A");
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler());
+        server.start();
+
+        try {
+            Response closed = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations",
+                    null);
+            assertEquals(409, closed.status);
+            assertTrue(closed.body.contains("\"code\":\"NODE_NOT_OPEN\""));
+
+            assertEquals(
+                    200,
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/node/A/open",
+                            "{\"locationId\":24}")
+                            .status);
+
+            assertEquals(
+                    200,
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/dev/node/A/auto-reg",
+                            "{\"id\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\"}")
+                            .status);
+            assertEquals(
+                    200,
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/dev/node/A/auto-reg",
+                            "{\"id\":\"A0002\",\"time\":\"2026-10-01T12:00:01Z\"}")
+                            .status);
+
+            Response info = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations",
+                    null);
+            assertEquals(200, info.status);
+            assertTrue(info.body.contains("\"locId\":24"));
+            assertTrue(info.body.contains("\"count\":2"));
+            assertTrue(info.body.contains("\"uniqueCount\":2"));
+            assertTrue(info.body.contains("\"lastMutationSeq\":3"));
+            assertTrue(info.body.contains("\"lastRevokeSeq\":0"));
+
+            Response first = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations?after=0&limit=1",
+                    null);
+            assertEquals(200, first.status);
+            assertTrue(first.body.contains("\"nextAfter\":2"));
+            assertTrue(first.body.contains("\"seqNr\":2"));
+            assertTrue(first.body.contains("\"regId\":\"A0001\""));
+            assertTrue(first.body.contains("\"valid\":true"));
+
+            Response revoked = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/revoke",
+                    "{"
+                            + "\"recordType\":\"AUTO_REG\","
+                            + "\"locationId\":24,"
+                            + "\"regId\":\"A0001\","
+                            + "\"time\":\"2026-10-01T12:00:00Z\""
+                            + "}");
+            assertEquals(200, revoked.status);
+            assertEquals("{\"seq\":4}", revoked.body);
+
+            Response revokedInfo = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations",
+                    null);
+            assertEquals(200, revokedInfo.status);
+            assertTrue(revokedInfo.body.contains("\"count\":2"));
+            assertTrue(revokedInfo.body.contains("\"uniqueCount\":1"));
+            assertTrue(revokedInfo.body.contains("\"lastMutationSeq\":4"));
+            assertTrue(revokedInfo.body.contains("\"lastRevokeSeq\":4"));
+
+            Response projection = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations?after=0&limit=10",
+                    null);
+            assertEquals(200, projection.status);
+            assertTrue(projection.body.contains(
+                    "\"seqNr\":2,\"regId\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\",\"valid\":false"));
+            assertTrue(projection.body.contains(
+                    "\"seqNr\":3,\"regId\":\"A0002\",\"time\":\"2026-10-01T12:00:01Z\",\"valid\":true"));
         } finally {
             server.close();
             fixture.close();
