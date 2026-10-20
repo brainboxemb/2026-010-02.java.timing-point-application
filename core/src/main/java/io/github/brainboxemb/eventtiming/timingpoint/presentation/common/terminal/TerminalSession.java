@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticTimeSource;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord.AutomaticTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -305,7 +305,7 @@ public final class TerminalSession {
         if (result.committed()) {
             output.println(
                     "Registration: COMMITTED seq="
-                            + result.timingData().sequenceNumber());
+                            + result.timingRecord().sequenceNumber());
         } else {
             output.println("Registration: " + result.outcome().name());
         }
