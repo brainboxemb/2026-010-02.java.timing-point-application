@@ -1,11 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
@@ -314,7 +313,6 @@ public class TimingSystemConductorTest {
         return TimingNodeFixture.create(
                 new NodeId(id),
                 new NoOpPersistence(),
-                new DefaultTimingDataFactory(),
                 TimingSystemConductorTest::now);
     }
 
@@ -324,7 +322,6 @@ public class TimingSystemConductorTest {
         return TimingNodeFixture.create(
                 new NodeId(id),
                 persistence,
-                new DefaultTimingDataFactory(),
                 TimingSystemConductorTest::now);
     }
 
@@ -395,12 +392,12 @@ public class TimingSystemConductorTest {
                         ex);
             }
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // Startup coordination test only.
         }
     }
@@ -408,11 +405,11 @@ public class TimingSystemConductorTest {
     private static final class NoOpPersistence implements TimingDataPersistence {
         @Override
         public LoadResult load() {
-            return new LoadResult(Collections.<TimingData>emptyList(), false);
+            return new LoadResult(Collections.<TimingRecord>emptyList(), false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // TimingSystemConductor tests exercise coordination, not persistence.
         }
     }
