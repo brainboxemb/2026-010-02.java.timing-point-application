@@ -5,6 +5,9 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.sun.net.httpserver.HttpExchange;
 
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,6 +35,24 @@ final class HttpRequestReader {
         return new NodeRoute(
                 remainder.substring(0, slash),
                 remainder.substring(slash));
+    }
+
+    UpstreamData readUpstreamData(
+            HttpExchange exchange,
+            UpstreamDataCodec codec)
+            throws IOException {
+        if (codec == null) {
+            throw new IllegalArgumentException(
+                    "codec must not be null");
+        }
+
+        try {
+            return codec.decode(
+                    readBody(exchange));
+        } catch (UpstreamDataCodec.CodecException ex) {
+            throw invalidValue(
+                    "Invalid UpstreamData: " + ex.getMessage());
+        }
     }
 
     void requireEmptyBody(HttpExchange exchange) throws IOException {

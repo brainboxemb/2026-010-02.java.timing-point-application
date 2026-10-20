@@ -64,6 +64,8 @@ final class TimingApplicationAssembler {
                             platform);
             List<TimingNode> timingNodes = new ArrayList<TimingNode>();
             List<TimingSystem> systems = new ArrayList<TimingSystem>();
+            List<EngineerApiConnector> upstreamConnectors =
+                    new ArrayList<EngineerApiConnector>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
             SimulatedTagScenarioRunner simulationRunner =
@@ -91,6 +93,7 @@ final class TimingApplicationAssembler {
                                 antennaSet,
                                 timeSource,
                                 upstreamConnector);
+                upstreamConnectors.add(upstreamConnector);
                 systems.add(system);
                 applicationConductor.registerTimingSystem(system);
                 for (TimingNode node : system.timingNodes()) {
@@ -131,6 +134,7 @@ final class TimingApplicationAssembler {
                     new PresentationRuntime(
                             config.presentation(),
                             presentationGateway,
+                            upstreamConnectors,
                             loggingLevelControl,
                             consolePromptControl,
                             shutdownSignal::request,
