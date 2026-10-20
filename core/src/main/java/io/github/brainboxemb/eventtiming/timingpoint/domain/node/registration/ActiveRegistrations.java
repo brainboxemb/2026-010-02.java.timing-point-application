@@ -1,8 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -59,13 +57,6 @@ public final class ActiveRegistrations {
      * <p>Registration records for other LocationIds, non-registration records and unmatched REV
      * records leave this projection unchanged.</p>
      */
-    /** Legacy test/API adapter; DataTask uses the scalar overload. */
-    public Change apply(TimingData data) {
-
-        failIfInvalidArgument(data != null, "data must not be null");
-        return apply(TimingRecords.fromTimingData(data));
-    }
-
     public Change apply(TimingRecord record) {
 
         failIfInvalidArgument(record != null, "record must not be null");
