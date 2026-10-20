@@ -34,8 +34,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * complete. Transport/session I/O belongs to {@link UpstreamStream}; none of
  * these domain helpers owns a transport thread or executor.</p>
  */
-public final class UpstreamHandler extends LifecycleComponent {
-    private static final Logger LOG = LoggerFactory.getLogger(UpstreamHandler.class);
+public final class NodeUpstream extends LifecycleComponent {
+    private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
     private static final int TASK_MAX_ITEMS_PER_RUN = 32;
 
@@ -47,8 +47,8 @@ public final class UpstreamHandler extends LifecycleComponent {
     private final LogBookSync logBookSync;
     private final InputTask inputTask = new InputTask();
 
-    /** Creates the node-scoped upstream coordinator over TimingNode's Task Lane. */
-    public UpstreamHandler(
+    /** Creates one node's upstream protocol state and independent logical task lane. */
+    public NodeUpstream(
             NodeId nodeId,
             ScheduledExecutorService scheduler,
             UpstreamStream stream,
@@ -164,7 +164,7 @@ public final class UpstreamHandler extends LifecycleComponent {
     }
 
     /** Returns the latest immutable heartbeat snapshot without a lane hop. */
-    public UpstreamHandlerTypes.HeartbeatStatus heartbeatStatus() {
+    public NodeUpstreamTypes.HeartbeatStatus heartbeatStatus() {
         return heartbeat.status();
     }
 

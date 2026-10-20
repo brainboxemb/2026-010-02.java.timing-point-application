@@ -1,111 +1,52 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandlerTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * TimingSystem-owned upstream protocol component.
  *
- * <p>One node-scoped UpstreamHandler is retained for every TimingNode. Each
+ * <p>One node-scoped NodeUpstream is retained for every TimingNode. Each
  * handler therefore owns independent TIMING_DATA, RACE_DATA and heartbeat
  * protocol state. The physical connection and queue implementation belongs to
  * the shared UpstreamGateway.</p>
  *
- * <p>The handlers deliberately continue to execute on their corresponding
- * TimingNode Task Lanes. This preserves the existing single-lane ordering of
- * RACE_DATA application and node state while moving protocol ownership to the
- * TimingSystem. No additional Java thread, executor or scheduler is created.</p>
+ * <p>Each NodeUpstream owns a separate logical task lane backed by the same
+ * Runtime-supplied scheduled executor. NodeService applies RACE_DATA separately;
+ * the node upstream protocol awaits successful completion before ACK.</p>
  */
 public final class Upstream extends LifecycleComponent {
     private final UpstreamGateway gateway;
     private final ComponentLifecycleManager lifecycle =
             new ComponentLifecycleManager();
-    private final Map<NodeId, UpstreamHandler> nodes =
-            new LinkedHashMap<NodeId, UpstreamHandler>();
-
-    /** Returns an inactive transport-neutral component for composition-only tests. */
-    public static Upstream unavailable() {
-        return new Upstream(
-                UpstreamGateway.unavailable(),
-                Collections.<UpstreamHandler>emptyList());
-    }
+    private final Map<NodeId, NodeUpstream> nodes =
+            new LinkedHashMap<NodeId, NodeUpstream>();
 
     public Upstream(
             UpstreamGateway gateway,
-            Iterable<UpstreamHandler> handlers) {
+            List<NodeUpstream> nodeUpstreams) {
 
         failIfInvalidArgument(gateway != null, "gateway must not be null");
-        failIfInvalidArgument(handlers != null, "handlers must not be null");
+        failIfInvalidArgument(nodeUpstreams != null, "nodeUpstreams must not be null");
         this.gateway = gateway;
 
-        for (UpstreamHandler handler : handlers) {
-            failIfInvalidArgument(
-                    handler != null,
-                    "handlers must not contain null");
-            UpstreamHandler previous =
-                    nodes.put(
-                            handler.nodeId(),
-                            handler);
-            failIfInvalidArgument(
-                    previous == null,
-                    "duplicate upstream node %s",
-                    handler.nodeId().value());
-            lifecycle.register(
-                    "Upstream node " + handler.nodeId().value(),
-                    handler);
+        for (NodeUpstream nodeUpstream : nodeUpstreams) {
+            failIfInvalidArgument(nodeUpstream != null, "nodeUpstreams must not contain null");
+            NodeId nodeId = nodeUpstream.nodeId();
+            failIfInvalidArgument(!nodes.containsKey(nodeId),
+                    "duplicate upstream node %s", nodeId.value());
+            nodes.put(nodeId, nodeUpstream);
+            lifecycle.register("NodeUpstream " + nodeId.value(), nodeUpstream);
         }
-    }
-
-    /** Returns the number of node-specific upstream protocol instances. */
-    public int nodeCount() {
-        return nodes.size();
-    }
-
-    /**
-     * Signals that this node's gateway input queue contains data.
-     *
-     * <p>The gateway callback performs no semantic work; processing is admitted
-     * to the node's existing Task Lane.</p>
-     */
-    public boolean inputAvailable(NodeId nodeId) {
-
-        failIfInactive();
-        return node(nodeId).inputAvailable();
-    }
-
-    /** Publishes every node's current TIMING_DATA source head. */
-    public void sendTimingDataSync() {
-
-        failIfInactive();
-        publishTimingDataHeads();
-    }
-
-    /** Runs one externally scheduled heartbeat tick for every node. */
-    public void heartbeatTick() {
-
-        failIfInactive();
-        for (UpstreamHandler handler : nodes.values()) {
-            handler.heartbeatTick();
-        }
-    }
-
-    /** Returns one node's latest heartbeat snapshot. */
-    public UpstreamHandlerTypes.HeartbeatStatus heartbeatStatus(
-            NodeId nodeId) {
-
-        failIfInactive();
-        return node(nodeId).heartbeatStatus();
     }
 
     /**
@@ -120,7 +61,9 @@ public final class Upstream extends LifecycleComponent {
 
         lifecycle.activateAll();
         if (gateway.isAvailable()) {
-            publishTimingDataHeads();
+            for (NodeUpstream nodeUpstream : nodes.values()) {
+                nodeUpstream.sendTimingDataSync();
+            }
         }
     }
 
@@ -130,21 +73,4 @@ public final class Upstream extends LifecycleComponent {
         lifecycle.deactivateAll();
     }
 
-    private void publishTimingDataHeads() {
-
-        for (UpstreamHandler handler : nodes.values()) {
-            handler.sendTimingDataSync();
-        }
-    }
-
-    private UpstreamHandler node(NodeId nodeId) {
-
-        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        UpstreamHandler handler = nodes.get(nodeId);
-        failIfIllegalState(
-                handler != null,
-                "No upstream protocol state exists for node %s",
-                nodeId.value());
-        return handler;
-    }
 }

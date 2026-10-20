@@ -130,7 +130,7 @@ public final class NodeService extends LifecycleComponent {
     /**
      * Applies one ordered Central RACE_DATA change set.
      *
-     * <p>UpstreamHandler calls this while the node Task Lane is current. The shared
+     * <p>NodeUpstream dispatches this to the independent NodeService task lane. The shared
      * TimeSource is sampled once so stage-start boundary values are normalized to UTC
      * before entering RaceDataState. Team assignment changes are reflected in RegisteredTeams.</p>
      */
