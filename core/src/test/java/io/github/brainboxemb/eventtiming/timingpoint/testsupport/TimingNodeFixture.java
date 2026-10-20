@@ -217,6 +217,7 @@ public final class TimingNodeFixture {
                 32,
                 DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
+                NODE_WORKER,
                 TAG_WORKER);
     }
 
