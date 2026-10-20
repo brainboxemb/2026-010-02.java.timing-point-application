@@ -158,10 +158,13 @@ public final class TimingNode extends LifecycleComponent {
         return timeSource;
     }
 
-    /** Resolves one current TeamId to its RegistrationId. */
+    /** Resolves one TeamId using the currently open LocationId. */
     public RegistrationId registrationIdFor(TeamId teamId) {
 
-        return nodeService.registrationIdFor(teamId);
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        LocationId locationId = locationId();
+        failIfIllegalState(locationId != null, "TimingNode is not open");
+        return nodeService.registrationIdFor(locationId, teamId);
     }
 
     /** Returns the current functional OPEN/CLOSED state. */
