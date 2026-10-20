@@ -440,10 +440,10 @@ public class UpstreamHandlerTest {
             assertEquals(3, transfer.records().size());
             assertEquals(
                     records.get(2),
-                    transfer.records(.get(0)));
+                    transfer.records().get(0));
             assertEquals(
                     records.get(4),
-                    transfer.records(.get(2)));
+                    transfer.records().get(2));
             assertEquals(
                     0,
                     stream.sentCount());
