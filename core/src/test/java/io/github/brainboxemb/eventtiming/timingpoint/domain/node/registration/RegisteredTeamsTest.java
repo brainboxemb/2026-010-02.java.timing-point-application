@@ -1,13 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,8 +15,6 @@ import static org.junit.Assert.assertEquals;
 
 /** Verifies unique-team state for one active WP and silent historical reconstruction. */
 public class RegisteredTeamsTest {
-    private static final NodeId NODE_ID = new NodeId("A");
-    private static final DefaultTimingDataFactory FACTORY = new DefaultTimingDataFactory();
     private static final TeamId FIRST = new TeamId("0001");
     private static final TeamId SECOND = new TeamId("0002");
 
@@ -31,14 +25,14 @@ public class RegisteredTeamsTest {
         List<RegisteredTeams.Change> changes = new ArrayList<>();
         teams.CHANGED.subscribe(changes::add);
 
-        accept(registrations, teams, record(1L, "A0001", TimingData.RegistrationAction.ADD), FIRST);
-        accept(registrations, teams, record(2L, "A0001", TimingData.RegistrationAction.ADD), FIRST);
+        accept(registrations, teams, record(1L, "A0001", TimingRecord.Action.ADD), FIRST);
+        accept(registrations, teams, record(2L, "A0001", TimingRecord.Action.ADD), FIRST);
         assertEquals(1, teams.uniqueTeamCount());
         assertEquals(1, changes.size());
 
-        accept(registrations, teams, record(3L, "A0001", TimingData.RegistrationAction.REV), FIRST);
+        accept(registrations, teams, record(3L, "A0001", TimingRecord.Action.REV), FIRST);
         assertEquals(1, changes.size());
-        accept(registrations, teams, record(4L, "A0001", TimingData.RegistrationAction.REV), FIRST);
+        accept(registrations, teams, record(4L, "A0001", TimingRecord.Action.REV), FIRST);
         assertEquals(2, changes.size());
         assertEquals(RegisteredTeams.Change.Action.REMOVED, changes.get(1).action());
         assertEquals(FIRST, changes.get(1).teamId());
@@ -53,16 +47,16 @@ public class RegisteredTeamsTest {
         teams.CHANGED.subscribe(changes::add);
         teams.beginRebuild();
 
-        accept(registrations, teams, record(1L, "A0001", TimingData.RegistrationAction.ADD), FIRST);
-        accept(registrations, teams, record(2L, "A0002", TimingData.RegistrationAction.ADD), SECOND);
+        accept(registrations, teams, record(1L, "A0001", TimingRecord.Action.ADD), FIRST);
+        accept(registrations, teams, record(2L, "A0002", TimingRecord.Action.ADD), SECOND);
 
         assertEquals(2, teams.uniqueTeamCount());
         assertEquals(0, changes.size());
 
         teams.completeRebuild();
-        accept(registrations, teams, record(3L, "R0001", TimingData.RegistrationAction.ADD), FIRST);
+        accept(registrations, teams, record(3L, "R0001", TimingRecord.Action.ADD), FIRST);
         assertEquals(0, changes.size());
-        accept(registrations, teams, record(4L, "A0003", TimingData.RegistrationAction.ADD), new TeamId("0003"));
+        accept(registrations, teams, record(4L, "A0003", TimingRecord.Action.ADD), new TeamId("0003"));
         assertEquals(1, changes.size());
     }
 
@@ -70,16 +64,16 @@ public class RegisteredTeamsTest {
     public void multipleRegistrationIdsKeepTeamRegisteredAndBurstContainsUniqueTeams() {
         ActiveRegistrations registrations = activeRegistrations();
         RegisteredTeams teams = liveTeams();
-        accept(registrations, teams, record(1L, "A0001", TimingData.RegistrationAction.ADD), FIRST);
-        accept(registrations, teams, record(2L, "R0001", TimingData.RegistrationAction.ADD), FIRST);
-        accept(registrations, teams, record(3L, "A0002", TimingData.RegistrationAction.ADD), SECOND);
+        accept(registrations, teams, record(1L, "A0001", TimingRecord.Action.ADD), FIRST);
+        accept(registrations, teams, record(2L, "R0001", TimingRecord.Action.ADD), FIRST);
+        accept(registrations, teams, record(3L, "A0002", TimingRecord.Action.ADD), SECOND);
 
         List<TeamId> burst = new ArrayList<>();
         assertEquals(2, teams.visit(burst::add));
         org.junit.Assert.assertTrue(burst.contains(FIRST));
         org.junit.Assert.assertTrue(burst.contains(SECOND));
 
-        accept(registrations, teams, record(4L, "A0001", TimingData.RegistrationAction.REV), FIRST);
+        accept(registrations, teams, record(4L, "A0001", TimingRecord.Action.REV), FIRST);
         assertEquals(2, teams.uniqueTeamCount());
     }
 
@@ -89,8 +83,8 @@ public class RegisteredTeamsTest {
         RegisteredTeams teams = liveTeams();
         List<RegisteredTeams.Change> changes = new ArrayList<>();
         teams.CHANGED.subscribe(changes::add);
-        accept(registrations, teams, record(1L, "R0001", TimingData.RegistrationAction.ADD), null);
-        accept(registrations, teams, record(2L, "R0001", TimingData.RegistrationAction.ADD), null);
+        accept(registrations, teams, record(1L, "R0001", TimingRecord.Action.ADD), null);
+        accept(registrations, teams, record(2L, "R0001", TimingRecord.Action.ADD), null);
 
         teams.teamAssignmentChanged(new RegistrationId("R0001"), FIRST);
         teams.teamAssignmentChanged(new RegistrationId("R0001"), SECOND);
@@ -108,14 +102,12 @@ public class RegisteredTeamsTest {
     }
 
     private static ActiveRegistrations activeRegistrations() {
-
         ActiveRegistrations registrations = new ActiveRegistrations();
         registrations.activate(new LocationId(1));
         return registrations;
     }
 
     private static RegisteredTeams liveTeams() {
-
         RegisteredTeams teams = new RegisteredTeams();
         teams.beginRebuild();
         teams.completeRebuild();
@@ -123,17 +115,27 @@ public class RegisteredTeamsTest {
     }
 
     private static void accept(
-            ActiveRegistrations registrations, RegisteredTeams teams, TimingData data, TeamId teamId) {
-
-        teams.apply(registrations.apply(data), teamId);
+            ActiveRegistrations registrations,
+            RegisteredTeams teams,
+            TimingRecord record,
+            TeamId teamId) {
+        teams.apply(registrations.apply(record), teamId);
     }
 
-    private static TimingData record(
-            long sequence, String id, TimingData.RegistrationAction action) {
-
-        TimingTimestamp time = new TimingTimestamp(Instant.parse("2026-10-13T12:00:00Z"));
-        TimingDataFactory.Context context = new TimingDataFactory.Context(
-                NODE_ID, sequence, new LocationId(1), time, time);
-        return FACTORY.createAutomaticRegistration(context, new RegistrationId(id), action);
+    private static TimingRecord record(
+            long sequence,
+            String id,
+            TimingRecord.Action action) {
+        long time = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
+        return TimingRecord.automatic(
+                'A',
+                sequence,
+                1,
+                time,
+                time,
+                new RegistrationId(id).packedValue(),
+                action,
+                null,
+                null);
     }
 }
