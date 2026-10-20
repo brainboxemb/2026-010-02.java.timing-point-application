@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandlerTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 
@@ -27,6 +28,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class Upstream extends LifecycleComponent {
     private final UpstreamGateway gateway;
+    private final ComponentLifecycleManager lifecycle =
+            new ComponentLifecycleManager();
     private final Map<NodeId, UpstreamHandler> nodes =
             new LinkedHashMap<NodeId, UpstreamHandler>();
 
@@ -50,6 +53,9 @@ public final class Upstream extends LifecycleComponent {
                     previous == null,
                     "duplicate upstream node %s",
                     handler.nodeId().value());
+            lifecycle.register(
+                    "Upstream node " + handler.nodeId().value(),
+                    handler);
         }
     }
 
@@ -104,6 +110,7 @@ public final class Upstream extends LifecycleComponent {
     @Override
     protected void onActivate() {
 
+        lifecycle.activateAll();
         if (gateway.isAvailable()) {
             publishTimingDataHeads();
         }
@@ -111,8 +118,8 @@ public final class Upstream extends LifecycleComponent {
 
     @Override
     protected void onDeactivate() {
-        // Gateway owns connection shutdown. TimingNode lifecycle stops the
-        // Task Lanes after Upstream has stopped accepting system callbacks.
+
+        lifecycle.deactivateAll();
     }
 
     private void publishTimingDataHeads() {
