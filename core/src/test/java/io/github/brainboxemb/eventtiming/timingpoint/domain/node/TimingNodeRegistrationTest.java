@@ -467,7 +467,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(24, data.locationId());
             assertEquals(EFFECTIVE_TIME.instant().toEpochMilli(), data.effectiveTimeMillis());
             assertEquals(
-                    TimingRecord.RegistrationAction.REV,
+                    TimingRecord.Action.REV,
                     data.action());
             assertEquals(1, store.appended.size());
             assertEquals(data, store.appended.get(0));
@@ -490,7 +490,7 @@ public class TimingNodeRegistrationTest {
                                             EFFECTIVE_TIME,
                                             ManualTimeSource.OPERATOR_ENTERED));
             assertEquals(
-                    TimingRecord.RegistrationAction.REV,
+                    TimingRecord.Action.REV,
                     data.action());
             assertEquals(
                     ManualTimeSource.OPERATOR_ENTERED,
