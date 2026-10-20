@@ -1,18 +1,14 @@
 package io.github.brainboxemb.eventtiming.timingdata;
 
 /**
- * Provider SPI for a concrete TimingData representation.
+ * Provider SPI for one concrete IF-05 TimingRecord codec.
  *
- * <p>The provider supplies one coherent concrete TimingData family: a
- * stateless factory plus its matching codec. IF-05 owns the common semantics.
- * Discovery, duplicate-id validation and provider configuration belong to
- * application/bootstrap infrastructure.</p>
+ * <p>The record model itself is shared and fixed. Providers vary only the
+ * external representation; they do not provide alternate Java object models.</p>
  */
 public interface TimingDataProvider {
 
     String id();
-
-    TimingDataFactory createFactory();
 
     TimingDataCodec createCodec();
 }
