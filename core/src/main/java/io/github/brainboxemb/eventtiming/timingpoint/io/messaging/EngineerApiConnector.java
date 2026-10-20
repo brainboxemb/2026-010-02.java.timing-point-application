@@ -153,13 +153,19 @@ public final class EngineerApiConnector implements UpstreamGateway {
         }
     }
 
-    /** Disconnects the supplied peer only when it is still the active peer. */
+    /**
+     * Disconnects the supplied peer only when it is still the active peer.
+     *
+     * <p>Disconnect is a session boundary. Messages that have not yet been read
+     * by NodeUpstream are discarded; reconnect synchronization determines what
+     * the new peer must resend. A RACE_DATA message already handed to NodeUpstream
+     * is no longer in this queue and may finish its node-local apply normally.</p>
+     */
     public synchronized void disconnect(
             Output currentOutput) {
         if (currentOutput != null
                 && output == currentOutput) {
-            output = null;
-            outputQueue.clear();
+            clearSession();
         }
     }
 
@@ -264,18 +270,25 @@ public final class EngineerApiConnector implements UpstreamGateway {
                 accepted =
                         output.send(message);
             } catch (RuntimeException | Error failure) {
-                output = null;
-                outputQueue.clear();
+                clearSession();
                 throw failure;
             }
 
             if (!accepted) {
-                output = null;
-                outputQueue.clear();
+                clearSession();
                 throw new IllegalStateException(
                         "Engineering upstream peer rejected output");
             }
             outputQueue.remove();
+        }
+    }
+
+    /** Clears all transport-session queues without changing node protocol state. */
+    private void clearSession() {
+        output = null;
+        outputQueue.clear();
+        for (NodeInput input : inputs.values()) {
+            input.messages.clear();
         }
     }
 
