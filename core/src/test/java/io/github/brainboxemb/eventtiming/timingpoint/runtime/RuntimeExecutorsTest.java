@@ -49,7 +49,7 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void logBookAndTaskLanesShareTheSameExecutorThread() throws Exception {
+    public void logBookAndComponentLanesShareTheSameExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeExecutionResources execution =
                 runtime.createTimingNodeExecutionResources();
@@ -58,15 +58,21 @@ public class RuntimeExecutorsTest {
         AtomicReference<String> dataThread = new AtomicReference<String>();
         AtomicReference<String> taskThread = new AtomicReference<String>();
         CountDownLatch done = new CountDownLatch(2);
+        SerialTaskRunner componentLane =
+                new SerialTaskRunner(
+                        8,
+                        8,
+                        "component-owned-test",
+                        execution.nodeScheduler());
 
-        execution.taskRunner().start();
+        componentLane.start();
         try {
             execution.logBookDataLaneExecutor().execute(
                     () -> {
                         dataThread.set(Thread.currentThread().getName());
                         done.countDown();
                     });
-            execution.taskRunner().runTask(
+            componentLane.runTask(
                     () -> {
                         taskThread.set(Thread.currentThread().getName());
                         done.countDown();
@@ -77,7 +83,7 @@ public class RuntimeExecutorsTest {
             assertEquals("tp-dl-node", dataThread.get());
             assertEquals(dataThread.get(), taskThread.get());
         } finally {
-            execution.taskRunner().close();
+            componentLane.close();
             runtime.close();
         }
     }
