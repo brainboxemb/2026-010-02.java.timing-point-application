@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualRegistratio
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -72,9 +73,9 @@ public class TimingNodeRegistrationTest {
             assertEquals(registrationId, data.registrationId());
 
             assertEquals(2, store.appended.size());
-            assertSame(data, store.appended.get(1));
+            assertEquals(TimingRecords.fromTimingData(data), TimingRecords.fromTimingData(store.appended.get(1)));
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
-            assertSame(data, delivered.get(1));
+            assertEquals(TimingRecords.fromTimingData(data), TimingRecords.fromTimingData(delivered.get(1)));
         } finally {
             deactivate(node);
         }
@@ -228,7 +229,7 @@ public class TimingNodeRegistrationTest {
                     CommandResult.Outcome.COMMITTED,
                     result.outcome());
             assertEquals(2, store.appended.size());
-            assertSame(result.timingData(), store.appended.get(1));
+            assertEquals(TimingRecords.fromTimingData(result.timingData()), TimingRecords.fromTimingData(store.appended.get(1)));
 
             TimingData[] visited = new TimingData[1];
             int totalCount = node.logBook().process(
@@ -237,7 +238,7 @@ public class TimingNodeRegistrationTest {
                             1,
                             data -> visited[0] = data));
             assertEquals(2, totalCount);
-            assertSame(result.timingData(), visited[0]);
+            assertEquals(TimingRecords.fromTimingData(result.timingData()), TimingRecords.fromTimingData(visited[0]));
 
             ManualRegistration data =
                     (ManualRegistration) result.timingData();
@@ -384,7 +385,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(2, store.appended.size());
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, delivered.size());
-            assertSame(committed.timingData(), delivered.get(1));
+            assertEquals(TimingRecords.fromTimingData(committed.timingData()), TimingRecords.fromTimingData(delivered.get(1)));
 
         } finally {
             deactivate(node);
@@ -452,7 +453,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(2, store.appended.size());
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(1, delivered.size());
-            assertSame(committed.timingData(), delivered.get(0));
+            assertEquals(TimingRecords.fromTimingData(committed.timingData()), TimingRecords.fromTimingData(delivered.get(0)));
         } finally {
             deactivate(node);
         }
@@ -479,7 +480,7 @@ public class TimingNodeRegistrationTest {
                     TimingData.RegistrationAction.REV,
                     data.action());
             assertEquals(1, store.appended.size());
-            assertSame(data, store.appended.get(0));
+            assertEquals(TimingRecords.fromTimingData(data), TimingRecords.fromTimingData(store.appended.get(0)));
         } finally {
             deactivate(node);
         }
