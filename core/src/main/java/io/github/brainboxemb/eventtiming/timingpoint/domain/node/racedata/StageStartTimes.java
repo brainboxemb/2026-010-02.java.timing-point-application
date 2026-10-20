@@ -35,13 +35,6 @@ final class StageStartTimes {
         return new StageStartTimes(starts);
     }
 
-    /** Returns the absolute UTC epoch-millisecond stage start, or null when none is configured. */
-    Long startMillisFor(TeamId teamId) {
-
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
-        return starts.get(teamId);
-    }
-
     /** Sets one already-normalized absolute UTC stage start. */
     void set(TeamId teamId, long startMillis) {
 
