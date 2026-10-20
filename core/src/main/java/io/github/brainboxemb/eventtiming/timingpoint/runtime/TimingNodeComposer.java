@@ -67,7 +67,6 @@ final class TimingNodeComposer {
                 new LogBook(
                         nodeConfig.timingNodeId(),
                         persistence,
-                        system.timingDataFactory(),
                         timeSource,
                         monotonicClock,
                         new LogBookMetrics(),
