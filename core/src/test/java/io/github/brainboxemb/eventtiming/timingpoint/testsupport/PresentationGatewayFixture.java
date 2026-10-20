@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.testsupport;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -33,12 +34,23 @@ public final class PresentationGatewayFixture implements AutoCloseable {
     private final PresentationGateway handler;
 
     public PresentationGatewayFixture(BuildIdentity identity) {
-        this(identity, "A");
+        this(identity, EventData.empty(), "A");
     }
 
     public PresentationGatewayFixture(
             BuildIdentity identity,
             String... nodeIds) {
+        this(identity, EventData.empty(), nodeIds);
+    }
+
+    public PresentationGatewayFixture(
+            BuildIdentity identity,
+            EventData eventData,
+            String... nodeIds) {
+        if (eventData == null) {
+            throw new IllegalArgumentException(
+                    "eventData must not be null");
+        }
         if (nodeIds == null || nodeIds.length == 0) {
             throw new IllegalArgumentException(
                     "nodeIds must not be empty");
@@ -52,7 +64,8 @@ public final class PresentationGatewayFixture implements AutoCloseable {
             TimingNode node = TimingNodeFixture.create(
                     nodeId,
                     new MemoryPersistence(),
-                    () -> RECORDED_AT.instant());
+                    () -> RECORDED_AT.instant(),
+                    eventData);
             nodes.add(node);
         }
 
