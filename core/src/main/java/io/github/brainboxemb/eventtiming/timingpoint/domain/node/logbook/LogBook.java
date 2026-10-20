@@ -138,7 +138,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
 
-        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
         this(
                 timingNodeId,
                 timingDataPersistence,
@@ -150,6 +149,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                 dataLaneMaxItemsPerRun,
                 commitWaitTimeoutMillis,
                 orderedQueryWaitTimeoutMillis);
+        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
     }
 
     /** Returns immutable node identity without entering the Data Lane. */
