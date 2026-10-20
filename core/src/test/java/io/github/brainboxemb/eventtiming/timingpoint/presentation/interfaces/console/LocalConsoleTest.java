@@ -66,6 +66,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Example: reg A0001"));
         assertTrue(text.contains("Example: reg A0001 now"));
         assertTrue(text.contains("Example: reg A0001 12345678"));
+        assertTrue(text.contains("regs [count|all|<after> [n]]"));
         assertFalse(text.contains("auto-reg"));
         assertTrue(text.contains("config                       Show current configuration"));
         assertTrue(text.contains("quit                         Stop the application"));
@@ -166,6 +167,41 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Registration: COMMITTED seq=4"));
         assertTrue(text.contains("Registration: COMMITTED seq=5"));
         assertTrue(text.contains("Unknown command: auto-reg A0005 now"));
+    }
+
+    @Test
+    public void regsShowsUniqueCountAndPagedActiveWpProjection() {
+        StringWriter output = new StringWriter();
+
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(
+                        identity(),
+                        new DefaultEventData(),
+                        "A")) {
+            LocalConsole console = new LocalConsole(
+                    fixture.handler(),
+                    () -> { },
+                    new StringReader(
+                            "open 24\n"
+                                    + "reg 1 12000100\n"
+                                    + "reg 2 12000200\n"
+                                    + "reg 3 12000300\n"
+                                    + "regs count\n"
+                                    + "regs 2 1\n"
+                                    + "regs all\n"
+                                    + "quit\n"),
+                    output);
+
+            console.run();
+        }
+
+        String text = output.toString();
+        assertTrue(text.contains(
+                "Registrations: location=24 count=3 unique=3"));
+        assertTrue(text.contains(
+                "seq=3 id=A0002 time=12000200 state=ACTIVE"));
+        assertTrue(text.contains(
+                "seq=4 id=A0003 time=12000300 state=ACTIVE"));
     }
 
     @Test
