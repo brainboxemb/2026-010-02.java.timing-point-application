@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Split `NodeUpstream` inbound processing into focused message tasks: `RaceDataTask` waits on the existing `CompletableFuture` from `NodeService`, `TimingDataReplayTask` owns LogBook batch waits, later messages remain queued in `UpstreamStream`, and protocol state is named explicitly as `RaceDataSync`, `TimingDataSync`, and `Heartbeat`.
+
 - Rename per-node `UpstreamHandler`/`UpstreamHandlerTypes` to `NodeUpstream`/`NodeUpstreamTypes`; simplify the system `Upstream` constructor to a `List`, remove unused forwarding API and test-only factories, and make the production `TimingSystem` constructor require explicit upstream ownership.
 
 - Scope registration-derived state to the currently OPEN WP: OPEN(locationId) rebuilds that WP from the complete LogBook so registrations from earlier OPEN periods return, CLOSE deactivates the projection, other WPs are excluded, rows no longer retain LocationId, NodeService reads are implicitly current-WP, and historical rebuild suppresses incremental team +/- events until catch-up completes.

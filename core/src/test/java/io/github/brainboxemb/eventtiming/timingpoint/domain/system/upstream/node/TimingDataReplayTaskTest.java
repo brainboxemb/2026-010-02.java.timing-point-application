@@ -21,60 +21,20 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
-public class NodeUpstreamFocusedTaskTest {
+public class TimingDataReplayTaskTest {
 
     @Test
-    public void raceDataTaskWaitsForNodeServiceBeforeAck() {
-        TestUpstreamStream stream = new TestUpstreamStream();
-        CompletableFuture<Void> applied = new CompletableFuture<Void>();
-        UpstreamDataSync sync =
-                new UpstreamDataSync(
-                        new NodeId("A"),
-                        stream,
-                        ignored -> applied);
-        UpstreamData.RaceData raceData =
-                DefaultUpstreamData.raceData(
-                        new NodeId("A"),
-                        1L,
-                        Collections.singletonList(
-                                DefaultUpstreamData.teamAssignmentSet(
-                                        "A0001",
-                                        "0042")),
-                        Collections.<UpstreamData.StageStartTimeChange>emptyList());
-
-        RaceDataTask task =
-                new RaceDataTask(
-                        stream,
-                        sync,
-                        raceData);
-
-        assertSame(TaskStep.Type.AWAIT, task.runStep().type());
-        assertEquals(0, stream.sentCount());
-
-        applied.complete(null);
-
-        assertSame(TaskStep.Type.DONE, task.runStep().type());
-        UpstreamData.Ack ack = (UpstreamData.Ack) stream.takeSent();
-        assertEquals(1L, ack.sequence());
-        assertSame(UpstreamData.Stream.RACE_DATA, ack.stream());
-    }
-
-    @Test
-    public void timingDataSyncTaskOwnsItsLogBookAwait() {
+    public void waitsForLogBookBatchBeforeSendingReplay() {
         TestUpstreamStream stream = new TestUpstreamStream();
         CompletableFuture<List<TimingRecord>> batch =
                 new CompletableFuture<List<TimingRecord>>();
-        PendingLogBook logBook =
-                new PendingLogBook(
-                        1L,
-                        batch);
-        LogBookSync sync =
-                new LogBookSync(
+        TimingDataSync sync =
+                new TimingDataSync(
                         new NodeId("A"),
                         stream,
-                        logBook);
-        TimingDataSyncTask task =
-                new TimingDataSyncTask(
+                        new PendingLogBook(1L, batch));
+        TimingDataReplayTask task =
+                new TimingDataReplayTask(
                         stream,
                         sync,
                         DefaultUpstreamData.req(

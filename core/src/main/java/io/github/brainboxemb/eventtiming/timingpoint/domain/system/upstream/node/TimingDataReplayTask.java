@@ -12,22 +12,22 @@ import java.util.concurrent.CompletableFuture;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Serves one TIMING_DATA replay request from the retained LogBook.
+ * Serves one queued TIMING_DATA replay request from the retained LogBook.
  *
  * <p>Each batch read yields while the LogBook Data Lane completes. Replay state
- * stays in LogBookSync; this task owns only the asynchronous batch continuation.</p>
+ * stays in TimingDataSync; this task owns only the asynchronous batch continuation.</p>
  */
-final class TimingDataSyncTask implements YieldingTask {
+final class TimingDataReplayTask implements YieldingTask {
     private final UpstreamStream stream;
-    private final LogBookSync sync;
+    private final TimingDataSync sync;
     private final UpstreamData.Req request;
 
     private boolean started;
     private CompletableFuture<List<TimingRecord>> pendingBatch;
 
-    TimingDataSyncTask(
+    TimingDataReplayTask(
             UpstreamStream stream,
-            LogBookSync sync,
+            TimingDataSync sync,
             UpstreamData.Req request) {
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(sync != null, "sync must not be null");
@@ -40,12 +40,12 @@ final class TimingDataSyncTask implements YieldingTask {
     @Override
     public TaskStep runStep() {
         if (!stream.isAvailable()) {
-            sync.cancelSync();
+            sync.cancelReplay();
             return TaskStep.done();
         }
 
         if (!started) {
-            sync.handleReq(request);
+            sync.startReplay(request);
             started = true;
         }
 
@@ -55,7 +55,7 @@ final class TimingDataSyncTask implements YieldingTask {
             sync.sendNextBatch(records);
         }
 
-        if (!sync.syncPending()) {
+        if (!sync.replayPending()) {
             return TaskStep.done();
         }
 

@@ -25,12 +25,17 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * TimingSystem-owned semantic boundary for one node's upstream communication.
  *
- * <p>Each node-specific instance owns its own logical protocol lane on the
- * Runtime-supplied shared scheduler.
- * TIMING_DATA synchronization submits ordered reads to the LogBook Data Lane
- * and yields its protocol lane with {@link TaskStep#await} until those reads
- * complete. Transport/session I/O belongs to {@link UpstreamStream}; none of
- * these domain helpers owns a transport thread or executor.</p>
+ * <p>Each node-specific instance owns one logical protocol task runner on the
+ * Runtime-supplied shared scheduler. The node-scoped {@link UpstreamStream}
+ * owns the inbound message queue. NodeUpstream admits exactly one queued
+ * message task at a time. While that task awaits NodeService or LogBook work,
+ * later messages remain in the stream queue; they are not discarded. When the
+ * active message task completes, the next queued message is admitted.</p>
+ *
+ * <p>Protocol duplicates are different from queued duplicates. For example,
+ * a repeated RACE_DATA sequence is read normally and RaceDataSync decides
+ * whether to ACK it again or request a missing sequence. Transport notification
+ * coalescing never removes an UpstreamData message from the input queue.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
@@ -40,11 +45,12 @@ public final class NodeUpstream extends LifecycleComponent {
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final UpstreamStream stream;
-    private final UpstreamHeartbeat heartbeat;
-    private final UpstreamDataSync upstreamDataSync;
-    private final LogBookSync logBookSync;
+    private final NodeService nodeService;
+    private final Heartbeat heartbeat;
+    private final RaceDataSync raceDataSync;
+    private final TimingDataSync timingDataSync;
     private final InputTask inputTask = new InputTask();
-    private CompletableFuture<Void> activeInputOperation;
+    private CompletableFuture<Void> activeMessageRun;
 
     /** Creates one node's upstream protocol state and independent logical task lane. */
     public NodeUpstream(
@@ -67,20 +73,26 @@ public final class NodeUpstream extends LifecycleComponent {
                         "Upstream-" + nodeId.value(),
                         scheduler);
         this.stream = stream;
-        this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
-        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, nodeService::applyRaceData);
-        this.logBookSync = new LogBookSync(nodeId, stream, logBook);
+        this.nodeService = nodeService;
+        this.heartbeat = new Heartbeat(nodeId, stream);
+        this.raceDataSync = new RaceDataSync(nodeId, stream);
+        this.timingDataSync = new TimingDataSync(nodeId, stream, logBook);
     }
 
     /**
      * Signals that the node-scoped stream contains inbound data.
      *
      * <p>The caller performs no semantic work and never waits for the node.
-     * Repeated notifications coalesce while the reusable input task is active.</p>
+     * Repeated notifications may coalesce, but messages stay in UpstreamStream
+     * until NodeUpstream reads them. When a message task is already active this
+     * method simply retains the notification by leaving the queued data in place.</p>
      */
     public boolean inputAvailable() {
         if (!stream.isAvailable() || !stream.hasMessage()) {
             return false;
+        }
+        if (messageTaskActive()) {
+            return true;
         }
         return inputTask.wake(taskRunner);
     }
@@ -100,14 +112,14 @@ public final class NodeUpstream extends LifecycleComponent {
     @Override
     protected void onDeactivate() {
         inputTask.cancel();
-        cancelActiveInputOperation();
-        logBookSync.cancelSync();
-        upstreamDataSync.cancelPending();
+        cancelActiveMessageTask();
+        timingDataSync.cancelReplay();
+        raceDataSync.cancelApply();
         taskRunner.close();
     }
 
     /** Creates one focused task for one inbound semantic message. */
-    private YieldingTask inputOperation(UpstreamData data) {
+    private YieldingTask createMessageTask(UpstreamData data) {
         failIfInvalidArgument(data instanceof UpstreamData.NodeScoped,
                 "UpstreamData is not node-scoped: %s", data.family());
 
@@ -121,22 +133,23 @@ public final class NodeUpstream extends LifecycleComponent {
                         "RACE_DATA has incompatible semantic type");
                 return new RaceDataTask(
                         stream,
-                        upstreamDataSync,
+                        raceDataSync,
+                        nodeService,
                         (UpstreamData.RaceData) data);
 
             case REQ:
                 failIfInvalidArgument(data instanceof UpstreamData.Req,
                         "REQ has incompatible semantic type");
-                return new TimingDataSyncTask(
+                return new TimingDataReplayTask(
                         stream,
-                        logBookSync,
+                        timingDataSync,
                         (UpstreamData.Req) data);
 
             case SYNC:
                 failIfInvalidArgument(data instanceof UpstreamData.Sync,
                         "SYNC has incompatible semantic type");
                 return oneStepTask(
-                        () -> upstreamDataSync.handleSync(
+                        () -> raceDataSync.handleSync(
                                 (UpstreamData.Sync) data));
 
             case PING:
@@ -163,41 +176,51 @@ public final class NodeUpstream extends LifecycleComponent {
         };
     }
 
-    /** Starts exactly one inbound operation; the next message waits for its completion. */
-    private void startInputOperation(YieldingTask operation) {
-        CompletableFuture<Void> run = taskRunner.runTask(operation);
+    /** Starts exactly one message task; later input remains queued until it completes. */
+    private void startMessageTask(YieldingTask task) {
+        CompletableFuture<Void> run = taskRunner.runTask(task);
         synchronized (this) {
-            if (activeInputOperation != null) {
+            if (activeMessageRun != null) {
                 run.cancel(true);
                 throw new IllegalStateException(
                         "NodeUpstream already has an active input operation");
             }
-            activeInputOperation = run;
+            activeMessageRun = run;
         }
         run.whenComplete(
                 (ignored, failure) ->
-                        inputOperationCompleted(run, failure));
+                        messageTaskCompleted(run, failure));
     }
 
-    private void inputOperationCompleted(
+    /** Clears one completed message task and then admits queued follow-up input. */
+    private void messageTaskCompleted(
             CompletableFuture<Void> run,
             Throwable failure) {
         synchronized (this) {
-            if (activeInputOperation != run) {
+            if (activeMessageRun != run) {
                 return;
             }
-            activeInputOperation = null;
+            activeMessageRun = null;
         }
 
         if (failure != null) {
-            logBookSync.cancelSync();
-            upstreamDataSync.cancelPending();
+            timingDataSync.cancelSync();
+            raceDataSync.cancelPending();
             LOG.warn(
                     "Upstream input operation failed for node {}",
                     nodeId.value(),
                     failure);
         }
 
+        wakeQueuedInput();
+    }
+
+    private synchronized boolean messageTaskActive() {
+        return activeMessageRun != null;
+    }
+
+    /** Wakes admission after a message task completes while leaving queue ownership to the stream. */
+    private void wakeQueuedInput() {
         if (taskRunner.isRunning()
                 && stream.isAvailable()
                 && stream.hasMessage()) {
@@ -205,13 +228,9 @@ public final class NodeUpstream extends LifecycleComponent {
         }
     }
 
-    private synchronized boolean inputOperationActive() {
-        return activeInputOperation != null;
-    }
-
-    private synchronized void cancelActiveInputOperation() {
-        CompletableFuture<Void> run = activeInputOperation;
-        activeInputOperation = null;
+    private synchronized void cancelActiveMessageTask() {
+        CompletableFuture<Void> run = activeMessageRun;
+        activeMessageRun = null;
         if (run != null) {
             run.cancel(true);
         }
@@ -219,7 +238,7 @@ public final class NodeUpstream extends LifecycleComponent {
 
     /** Queues one TIMING_DATA source-head publication on the Task Lane. */
     public void sendTimingDataSync() {
-        executeTaskOrWarn(logBookSync::sendSync, "TIMING_DATA SYNC");
+        executeTaskOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC");
     }
 
     /** Queues one externally scheduled heartbeat tick on the Task Lane. */
@@ -266,14 +285,13 @@ public final class NodeUpstream extends LifecycleComponent {
         @Override
         public TaskStep runStep() {
             if (!stream.isAvailable()
-                    || inputOperationActive()
+                    || messageTaskActive()
                     || !stream.hasMessage()) {
                 return TaskStep.done();
             }
 
             UpstreamData message = stream.read();
-            startInputOperation(
-                    inputOperation(message));
+            startMessageTask(createMessageTask(message));
             return TaskStep.done();
         }
 
@@ -284,6 +302,7 @@ public final class NodeUpstream extends LifecycleComponent {
                         "Upstream input admission failed for node {}",
                         nodeId.value(),
                         failure);
+                wakeQueuedInput();
             }
         }
     }

@@ -84,6 +84,51 @@ public class NodeUpstreamTest {
     }
 
     @Test
+    public void queuedRaceDataMessagesAreAppliedInOrderAfterOneInputNotification() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNodeFixture.Components node =
+                node("A", stream);
+        activate(node.node());
+        activate(node.nodeUpstream());
+        try {
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "R0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            2L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "R0002",
+                                            "0043")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+
+            // One notification is sufficient: message 2 remains in the stream
+            // queue until the message-1 RaceDataTask has completed.
+            assertTrue(node.nodeUpstream().inputAvailable());
+
+            UpstreamData.Ack first =
+                    (UpstreamData.Ack) stream.takeSent();
+            UpstreamData.Ack second =
+                    (UpstreamData.Ack) stream.takeSent();
+
+            assertEquals(1L, first.sequence());
+            assertEquals(2L, second.sequence());
+        } finally {
+            deactivate(node.nodeUpstream());
+            deactivate(node.node());
+        }
+    }
+
+    @Test
     public void heartbeatUsesSameOutboundStreamAndTracksMissedIntervals() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
