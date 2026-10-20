@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -48,7 +49,7 @@ public final class EngineerApiConnector implements UpstreamGateway {
     }
 
     private static final class NodeInput {
-        private final Queue<UpstreamData> messages =
+        private final Deque<UpstreamData> messages =
                 new ArrayDeque<UpstreamData>();
         private final BooleanSupplier inputAvailable;
         private final Runnable connected;
@@ -199,7 +200,7 @@ public final class EngineerApiConnector implements UpstreamGateway {
         }
 
         synchronized (this) {
-            input.messages.remove(message);
+            input.messages.removeLastOccurrence(message);
         }
         return ReceiveResult.INPUT_REJECTED;
     }
