@@ -319,6 +319,19 @@ class TimingViewModelTest {
                 List.of("ADD"),
                 "2026-10-01T10:00:01.100Z",
                 "{}"));
+        model.replaceRegistrationProjection(
+                projectionInfo(
+                        24,
+                        1,
+                        1,
+                        2L,
+                        0L),
+                List.of(
+                        projectionRow(
+                                2L,
+                                "N0002",
+                                "2026-10-01T10:00:01Z",
+                                true)));
 
         assertEquals(
                 List.of("N0002"),
@@ -341,6 +354,100 @@ class TimingViewModelTest {
                                 ZoneId.of("Europe/Amsterdam"),
                                 false)
                         .isEmpty());
+    }
+
+    @Test
+    void currentWpUsesServerValidityWhileAllKeepsLogBookHistory() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(
+                status(
+                        node(
+                                "node-01",
+                                24,
+                                "OPEN")));
+        model.viewState(
+                TimingViewModel.ViewState.LIVE);
+
+        model.mergeCommitted(
+                new ApiClient.TimingDataInfo(
+                        "node-01",
+                        7L,
+                        24,
+                        "AUTO_REG",
+                        "2026-10-01T10:00:00Z",
+                        "A0007",
+                        List.of("ADD"),
+                        "2026-10-01T10:00:00.1Z",
+                        "{}"));
+
+        model.replaceRegistrationProjection(
+                projectionInfo(
+                        24,
+                        1,
+                        0,
+                        8L,
+                        8L),
+                List.of(
+                        projectionRow(
+                                7L,
+                                "A0007",
+                                "2026-10-01T10:00:00Z",
+                                false)));
+
+        TimingViewModel.InterpretedRegistration current =
+                model.interpretedRegistrations(
+                                ZoneId.of(
+                                        "Europe/Amsterdam"),
+                                false)
+                        .get(0);
+        assertTrue(current.deleted());
+        assertEquals("AUTO", current.type());
+        assertEquals("0007", current.teamId());
+
+        TimingViewModel.InterpretedRegistration historical =
+                model.interpretedRegistrations(
+                                ZoneId.of(
+                                        "Europe/Amsterdam"),
+                                true)
+                        .get(0);
+        assertFalse(historical.deleted());
+    }
+
+    @Test
+    void projectionIsClearedWhenOpenLocationChanges() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(
+                status(
+                        node(
+                                "node-01",
+                                24,
+                                "OPEN")));
+        model.replaceRegistrationProjection(
+                projectionInfo(
+                        24,
+                        1,
+                        1,
+                        2L,
+                        0L),
+                List.of(
+                        projectionRow(
+                                2L,
+                                "A0001",
+                                "2026-10-01T10:00:00Z",
+                                true)));
+
+        model.applyStatus(
+                status(
+                        node(
+                                "node-01",
+                                25,
+                                "OPEN")));
+
+        assertNull(
+                model.registrationProjectionInfo());
+        assertEquals(
+                0,
+                model.registrationProjectionRowCount());
     }
 
     @Test
@@ -432,6 +539,33 @@ class TimingViewModelTest {
                         LocalDate.parse("2026-10-01"),
                         LocalTime.parse("12:00:00"),
                         ZoneId.of("Europe/Amsterdam")));
+    }
+
+    private static ApiClient.RegistrationProjectionInfo projectionInfo(
+            int locationId,
+            int count,
+            int uniqueCount,
+            long lastMutation,
+            long lastRevoke) {
+        return new ApiClient.RegistrationProjectionInfo(
+                locationId,
+                count,
+                uniqueCount,
+                lastMutation,
+                lastRevoke,
+                "{}");
+    }
+
+    private static ApiClient.RegistrationProjectionRow projectionRow(
+            long sequence,
+            String registrationId,
+            String time,
+            boolean valid) {
+        return new ApiClient.RegistrationProjectionRow(
+                sequence,
+                registrationId,
+                time,
+                valid);
     }
 
     private static ApiClient.StatusResult status(ApiClient.TimingNodeInfo... nodes) {
