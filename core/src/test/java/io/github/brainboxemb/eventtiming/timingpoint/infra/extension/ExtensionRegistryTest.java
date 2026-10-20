@@ -334,15 +334,12 @@ public class ExtensionRegistryTest {
             String id) {
         return "package external;\n"
                 + "import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;\n"
-                + "import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;\n"
                 + "import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;\n"
                 + "import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;\n"
-                + "import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;\n"
                 + "public final class ExternalTimingDataProvider implements TimingDataProvider {\n"
                 + "  public String id() { return \""
                 + javaString(id)
                 + "\"; }\n"
-                + "  public TimingDataFactory createFactory() { return new DefaultTimingDataFactory(); }\n"
                 + "  public TimingDataCodec createCodec() { return new DefaultTimingDataCodec(); }\n"
                 + "}\n";
     }
