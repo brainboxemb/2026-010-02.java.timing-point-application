@@ -156,7 +156,7 @@ public final class NodeService extends LifecycleComponent {
                 TeamId teamId = raceData.teamIdFor(registration.registrationId());
                 TimingTimestamp start = teamId == null ? null : raceData.stageStartTimeFor(teamId);
                 if (start != null) {
-                    visitor.accept(StageTiming.resolve(registration.data(), teamId, start, raceTimeZone));
+                    visitor.accept(StageTiming.resolve(registration, teamId, start, raceTimeZone));
                     visited++;
                 }
             }

@@ -46,9 +46,9 @@ public final class RegisteredTeams {
 
         if (change != null) {
             if (change.action() == ActiveRegistrations.Change.Action.ADDED) {
-                add(change.registrationId(), change.registration().locationId(), teamId);
+                add(change.registrationId(), change.locationId(), teamId);
             } else {
-                remove(change.registrationId(), change.registration().locationId());
+                remove(change.registrationId(), change.locationId());
             }
         }
     }

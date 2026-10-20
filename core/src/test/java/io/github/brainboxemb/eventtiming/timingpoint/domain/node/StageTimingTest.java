@@ -263,7 +263,7 @@ public class StageTimingTest {
             RegistrationId registrationId = registration.registrationId();
             TeamId teamId = raceData.teamIdFor(registrationId);
             if (registration.isValid() && teamId != null && raceData.stageStartTimeFor(teamId) != null) {
-                result.add(StageTiming.resolve(registration.data(), teamId, raceData.stageStartTimeFor(teamId), raceTimeZone));
+                result.add(StageTiming.resolve(registration, teamId, raceData.stageStartTimeFor(teamId), raceTimeZone));
             }
         }
         return result;
