@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console;
 
+import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -58,8 +60,9 @@ public class LocalConsoleTest {
         assertTrue(text.contains("node [id]                    Show/select default TimingNode"));
         assertTrue(text.contains("open <locationId>            Open selected TimingNode at location"));
         assertTrue(text.contains("close                        Close selected TimingNode"));
-        assertTrue(text.contains("reg <id> [time]"));
+        assertTrue(text.contains("reg <id|team> [time]"));
         assertTrue(text.contains("time: now, HHMMSShh, or absolute UTC"));
+        assertTrue(text.contains("Example: reg 7"));
         assertTrue(text.contains("Example: reg A0001"));
         assertTrue(text.contains("Example: reg A0001 now"));
         assertTrue(text.contains("Example: reg A0001 12345678"));
@@ -96,15 +99,19 @@ public class LocalConsoleTest {
     public void regAcceptsNodeClockCompactHundredthsAndExplicitUtcTime() {
         StringWriter output = new StringWriter();
 
-        try (PresentationGatewayFixture fixture = new PresentationGatewayFixture(identity())) {
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(
+                        identity(),
+                        new DefaultEventData(),
+                        "A")) {
             LocalConsole console = new LocalConsole(
                     fixture.handler(),
                     () -> { },
                     new StringReader(
                             "open 24\n"
-                                    + "reg A0001\n"
-                                    + "reg A0002 now\n"
-                                    + "reg A0003 12345678\n"
+                                    + "reg 1\n"
+                                    + "reg 0002 now\n"
+                                    + "reg 3 12345678\n"
                                     + "reg A0004 2026-10-01T12:35:57Z\n"
                                     + "auto-reg A0005 now\n"
                                     + "quit\n"),
@@ -121,6 +128,19 @@ public class LocalConsoleTest {
             TimingRecord second = records.get(2);
             TimingRecord compact = records.get(3);
             TimingRecord explicit = records.get(4);
+
+            assertEquals(
+                    new RegistrationId("A0001").packedValue(),
+                    first.registrationId());
+            assertEquals(
+                    new RegistrationId("A0002").packedValue(),
+                    second.registrationId());
+            assertEquals(
+                    new RegistrationId("A0003").packedValue(),
+                    compact.registrationId());
+            assertEquals(
+                    new RegistrationId("A0004").packedValue(),
+                    explicit.registrationId());
 
             TimingTimestamp nodeTime =
                     TimingTimestamp.parse("2026-10-01T12:00:01Z");
