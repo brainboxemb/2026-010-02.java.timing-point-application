@@ -207,11 +207,6 @@ public final class ActiveRegistrations {
             return valid;
         }
 
-        long effectiveTimeMillis() {
-
-            return effectiveTimeMillis;
-        }
-
         int locationIdValue() {
 
             return locationId;
@@ -237,11 +232,6 @@ public final class ActiveRegistrations {
         public Action action() {
 
             return action;
-        }
-
-        public Registration registration() {
-
-            return registration;
         }
 
         public RegistrationId registrationId() {
