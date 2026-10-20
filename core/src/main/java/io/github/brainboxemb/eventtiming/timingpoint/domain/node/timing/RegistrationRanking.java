@@ -50,11 +50,11 @@ public final class RegistrationRanking {
 
         List<StageTimingRecord> times = new ArrayList<>();
         for (ActiveRegistrations.Registration registration : registrations.values()) {
-            if (registration.isValid() && locationId.equals(registration.locationId())) {
+            if (registration.isValid() && registration.locationIdValue() == locationId.value()) {
                 TeamId teamId = raceData.teamIdFor(registration.registrationId());
                 TimingTimestamp start = teamId == null ? null : raceData.stageStartTimeFor(teamId);
                 if (start != null) {
-                    times.add(StageTiming.resolve(registration.data(), teamId, start, raceTimeZone));
+                    times.add(StageTiming.resolve(registration, teamId, start, raceTimeZone));
                 }
             }
         }

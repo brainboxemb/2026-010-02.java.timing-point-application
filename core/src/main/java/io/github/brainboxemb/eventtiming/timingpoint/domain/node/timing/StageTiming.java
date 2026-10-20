@@ -1,15 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
@@ -30,7 +27,7 @@ public final class StageTiming {
      * a complete input. Time-only starts use the latest occurrence not after the finish.</p>
      */
     public static StageTimingRecord resolve(
-            TimingData registration,
+            ActiveRegistrations.Registration registration,
             TeamId teamId,
             TimingTimestamp startTime,
             ZoneId raceTimeZone) {
@@ -40,15 +37,12 @@ public final class StageTiming {
         failIfInvalidArgument(startTime != null, "startTime must not be null");
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
-        RegistrationId registrationId = ActiveRegistrations.registrationIdOrNull(registration);
-        failIfInvalidArgument(registrationId != null, "TimingData must be a registration");
         TimingTimestamp finishTime = registration.effectiveTime();
-        failIfIllegalState(finishTime.isAbsolute(), "committed registration time must be absolute");
 
         TimingTimestamp resolvedStart = resolveStart(startTime, finishTime, raceTimeZone);
         return new StageTimingRecord(
                 registration.sequenceNumber(), registration.locationId(), teamId,
-                registrationId, resolvedStart, finishTime);
+                registration.registrationId(), resolvedStart, finishTime);
     }
 
     /** Resolves a partial stage start to an absolute timestamp. */

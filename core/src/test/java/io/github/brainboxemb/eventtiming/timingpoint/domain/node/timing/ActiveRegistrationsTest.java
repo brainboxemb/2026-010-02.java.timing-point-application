@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -78,6 +79,33 @@ public class ActiveRegistrationsTest {
         assertEquals(2, registrations.visit(new LocationId(1), 10, allRows::add));
         assertTrue(allRows.get(0).isValid());
         assertFalse(allRows.get(1).isValid());
+    }
+
+    @Test
+    public void retainedRegistrationUsesOnlyPrimitiveFields() {
+        for (Field field : ActiveRegistrations.Registration.class.getDeclaredFields()) {
+            assertTrue(
+                    "retained field must be primitive: " + field.getName(),
+                    field.getType().isPrimitive());
+        }
+    }
+
+    @Test
+    public void semanticValuesAreReconstructedAtReadBoundary() {
+        ActiveRegistrations registrations = new ActiveRegistrations();
+        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
+
+        List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+        registrations.visit(new LocationId(1), 1, rows::add);
+        ActiveRegistrations.Registration row = rows.get(0);
+
+        assertEquals(1L, row.sequenceNumber());
+        assertEquals(new LocationId(1), row.locationId());
+        assertEquals(new RegistrationId("A0001"), row.registrationId());
+        assertEquals(
+                Instant.parse("2026-10-13T12:00:00Z"),
+                row.effectiveTime().instant());
+        assertTrue(row.isValid());
     }
 
     @Test

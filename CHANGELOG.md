@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make `ActiveRegistrations` retained state compact and consistent: committed `TimingData` is copied once into primitive scalar fields and no longer retained; `StageTiming` and ranking consume that compact record, while semantic `RegistrationId`, `LocationId`, and `TimingTimestamp` values are reconstructed only at read/output boundaries.
+
 - Align SI-02 registration input with the canonical `A0001`-style RegistrationId: replace legacy configurable prefix + number controls with one validated field, remove `registration.prefix`, and rename visible `Direct auto-reg` wording to direct registration terminology.
 
 - Simplify terminal registration input: `reg <id> [now|<UTC timestamp>]` is the primary command, omitted/`now` uses the selected TimingNode clock, explicit UTC timestamps remain available for replay, and `auto-reg` remains a compatibility alias.
