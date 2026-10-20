@@ -85,6 +85,7 @@ final class TimingNodeComposer {
                         execution.taskRunner(),
                         logBook,
                         timeSource,
+                        system.eventData(),
                         raceData,
                         activeRegistrations);
 
