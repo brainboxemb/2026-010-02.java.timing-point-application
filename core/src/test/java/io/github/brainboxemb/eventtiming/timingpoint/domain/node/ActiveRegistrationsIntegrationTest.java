@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.NodeUpstream;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;

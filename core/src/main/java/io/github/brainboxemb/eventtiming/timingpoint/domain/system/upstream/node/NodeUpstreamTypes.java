@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 /**
  * Immutable diagnostic value types for one node's upstream protocol.
