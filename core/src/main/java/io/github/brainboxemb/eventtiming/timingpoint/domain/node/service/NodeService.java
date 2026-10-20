@@ -49,7 +49,7 @@ public final class NodeService extends LifecycleComponent {
     public static final EventInput<NodeService, LogBookStatus> LOGBOOK_STATUS =
             EventInput.of((service, source) -> source.subscribe(service::onLogBookStatus));
 
-    /** Post-commit signal; DataTask reads the authoritative TimingData from LogBook. */
+    /** Post-commit signal; DataTask reads the authoritative timing record from LogBook. */
     public static final EventInput<NodeService, TimingRecord> TIMING_DATA_CHANGED =
             EventInput.of((service, source) -> source.subscribe(service::onTimingDataChanged));
 
@@ -93,6 +93,7 @@ public final class NodeService extends LifecycleComponent {
                         raceData,
                         activeRegistrations,
                         registeredTeams,
+                        this::dataTaskRebuilt,
                         this::dataTaskFailed);
     }
 
@@ -197,7 +198,7 @@ public final class NodeService extends LifecycleComponent {
         mainTask.statusChanged(status);
     }
 
-    /** Wakes DataTask after a committed TimingData change. */
+    /** Wakes DataTask after a committed timing-record change. */
     private void onTimingDataChanged(TimingRecord record) {
 
         failIfInvalidArgument(record != null, "TimingRecord must not be null");
@@ -222,6 +223,16 @@ public final class NodeService extends LifecycleComponent {
                 QUERY_TIMEOUT,
                 dataTask.caughtUp(),
                 operation);
+    }
+
+    /** Logs one completed historical reconstruction for an OPEN WP. */
+    private void dataTaskRebuilt(int locationId, long recordsProcessed) {
+
+        LOG.info(
+                "NodeService OPEN rebuild completed: node={}, location={}, recordsProcessed={}",
+                nodeId.value(),
+                locationId,
+                recordsProcessed);
     }
 
     /** Logs a failed DataTask catch-up. */
