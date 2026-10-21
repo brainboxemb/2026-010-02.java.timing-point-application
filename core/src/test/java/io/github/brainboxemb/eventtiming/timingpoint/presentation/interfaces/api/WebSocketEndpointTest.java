@@ -183,6 +183,21 @@ public class WebSocketEndpointTest {
                     initialSync.contains(
                             "\"seq\":0"));
 
+            String initialHeartbeat =
+                    upstream.awaitMessage();
+            assertTrue(
+                    initialHeartbeat.contains(
+                            "\"eventType\":\"UPSTREAM_DATA\""));
+            assertTrue(
+                    initialHeartbeat.contains(
+                            "\"type\":\"PING\""));
+            assertTrue(
+                    initialHeartbeat.contains(
+                            "\"op\":\"REQ\""));
+            assertTrue(
+                    initialHeartbeat.contains(
+                            "\"mode\":\"HB\""));
+
             UpstreamData.RaceData raceData =
                     DefaultUpstreamData.raceData(
                             nodeId,
