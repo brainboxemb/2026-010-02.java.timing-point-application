@@ -34,7 +34,6 @@ public final class UpstreamGateway {
     }
 
     private static final class NodeBinding {
-        private final NodeId nodeId;
         private final UpstreamConnector connector;
         private final BooleanSupplier inputAvailable;
         private final Runnable connected;
@@ -43,12 +42,10 @@ public final class UpstreamGateway {
                 new ArrayDeque<UpstreamMessage>();
 
         private NodeBinding(
-                NodeId nodeId,
                 UpstreamConnector connector,
                 BooleanSupplier inputAvailable,
                 Runnable connected,
                 Runnable heartbeatTick) {
-            this.nodeId = nodeId;
             this.connector = connector;
             this.inputAvailable = inputAvailable;
             this.connected = connected;
@@ -77,7 +74,7 @@ public final class UpstreamGateway {
      * <p>Binding is composition-time work. The first node for a connector installs
      * the gateway listener; later nodes reuse that same connector session.</p>
      */
-    public void bindNode(
+    public synchronized void bindNode(
             NodeId nodeId,
             UpstreamConnector connector,
             BooleanSupplier inputAvailable,
@@ -88,39 +85,25 @@ public final class UpstreamGateway {
         failIfInvalidArgument(inputAvailable != null, "inputAvailable must not be null");
         failIfInvalidArgument(connected != null, "connected must not be null");
         failIfInvalidArgument(heartbeatTick != null, "heartbeatTick must not be null");
+        failIfInvalidArgument(!nodes.containsKey(nodeId),
+                "duplicate upstream node %s", nodeId.value());
 
-        boolean firstConnectorBinding;
-        synchronized (this) {
-            failIfInvalidArgument(!nodes.containsKey(nodeId),
-                    "duplicate upstream node %s", nodeId.value());
-            firstConnectorBinding = !connectors.containsKey(connector);
-        }
-
-        if (firstConnectorBinding) {
+        List<NodeBinding> connectorBindings =
+                connectors.get(connector);
+        if (connectorBindings == null) {
             connector.bind(new ConnectorListener(connector));
+            connectorBindings = new ArrayList<NodeBinding>();
+            connectors.put(connector, connectorBindings);
         }
 
-        synchronized (this) {
-            failIfInvalidArgument(!nodes.containsKey(nodeId),
-                    "duplicate upstream node %s", nodeId.value());
-
-            NodeBinding binding =
-                    new NodeBinding(
-                            nodeId,
-                            connector,
-                            inputAvailable,
-                            connected,
-                            heartbeatTick);
-            nodes.put(nodeId, binding);
-
-            List<NodeBinding> connectorBindings =
-                    connectors.get(connector);
-            if (connectorBindings == null) {
-                connectorBindings = new ArrayList<NodeBinding>();
-                connectors.put(connector, connectorBindings);
-            }
-            connectorBindings.add(binding);
-        }
+        NodeBinding binding =
+                new NodeBinding(
+                        connector,
+                        inputAvailable,
+                        connected,
+                        heartbeatTick);
+        nodes.put(nodeId, binding);
+        connectorBindings.add(binding);
     }
 
     /** Returns whether this node's transport connector has an active session. */
