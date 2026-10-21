@@ -168,8 +168,22 @@ public class WebSocketEndpointTest {
                     "CLOSED",
                     "null");
 
-            String initialSync =
+            String firstInitialMessage =
                     upstream.awaitMessage();
+            String secondInitialMessage =
+                    upstream.awaitMessage();
+
+            String initialSync =
+                    firstInitialMessage.contains(
+                            "\"type\":\"SYNC\"")
+                            ? firstInitialMessage
+                            : secondInitialMessage;
+            String initialHeartbeat =
+                    firstInitialMessage.contains(
+                            "\"type\":\"PING\"")
+                            ? firstInitialMessage
+                            : secondInitialMessage;
+
             assertTrue(
                     initialSync.contains(
                             "\"eventType\":\"UPSTREAM_DATA\""));
@@ -183,8 +197,6 @@ public class WebSocketEndpointTest {
                     initialSync.contains(
                             "\"seq\":0"));
 
-            String initialHeartbeat =
-                    upstream.awaitMessage();
             assertTrue(
                     initialHeartbeat.contains(
                             "\"eventType\":\"UPSTREAM_DATA\""));
