@@ -9,7 +9,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -41,7 +40,8 @@ public class ActiveRegistrationsIntegrationTest {
                                 registration(2L, 1, "R0001")),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
-                        stream);
+                        stream.bind(
+                                new NodeId("A")));
         TimingNode node = components.node();
 
         List<RegisteredTeams.Change> teamChanges =
@@ -61,7 +61,6 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(1, components.nodeService().visitRegisteredTeams(initialTeams::add));
             assertEquals(new TeamId("0001"), initialTeams.get(0));
 
-            NodeUpstream port = components.nodeUpstream();
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
@@ -71,7 +70,6 @@ public class ActiveRegistrationsIntegrationTest {
                                             "R0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
-            org.junit.Assert.assertTrue(port.inputAvailable());
             stream.takeSent();
 
             awaitUniqueTeamCount(components.nodeService(), 2);
@@ -105,7 +103,9 @@ public class ActiveRegistrationsIntegrationTest {
                         new StaticPersistence(history),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
-                        new InMemoryUpstreamStream());
+                        new InMemoryUpstreamStream()
+                                .bind(
+                                        new NodeId("A")));
         TimingNode node = components.node();
 
         activate(node);
