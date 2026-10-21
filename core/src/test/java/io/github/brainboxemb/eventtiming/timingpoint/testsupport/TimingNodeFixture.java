@@ -17,9 +17,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamMessage;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
@@ -311,15 +312,8 @@ public final class TimingNodeFixture {
                         logBook,
                         nodeService);
 
-        NodeUpstream.CONNECTED.bind(
-                nodeUpstream,
-                upstreamStream.CONNECTED);
-        NodeUpstream.DATA_AVAILABLE.bind(
-                nodeUpstream,
-                upstreamStream.DATA_AVAILABLE);
-        NodeUpstream.HEARTBEAT_TICK.bind(
-                nodeUpstream,
-                upstreamStream.HEARTBEAT_TICK);
+        NodeUpstream.CONNECTED.bind(nodeUpstream, upstreamStream.CONNECTED);
+        NodeUpstream.DATA_AVAILABLE.bind(nodeUpstream, upstreamStream.DATA_AVAILABLE);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -346,23 +340,30 @@ public final class TimingNodeFixture {
                 nodeUpstream,
                 raceData);
     }
-    private static UpstreamStream unavailableStream(
-            NodeId nodeId) {
-        UpstreamGateway gateway =
-                new UpstreamGateway();
-        return gateway.createStream(
-                nodeId,
-                new UnavailableConnector());
+    /** Creates a real application port over a permanently unavailable transport double. */
+    private static UpstreamStream unavailableStream(NodeId nodeId) {
+        UpstreamGateway gateway = new UpstreamGateway();
+        return gateway.createApplicationPort(nodeId, new UnavailableConnector());
     }
 
-    private static final class UnavailableConnector
-            implements UpstreamConnector {
-        private Listener listener;
+    /** Minimal unavailable connector used when a test does not exercise upstream transport. */
+    private static final class UnavailableConnector implements UpstreamConnector {
+        private final Event<UpstreamConnector> connected = new Event<UpstreamConnector>();
+        private final Event<UpstreamConnector> disconnected = new Event<UpstreamConnector>();
 
         @Override
-        public void bind(
-                Listener newListener) {
-            listener = newListener;
+        public void bindInput(UpstreamGateway.ConnectorPort input) {
+            // No inbound transport exists in this fixture.
+        }
+
+        @Override
+        public EventSource<UpstreamConnector> connectedEvent() {
+            return connected;
+        }
+
+        @Override
+        public EventSource<UpstreamConnector> disconnectedEvent() {
+            return disconnected;
         }
 
         @Override
@@ -371,10 +372,8 @@ public final class TimingNodeFixture {
         }
 
         @Override
-        public void send(
-                UpstreamMessage message) {
-            throw new IllegalStateException(
-                    "test upstream communication is unavailable");
+        public void send(NodeId nodeId, String encodedMessage) {
+            throw new IllegalStateException("test upstream communication is unavailable");
         }
     }
 
