@@ -10,6 +10,8 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -19,7 +21,8 @@ final class TimingDataSync {
     private static final int MAX_RECORDS_PER_BATCH = 256;
 
     private final NodeId nodeId;
-    private final NodeUpstream upstream;
+    private final BooleanSupplier available;
+    private final Consumer<UpstreamData> sender;
     private final LogBookAccessor logBook;
 
     private boolean replayActive;
@@ -28,19 +31,22 @@ final class TimingDataSync {
 
     TimingDataSync(
             NodeId nodeId,
-            NodeUpstream upstream,
+            BooleanSupplier available,
+            Consumer<UpstreamData> sender,
             LogBookAccessor logBook) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(upstream != null, "upstream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
+        failIfInvalidArgument(sender != null, "sender must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         this.nodeId = nodeId;
-        this.upstream = upstream;
+        this.available = available;
+        this.sender = sender;
         this.logBook = logBook;
     }
 
     void sendSourceHead() {
-        if (upstream.isAvailable()) {
-            upstream.send(
+        if (available.getAsBoolean()) {
+            sender.accept(
                     DefaultUpstreamData.sync(
                             nodeId,
                             UpstreamData.Stream.TIMING_DATA,
@@ -130,7 +136,7 @@ final class TimingDataSync {
                 "TimingData synchronization crossed captured head %s",
                 replayHead);
 
-        upstream.send(
+        sender.accept(
                 DefaultUpstreamData.timingData(
                         nodeId,
                         records));
