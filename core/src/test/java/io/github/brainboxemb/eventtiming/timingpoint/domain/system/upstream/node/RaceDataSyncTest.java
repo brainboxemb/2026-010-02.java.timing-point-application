@@ -38,7 +38,11 @@ public class RaceDataSyncTest {
     @Test
     public void duplicateSequenceIsAckedWithoutAnotherApply() {
         TestUpstreamStream stream = new TestUpstreamStream();
-        RaceDataSync sync = new RaceDataSync(new NodeId("A"), stream);
+        RaceDataSync sync =
+                new RaceDataSync(
+                        new NodeId("A"),
+                        stream::isAvailable,
+                        stream::send);
 
         assertTrue(sync.beginApply(raceData(1L)));
         sync.completeApply(1L);
