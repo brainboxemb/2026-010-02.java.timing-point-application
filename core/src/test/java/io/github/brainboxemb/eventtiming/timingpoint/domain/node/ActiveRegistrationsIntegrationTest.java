@@ -145,7 +145,9 @@ public class ActiveRegistrationsIntegrationTest {
                                         Instant.parse("2026-10-13T12:00:10Z"))),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
-                        new InMemoryUpstreamStream());
+                        new InMemoryUpstreamStream()
+                                .bind(
+                                        new NodeId("A")));
 
         activate(components.node());
         try {
@@ -175,7 +177,9 @@ public class ActiveRegistrationsIntegrationTest {
                         new StaticPersistence(records),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
-                        new InMemoryUpstreamStream());
+                        new InMemoryUpstreamStream()
+                                .bind(
+                                        new NodeId("A")));
 
         activate(components.node());
         try {
