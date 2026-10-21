@@ -16,7 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering.EngineerApiConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -124,20 +124,9 @@ public class WebSocketEndpointTest {
                         new MemoryStore(),
                         () -> RECORDED_AT.instant(),
                         EventData.empty(),
-                        UpstreamStream.forNode(
-                                upstreamGateway,
-                                nodeId));
-
-        upstreamGateway.bindNode(
-                nodeId,
-                connector,
-                components.nodeUpstream()::inputAvailable,
-                () -> {
-                    // Protocol connect behavior is covered by NodeUpstream tests.
-                },
-                () -> {
-                    // Heartbeat cadence is covered by EngineerApiConnectorTest.
-                });
+                        upstreamGateway.createStream(
+                                nodeId,
+                                connector));
 
         PresentationGateway presentation =
                 new PresentationGateway(
@@ -178,6 +167,21 @@ public class WebSocketEndpointTest {
                     "A",
                     "CLOSED",
                     "null");
+
+            String initialSync =
+                    upstream.awaitMessage();
+            assertTrue(
+                    initialSync.contains(
+                            "\"eventType\":\"UPSTREAM_DATA\""));
+            assertTrue(
+                    initialSync.contains(
+                            "\"type\":\"SYNC\""));
+            assertTrue(
+                    initialSync.contains(
+                            "\"stream\":\"TIMING_DATA\""));
+            assertTrue(
+                    initialSync.contains(
+                            "\"seq\":0"));
 
             UpstreamData.RaceData raceData =
                     DefaultUpstreamData.raceData(
