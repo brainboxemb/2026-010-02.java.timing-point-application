@@ -4,7 +4,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
  * Transport/session boundary used by UpstreamGateway.
  *
  * <p>A connector owns transport resources and session mechanics. It transports
- * {@link UpstreamMessage} envelopes and does not inspect their semantic payload.</p>
+ * {@link UpstreamMessage} envelopes and treats their encoded payload as opaque.</p>
  */
 public interface UpstreamConnector {
 
