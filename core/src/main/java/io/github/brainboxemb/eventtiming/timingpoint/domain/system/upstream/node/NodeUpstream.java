@@ -132,12 +132,7 @@ public final class NodeUpstream extends LifecycleComponent {
     void send(UpstreamData data) {
         failIfInvalidArgument(data != null, "data must not be null");
         failIfInvalidArgument(
-                data instanceof UpstreamData.NodeScoped,
-                "UpstreamData is not node-scoped: %s", data.family());
-
-        UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
-        failIfInvalidArgument(
-                nodeId.equals(nodeScoped.timingNodeId()),
+                nodeId.equals(data.timingNodeId()),
                 "UpstreamData NodeId does not match NodeUpstream");
 
         try {
@@ -153,31 +148,28 @@ public final class NodeUpstream extends LifecycleComponent {
      * <p>Message order is preserved by admitting the next stream value only after the returned task completes.</p>
      */
     private YieldingTask createMessageTask(UpstreamData data) {
-        failIfInvalidArgument(data instanceof UpstreamData.NodeScoped,
-                "UpstreamData is not node-scoped: %s", data.family());
-
-        UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
         failIfInvalidArgument(
-                nodeId.equals(nodeScoped.timingNodeId()),
+                nodeId.equals(data.timingNodeId()),
                 "UpstreamData NodeId does not match node-scoped stream");
 
         switch (data.family()) {
             case RACE_DATA:
-                failIfInvalidArgument(
-                        data instanceof UpstreamData.RaceData,
-                        "RACE_DATA has incompatible semantic type");
-                return new RaceDataTask(this::isAvailable, raceDataSync, nodeService, (UpstreamData.RaceData) data);
+                return new RaceDataTask(
+                        this::isAvailable,
+                        raceDataSync,
+                        nodeService,
+                        (UpstreamData.RaceData) data);
 
             case REQ:
-                failIfInvalidArgument(data instanceof UpstreamData.Req, "REQ has incompatible semantic type");
-                return new TimingDataReplayTask(this::isAvailable, timingDataSync, (UpstreamData.Req) data);
+                return new TimingDataReplayTask(
+                        this::isAvailable,
+                        timingDataSync,
+                        (UpstreamData.Req) data);
 
             case SYNC:
-                failIfInvalidArgument(data instanceof UpstreamData.Sync, "SYNC has incompatible semantic type");
                 return oneStepTask(() -> raceDataSync.handleSync((UpstreamData.Sync) data));
 
             case PING:
-                failIfInvalidArgument(data instanceof UpstreamData.Ping, "PING has incompatible semantic type");
                 return oneStepTask(() -> heartbeat.handle((UpstreamData.Ping) data));
 
             default:
@@ -263,12 +255,6 @@ public final class NodeUpstream extends LifecycleComponent {
         }
     }
 
-    /**
-     * Handles a new transport session for this already-bound stream.
-     *
-     * <p>The stream object itself is the event subject; NodeId is not repeated in the event payload. Reconnection
-     * publishes the current TIMING_DATA head and starts a fresh PING exchange immediately.</p>
-     */
     /**
      * Handles a connection fact from the stream paired with this NodeUpstream by TimingSystem.
      *

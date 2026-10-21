@@ -48,15 +48,9 @@ public final class DefaultUpstreamDataCodec
             generator.writeNumberField("v", VERSION);
             generator.writeStringField("type", data.family().name());
 
-            if (data instanceof UpstreamData.NodeScoped) {
-                generator.writeStringField(
-                        "nodeId",
-                        ((UpstreamData.NodeScoped) data).timingNodeId().value());
-            }
-            if (data instanceof UpstreamData.RaceData) {
-                generator.writeNumberField(
-                        "seq",
-                        ((UpstreamData.RaceData) data).sequence());
+            generator.writeStringField("nodeId", data.timingNodeId().value());
+            if (data.family() == UpstreamData.Family.RACE_DATA) {
+                generator.writeNumberField("seq", ((UpstreamData.RaceData) data).sequence());
             }
 
             generator.writeFieldName("data");
@@ -77,40 +71,22 @@ public final class DefaultUpstreamDataCodec
             throws IOException, CodecException {
         switch (data.family()) {
             case TIMING_DATA:
-                writeTimingData(
-                        generator,
-                        requireType(
-                                data,
-                                UpstreamData.TimingDataTransfer.class,
-                                "TIMING_DATA"));
+                writeTimingData(generator, (UpstreamData.TimingDataTransfer) data);
                 break;
             case RACE_DATA:
-                writeRaceData(
-                        generator,
-                        requireType(
-                                data,
-                                UpstreamData.RaceData.class,
-                                "RACE_DATA"));
+                writeRaceData(generator, (UpstreamData.RaceData) data);
                 break;
             case SYNC:
-                writeSync(
-                        generator,
-                        requireType(data, UpstreamData.Sync.class, "SYNC"));
+                writeSync(generator, (UpstreamData.Sync) data);
                 break;
             case ACK:
-                writeAck(
-                        generator,
-                        requireType(data, UpstreamData.Ack.class, "ACK"));
+                writeAck(generator, (UpstreamData.Ack) data);
                 break;
             case REQ:
-                writeReq(
-                        generator,
-                        requireType(data, UpstreamData.Req.class, "REQ"));
+                writeReq(generator, (UpstreamData.Req) data);
                 break;
             case PING:
-                writePing(
-                        generator,
-                        requireType(data, UpstreamData.Ping.class, "PING"));
+                writePing(generator, (UpstreamData.Ping) data);
                 break;
             case STATUS:
             default:
@@ -995,19 +971,6 @@ public final class DefaultUpstreamDataCodec
                 && (data[0] & 0xff) == 0xef
                 && (data[1] & 0xff) == 0xbb
                 && (data[2] & 0xff) == 0xbf;
-    }
-
-    private static <T> T requireType(
-            UpstreamData data,
-            Class<T> type,
-            String name)
-            throws CodecException {
-        if (!type.isInstance(data)) {
-            throw encodeFailure(
-                    name + " data has incompatible semantic type",
-                    null);
-        }
-        return type.cast(data);
     }
 
     private static CodecException invalid(

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify `UpstreamData` to one node-scoped immutable base with small concrete message values (`TimingDataTransfer`, `RaceData`, `Sync`, `Ack`, `Req`, `Ping`); remove the subtype-interface plus hidden `DefaultUpstreamData.*Value` implementation hierarchy and keep `DefaultUpstreamData` as a thin reference-profile factory.
+
 - Move fixed system-level event wiring into `TimingSystem`: antenna observations now target the normal `TimingNode.onTagObserved(...)` API, upstream stream events target normal `NodeUpstream` input methods, and Runtime composition only constructs/resolves the components and mappings.
 
 - Make `UpstreamConnector` an abstract shared base class: own the gateway input binding once, expose public `CONNECTED`/`DISCONNECTED` EventSource ports directly, and let concrete connectors implement only transport-specific availability/session/send behavior.

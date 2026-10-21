@@ -59,12 +59,7 @@ final class InMemoryUpstreamStream {
 
     /** Encodes semantic test input before handing it to the connector-side gateway port. */
     void receive(UpstreamData data) {
-        if (!(data instanceof UpstreamData.NodeScoped)) {
-            throw new IllegalArgumentException("test UpstreamData must be node-scoped");
-        }
-
-        UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
-        if (!nodeId.equals(nodeScoped.timingNodeId())) {
+        if (!nodeId.equals(data.timingNodeId())) {
             throw new IllegalArgumentException("test UpstreamData belongs to another node");
         }
 
