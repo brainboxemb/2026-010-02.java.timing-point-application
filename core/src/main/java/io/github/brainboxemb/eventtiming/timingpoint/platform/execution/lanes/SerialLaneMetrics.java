@@ -24,7 +24,7 @@ public final class SerialLaneMetrics {
     private final AtomicLong maxExecutionNanos = new AtomicLong();
 
     /** Creates lane-local metrics backed by the supplied current queue-depth reader. */
-    SerialLaneMetrics(
+    public SerialLaneMetrics(
             IntSupplier queueDepthSupplier) {
         if (queueDepthSupplier == null) {
             throw new IllegalArgumentException(
@@ -34,23 +34,23 @@ public final class SerialLaneMetrics {
     }
 
     /** Records one item that was successfully queued and updates the queue high-water mark. */
-    void recordQueued(int queueDepth) {
+    public void recordQueued(int queueDepth) {
         queuedCount.incrementAndGet();
         updateMaximum(highWaterMark, queueDepth);
     }
 
     /** Records one item rejected because the bounded lane queue was full. */
-    void recordFull() {
+    public void recordFull() {
         fullCount.incrementAndGet();
     }
 
     /** Records one item rejected because the lane was not accepting work. */
-    void recordNotRunning() {
+    public void recordNotRunning() {
         notRunningCount.incrementAndGet();
     }
 
     /** Records queue-wait and execution durations for one completed item. */
-    void recordCompleted(
+    public void recordCompleted(
             long queueWaitNanos,
             long executionNanos) {
         completedCount.incrementAndGet();

@@ -65,7 +65,6 @@ public class TimingSystemConductorTest {
         SerialTaskRunner lane =
                 new SerialTaskRunner(
                         8,
-                        8,
                         "system-conductor-test",
                         newScheduledWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
@@ -100,7 +99,6 @@ public class TimingSystemConductorTest {
         AntennaManager manager = newAntennaManager(antenna);
         SerialTaskRunner lane =
                 new SerialTaskRunner(
-                        4,
                         4,
                         "conductor-startup-test",
                         newScheduledWorker("conductor-startup-worker"));
@@ -162,7 +160,6 @@ public class TimingSystemConductorTest {
         SerialTaskRunner lane =
                 new SerialTaskRunner(
                         4,
-                        4,
                         "conductor-event-test",
                         newScheduledWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
@@ -204,7 +201,6 @@ public class TimingSystemConductorTest {
                 node.PROPERTIES.property("diagnostic", Boolean.FALSE);
         SerialTaskRunner lane =
                 new SerialTaskRunner(
-                        4,
                         4,
                         "conductor-filter-test",
                         newScheduledWorker("conductor-filter-worker"));
@@ -248,7 +244,6 @@ public class TimingSystemConductorTest {
         AntennaManager manager = newAntennaManager(antenna);
         SerialTaskRunner lane =
                 new SerialTaskRunner(
-                        4,
                         4,
                         "conductor-coalesce-test",
                         newScheduledWorker("coalesce-worker"));
@@ -331,7 +326,6 @@ public class TimingSystemConductorTest {
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
                 new SerialTaskRunner(
-                        8,
                         8,
                         "conductor-antenna-test",
                         worker,

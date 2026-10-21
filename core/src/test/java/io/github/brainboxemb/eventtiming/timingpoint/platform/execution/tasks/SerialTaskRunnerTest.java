@@ -31,7 +31,6 @@ public class SerialTaskRunnerTest {
         SerialTaskRunner lane =
                 new SerialTaskRunner(
                         8,
-                        8,
                         "yielding-yield",
                         worker,
                         Duration.ofSeconds(1));
@@ -109,7 +108,6 @@ public class SerialTaskRunnerTest {
         SerialTaskRunner taskLane =
                 new SerialTaskRunner(
                         8,
-                        8,
                         "yielding-delay",
                         worker,
                         Duration.ofSeconds(1));
@@ -172,7 +170,6 @@ public class SerialTaskRunnerTest {
                 Executors.newScheduledThreadPool(1);
         SerialTaskRunner taskLane =
                 new SerialTaskRunner(
-                        8,
                         8,
                         "yielding-await",
                         worker,
@@ -249,7 +246,6 @@ public class SerialTaskRunnerTest {
         SerialTaskRunner lane =
                 new SerialTaskRunner(
                         4,
-                        4,
                         "timeout",
                         worker,
                         Duration.ofMillis(50));
@@ -302,7 +298,6 @@ public class SerialTaskRunnerTest {
                 Executors.newScheduledThreadPool(1);
         SerialTaskRunner lane =
                 new SerialTaskRunner(
-                        4,
                         4,
                         "timeout-interrupt-isolation",
                         worker,
@@ -378,7 +373,6 @@ public class SerialTaskRunnerTest {
         SerialTaskRunner runner =
                 new SerialTaskRunner(
                         4,
-                        4,
                         "non-blocking-close",
                         worker,
                         Duration.ofSeconds(1));
@@ -426,7 +420,6 @@ public class SerialTaskRunnerTest {
         SerialTaskRunner runner =
                 new SerialTaskRunner(
                         4,
-                        4,
                         "rejected",
                         worker,
                         Duration.ofMillis(100));
@@ -443,4 +436,111 @@ public class SerialTaskRunnerTest {
             runner.close();
         }
     }
+
+    @Test
+    public void queuedStepCapacityIsBoundedAndReleasesAfterExecution()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newScheduledThreadPool(1);
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
+                        1,
+                        "bounded-queue",
+                        worker,
+                        Duration.ofSeconds(1));
+        runner.start();
+
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch secondDone = new CountDownLatch(1);
+
+        try {
+            CompletableFuture<Void> first = runner.runTask(
+                    () -> {
+                        entered.countDown();
+                        try {
+                            release.await();
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(ex);
+                        }
+                        return TaskStep.done();
+                    });
+
+            assertTrue(entered.await(500, TimeUnit.MILLISECONDS));
+            CompletableFuture<Void> second = runner.runTask(
+                    () -> {
+                        secondDone.countDown();
+                        return TaskStep.done();
+                    });
+
+            try {
+                runner.runTask(() -> TaskStep.done());
+                fail("expected bounded admission rejection");
+            } catch (RejectedExecutionException expected) {
+                // One executor step is already waiting for the worker.
+            }
+
+            release.countDown();
+            runner.await(first);
+            runner.await(second);
+            assertTrue(secondDone.await(500, TimeUnit.MILLISECONDS));
+        } finally {
+            release.countDown();
+            runner.close();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void closeCancelsQueuedTaskWithoutRunningItsStep()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newScheduledThreadPool(1);
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
+                        2,
+                        "cancel-queued",
+                        worker,
+                        Duration.ofSeconds(1));
+        runner.start();
+
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger queuedExecutions = new AtomicInteger();
+
+        try {
+            runner.runTask(
+                    () -> {
+                        entered.countDown();
+                        while (release.getCount() != 0L) {
+                            try {
+                                release.await();
+                            } catch (InterruptedException ex) {
+                                // Test running-step independence from shutdown.
+                            }
+                        }
+                        return TaskStep.done();
+                    });
+
+            assertTrue(entered.await(500, TimeUnit.MILLISECONDS));
+            CompletableFuture<Void> queued = runner.runTask(
+                    () -> {
+                        queuedExecutions.incrementAndGet();
+                        return TaskStep.done();
+                    });
+
+            runner.close();
+            assertTrue(queued.isCancelled());
+            release.countDown();
+            worker.shutdown();
+            assertTrue(worker.awaitTermination(1, TimeUnit.SECONDS));
+            assertEquals(0, queuedExecutions.get());
+        } finally {
+            release.countDown();
+            runner.close();
+            worker.shutdownNow();
+        }
+    }
+
 }

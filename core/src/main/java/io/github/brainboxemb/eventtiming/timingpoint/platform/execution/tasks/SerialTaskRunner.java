@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
 
 import java.time.Duration;
@@ -16,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
@@ -23,10 +23,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Serial runner for cooperative {@link YieldingTask} instances.
  *
- * <p>The runner owns exactly one {@link SerialLane} of task runs. One queue turn
- * invokes one {@link YieldingTask#runStep()}. AGAIN re-admits the task at the
- * back of that queue, AFTER uses the supplied JDK scheduler only as a timer,
- * and AWAIT re-admits the task after its asynchronous dependency completes.</p>
+ * <p>Each eligible task step is submitted directly to the supplied single-thread
+ * JDK scheduler. AGAIN resubmits a step, AFTER schedules the next admission,
+ * and AWAIT resumes after its dependency completes, without blocking a worker.</p>
  *
  * <p>The runner owns no Java thread. The supplied scheduler/executor remains
  * Runtime-owned and may also back other logical lanes.</p>
@@ -79,7 +78,7 @@ public final class SerialTaskRunner implements AutoCloseable {
             }
 
             try {
-                offerOrReject();
+                queueStep(this);
             } catch (RuntimeException ex) {
                 result.completeExceptionally(ex);
                 throw ex;
@@ -149,21 +148,9 @@ public final class SerialTaskRunner implements AutoCloseable {
                 return;
             }
             try {
-                offerOrReject();
+                queueStep(this);
             } catch (RuntimeException ex) {
                 result.completeExceptionally(ex);
-            }
-        }
-
-        private void offerOrReject() {
-            SerialLane.OfferResult offerResult = lane.offer(this);
-            if (offerResult == SerialLane.OfferResult.FULL) {
-                throw new RejectedExecutionException(
-                        "Serial task queue is full");
-            }
-            if (offerResult == SerialLane.OfferResult.NOT_RUNNING) {
-                throw new RejectedExecutionException(
-                        "Serial task runner is not running");
             }
         }
 
@@ -198,6 +185,9 @@ public final class SerialTaskRunner implements AutoCloseable {
                                 this::delayedAdmissionReady,
                                 delayNanos,
                                 TimeUnit.NANOSECONDS);
+                if (result.isDone()) {
+                    delayedAdmission.cancel(false);
+                }
             } catch (RejectedExecutionException ex) {
                 result.completeExceptionally(ex);
             }
@@ -248,7 +238,12 @@ public final class SerialTaskRunner implements AutoCloseable {
     }
 
     private final ScheduledExecutorService scheduler;
-    private final SerialLane<TaskRun> lane;
+    private final int capacity;
+    private final AtomicInteger pendingSteps = new AtomicInteger();
+    private final SerialLaneMetrics metrics =
+            new SerialLaneMetrics(pendingSteps::get);
+    private volatile boolean running;
+    private volatile Thread executingThread;
     private final Set<TaskRun> activeRuns =
             new HashSet<TaskRun>();
     private final long timeoutNanos;
@@ -256,13 +251,11 @@ public final class SerialTaskRunner implements AutoCloseable {
     /** Creates a runner without a configured synchronous wait timeout. */
     public SerialTaskRunner(
             int capacity,
-            int maxItemsPerRun,
             String name,
             ScheduledExecutorService executor) {
 
         this(
                 capacity,
-                maxItemsPerRun,
                 name,
                 executor,
                 0L);
@@ -271,14 +264,12 @@ public final class SerialTaskRunner implements AutoCloseable {
     /** Creates a runner with a default timeout for {@link #await}. */
     public SerialTaskRunner(
             int capacity,
-            int maxItemsPerRun,
             String name,
             ScheduledExecutorService executor,
             Duration timeout) {
 
         this(
                 capacity,
-                maxItemsPerRun,
                 name,
                 executor,
                 timeoutNanos(timeout));
@@ -286,47 +277,87 @@ public final class SerialTaskRunner implements AutoCloseable {
 
     private SerialTaskRunner(
             int capacity,
-            int maxItemsPerRun,
             String name,
             ScheduledExecutorService executor,
             long timeoutNanos) {
 
         failIfInvalidArgument(executor != null, "executor must not be null");
         scheduler = executor;
-        lane =
-                new SerialLane<TaskRun>(
-                        capacity,
-                        maxItemsPerRun,
-                        name,
-                        executor,
-                        TaskRun::runStep);
+        failIfInvalidArgument(capacity > 0, "capacity must be positive");
+        failIfInvalidArgument(name != null && !name.trim().isEmpty(),
+                "name must not be blank");
+        this.capacity = capacity;
         this.timeoutNanos = timeoutNanos;
     }
 
     /** Starts accepting cooperative task runs. */
     public void start() {
-        lane.start();
+        synchronized (this) {
+            failIfIllegalState(!running, "SerialTaskRunner is already running");
+            running = true;
+        }
     }
 
     /** Returns whether this runner currently accepts new task runs. */
     public boolean isRunning() {
-        return lane.isRunning();
+        return running;
     }
 
     /** True only while this Java thread executes one task step. */
     public boolean isExecutingOnCurrentThread() {
-        return lane.isExecutingOnCurrentThread();
+        return executingThread == Thread.currentThread();
     }
 
-    /** Returns metrics for the queued task runs. */
+    /** Returns metrics for executor-queued task steps (rather than whole task runs). */
     public SerialLaneMetrics metrics() {
-        return lane.metrics();
+        return metrics;
     }
 
     /** Queues one cooperative task run. Initial admission failure is immediate. */
     public CompletableFuture<Void> runTask(YieldingTask task) {
         failIfInvalidArgument(task != null, "task must not be null");
         return new TaskRun(task).start();
+    }
+
+    /**
+     * Enqueues one eligible task step directly on the JDK executor.
+     * AFTER/AWAIT tasks have no queued slot until their continuation is ready.
+     */
+    private synchronized void queueStep(TaskRun run) {
+        if (!running) {
+            metrics.recordNotRunning();
+            throw new RejectedExecutionException("Serial task runner is not running");
+        }
+        if (pendingSteps.get() >= capacity) {
+            metrics.recordFull();
+            throw new RejectedExecutionException("Serial task queue is full");
+        }
+
+        long queuedAt = System.nanoTime();
+        int depth = pendingSteps.incrementAndGet();
+        try {
+            scheduler.execute(() -> executeStep(run, queuedAt));
+            metrics.recordQueued(depth);
+        } catch (RejectedExecutionException ex) {
+            pendingSteps.decrementAndGet();
+            throw ex;
+        }
+    }
+
+    /** Executes one step; a yielding continuation becomes a new executor task. */
+    private void executeStep(TaskRun run, long queuedAt) {
+        long started = System.nanoTime();
+        pendingSteps.decrementAndGet();
+        executingThread = Thread.currentThread();
+        try {
+            run.runStep();
+        } finally {
+            executingThread = null;
+            long finished = System.nanoTime();
+            metrics.recordCompleted(
+                    Math.max(0L, started - queuedAt),
+                    Math.max(0L, finished - started));
+        }
     }
 
     /** Waits for one cooperative task using this runner's configured timeout. */
@@ -400,6 +431,9 @@ public final class SerialTaskRunner implements AutoCloseable {
     /** Cancels task runs and stops admission without waiting for a running task step. */
     @Override
     public void close() {
+        synchronized (this) {
+            running = false;
+        }
         TaskRun[] runs;
         synchronized (activeRuns) {
             runs =
@@ -410,7 +444,6 @@ public final class SerialTaskRunner implements AutoCloseable {
         for (TaskRun run : runs) {
             run.result.cancel(true);
         }
-        lane.stop();
     }
 
     private static long timeoutNanos(Duration timeout) {

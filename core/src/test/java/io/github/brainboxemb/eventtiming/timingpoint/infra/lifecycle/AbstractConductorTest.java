@@ -23,7 +23,6 @@ public class AbstractConductorTest {
         SerialTaskRunner lane =
                 new SerialTaskRunner(
                         4,
-                        4,
                         "abstract-conductor-test",
                         worker);
         List<String> calls =

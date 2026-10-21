@@ -28,9 +28,7 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int LOGBOOK_DATA_LANE_QUEUE_CAPACITY = 32;
     static final int LOGBOOK_DATA_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
-    static final int ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN = 8;
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
-    static final int TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN = 8;
 
     /*
      * Step-5 baseline: one physical blocking-I/O thread.
@@ -174,7 +172,6 @@ final class RuntimeExecutors implements AutoCloseable {
         SerialTaskRunner conductorLane =
                 new SerialTaskRunner(
                         TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY,
-                        TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN,
                         "TimingSystemConductor",
                         timingSystemConductorExecutor);
         serialLanes.add(conductorLane);
@@ -186,7 +183,6 @@ final class RuntimeExecutors implements AutoCloseable {
         SerialTaskRunner antennaControlLane =
                 new SerialTaskRunner(
                         ANTENNA_CONTROL_LANE_QUEUE_CAPACITY,
-                        ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN,
                         "AntennaManager",
                         sharedIoScheduledExecutor,
                         operationTimeout);

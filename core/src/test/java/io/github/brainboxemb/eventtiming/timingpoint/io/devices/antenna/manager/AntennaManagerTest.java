@@ -80,7 +80,6 @@ public class AntennaManagerTest {
                                 Duration.ofMillis(200)),
                         new SerialTaskRunner(
                                 8,
-                                8,
                                 "antenna-manager-test",
                                 shared,
                                 Duration.ofSeconds(1)));
@@ -166,7 +165,6 @@ public class AntennaManagerTest {
                                 Duration.ofMillis(200)),
                         new SerialTaskRunner(
                                 8,
-                                8,
                                 "antenna-manager-test",
                                 shared,
                                 Duration.ofSeconds(1)));
@@ -217,7 +215,6 @@ public class AntennaManagerTest {
                                 power,
                                 stabilization),
                         new SerialTaskRunner(
-                                8,
                                 8,
                                 "antenna-manager-test",
                                 shared,
@@ -600,7 +597,6 @@ public class AntennaManagerTest {
         return new AntennaManager(
                 antennaSet,
                 new SerialTaskRunner(
-                        capacity,
                         capacity,
                         "antenna-manager-test",
                         shared,
