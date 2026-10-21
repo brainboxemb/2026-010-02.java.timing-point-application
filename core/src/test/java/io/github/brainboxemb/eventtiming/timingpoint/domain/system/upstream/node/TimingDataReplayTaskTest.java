@@ -31,11 +31,12 @@ public class TimingDataReplayTaskTest {
         TimingDataSync sync =
                 new TimingDataSync(
                         new NodeId("A"),
-                        stream,
+                        stream::isAvailable,
+                        stream::send,
                         new PendingLogBook(1L, batch));
         TimingDataReplayTask task =
                 new TimingDataReplayTask(
-                        stream,
+                        stream::isAvailable,
                         sync,
                         DefaultUpstreamData.req(
                                 new NodeId("A"),
