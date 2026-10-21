@@ -5,24 +5,31 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /** Owns ordered Central-to-node RACE_DATA protocol state for one NodeUpstream. */
 final class RaceDataSync {
     private final NodeId nodeId;
-    private final NodeUpstream upstream;
+    private final BooleanSupplier available;
+    private final Consumer<UpstreamData> sender;
 
     private long appliedSequence;
     private long applyingSequence;
 
     RaceDataSync(
             NodeId nodeId,
-            NodeUpstream upstream) {
+            BooleanSupplier available,
+            Consumer<UpstreamData> sender) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(upstream != null, "upstream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
+        failIfInvalidArgument(sender != null, "sender must not be null");
         this.nodeId = nodeId;
-        this.upstream = upstream;
+        this.available = available;
+        this.sender = sender;
     }
 
     boolean beginApply(
@@ -44,7 +51,7 @@ final class RaceDataSync {
             return false;
         }
         if (receivedSequence != expectedSequence) {
-            upstream.send(
+            sender.accept(
                     DefaultUpstreamData.req(
                             nodeId,
                             UpstreamData.Stream.RACE_DATA,
@@ -64,7 +71,7 @@ final class RaceDataSync {
         appliedSequence = sequence;
         applyingSequence = 0L;
 
-        if (upstream.isAvailable()) {
+        if (available.getAsBoolean()) {
             sendAck(sequence);
         }
     }
@@ -88,7 +95,7 @@ final class RaceDataSync {
                 "SYNC sequence is outside the supported range");
 
         if (sourceHead > appliedSequence) {
-            upstream.send(
+            sender.accept(
                     DefaultUpstreamData.req(
                             nodeId,
                             UpstreamData.Stream.RACE_DATA,
@@ -104,7 +111,7 @@ final class RaceDataSync {
 
     private void sendAck(
             long sequence) {
-        upstream.send(
+        sender.accept(
                 DefaultUpstreamData.ack(
                         nodeId,
                         UpstreamData.Stream.RACE_DATA,
