@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Decouple upstream routing from IF-06 protocol types: add `UpstreamMessage` as the small NodeId + semantic-payload envelope used by `UpstreamGateway` and `UpstreamConnector`; keep `UpstreamData` only at the `UpstreamStream`/WebSocket adaptation edges; simplify gateway queues/bindings; and remove the test-only unavailable stream from production `io.messaging`.
+
 - Add effective `upstream.transport` startup configuration. The current build supports `engineering-api`; an absent section preserves that existing default, while explicitly configured but unimplemented transports such as `rabbitmq` are rejected until their connector exists. Runtime connector composition now follows this effective setting.
 
 - Align upstream messaging with the gateway/connector architecture: `UpstreamGateway` now owns NodeId routing and one inbound queue per `NodeUpstream`; `UpstreamConnector` owns transport/session mechanics; `EngineerApiConnector` owns the Engineering WebSocket session, bounded outbound delivery and heartbeat cadence; and the `role=upstream` WebSocket is full-duplex for inbound and outbound UpstreamData. The temporary HTTP upstream-message endpoint is removed.
