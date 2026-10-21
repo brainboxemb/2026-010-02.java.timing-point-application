@@ -790,7 +790,7 @@ public class NodeUpstreamTest {
                 index <= count;
                 index++) {
             long timestamp =
-                    base.plusMillis(index)
+                    base.plusMillis(index * 10L)
                             .toEpochMilli();
             records.add(
                     TimingRecord.automatic(
