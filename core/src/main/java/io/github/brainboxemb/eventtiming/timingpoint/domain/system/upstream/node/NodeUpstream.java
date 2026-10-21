@@ -131,10 +131,14 @@ public final class NodeUpstream extends LifecycleComponent {
      */
     void send(UpstreamData data) {
         failIfInvalidArgument(data != null, "data must not be null");
-        failIfInvalidArgument(data instanceof UpstreamData.NodeScoped, "UpstreamData is not node-scoped: %s", data.family());
+        failIfInvalidArgument(
+                data instanceof UpstreamData.NodeScoped,
+                "UpstreamData is not node-scoped: %s", data.family());
 
         UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
-        failIfInvalidArgument(nodeId.equals(nodeScoped.timingNodeId()), "UpstreamData NodeId does not match NodeUpstream");
+        failIfInvalidArgument(
+                nodeId.equals(nodeScoped.timingNodeId()),
+                "UpstreamData NodeId does not match NodeUpstream");
 
         try {
             stream.send(new String(codec.encode(data), StandardCharsets.UTF_8));
@@ -153,11 +157,15 @@ public final class NodeUpstream extends LifecycleComponent {
                 "UpstreamData is not node-scoped: %s", data.family());
 
         UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
-        failIfInvalidArgument(nodeId.equals(nodeScoped.timingNodeId()), "UpstreamData NodeId does not match node-scoped stream");
+        failIfInvalidArgument(
+                nodeId.equals(nodeScoped.timingNodeId()),
+                "UpstreamData NodeId does not match node-scoped stream");
 
         switch (data.family()) {
             case RACE_DATA:
-                failIfInvalidArgument(data instanceof UpstreamData.RaceData, "RACE_DATA has incompatible semantic type");
+                failIfInvalidArgument(
+                        data instanceof UpstreamData.RaceData,
+                        "RACE_DATA has incompatible semantic type");
                 return new RaceDataTask(this::isAvailable, raceDataSync, nodeService, (UpstreamData.RaceData) data);
 
             case REQ:
