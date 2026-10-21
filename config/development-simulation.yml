@@ -23,6 +23,10 @@ timingSystems:
           sweepCadenceMillis: 50
           observationQueueCapacity: 256
 
+upstream:
+  # Development simulation uses the same Engineering upstream transport.
+  transport: engineering-api
+
 io:
   storage:
     timingData:

@@ -26,6 +26,7 @@ import org.yaml.snakeyaml.error.YAMLException;
  */
 public final class YamlLoader {
     private static final String TIMING_SYSTEMS = "timingSystems";
+    private static final String UPSTREAM = "upstream";
     private static final String PRESENTATION = "presentation";
     private static final String LOGGING = "logging";
     private static final String IO = "io";
@@ -55,6 +56,7 @@ public final class YamlLoader {
                 root,
                 "configuration root",
                 TIMING_SYSTEMS,
+                UPSTREAM,
                 PRESENTATION,
                 LOGGING,
                 IO);
@@ -82,6 +84,9 @@ public final class YamlLoader {
                 YamlAntennaMapper.map(
                         root.get(
                                 IO)),
+                YamlUpstreamMapper.map(
+                        root.get(
+                                UPSTREAM)),
                 YamlPresentationMapper.map(
                         root.get(
                                 PRESENTATION)),

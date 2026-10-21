@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add effective `upstream.transport` startup configuration. The current build supports `engineering-api`; an absent section preserves that existing default, while explicitly configured but unimplemented transports such as `rabbitmq` are rejected until their connector exists. Runtime connector composition now follows this effective setting.
+
 - Align upstream messaging with the gateway/connector architecture: `UpstreamGateway` now owns NodeId routing and one inbound queue per `NodeUpstream`; `UpstreamConnector` owns transport/session mechanics; `EngineerApiConnector` owns the Engineering WebSocket session, bounded outbound delivery and heartbeat cadence; and the `role=upstream` WebSocket is full-duplex for inbound and outbound UpstreamData. The temporary HTTP upstream-message endpoint is removed.
 
 - Split `NodeUpstream` inbound processing into focused message tasks: `RaceDataTask` waits on the existing `CompletableFuture` from `NodeService`, `TimingDataReplayTask` owns LogBook batch waits, later messages remain queued in `UpstreamStream`, and protocol state is named explicitly as `RaceDataSync`, `TimingDataSync`, and `Heartbeat`.

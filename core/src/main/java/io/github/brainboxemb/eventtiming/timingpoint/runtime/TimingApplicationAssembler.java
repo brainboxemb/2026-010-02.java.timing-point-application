@@ -19,6 +19,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGatewa
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.UpstreamConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulatedTagScenarioRunner;
 
@@ -85,8 +86,9 @@ final class TimingApplicationAssembler {
                 UpstreamGateway upstreamGateway =
                         new UpstreamGateway();
                 EngineerApiConnector upstreamConnector =
-                        new EngineerApiConnector(
-                                executors.timingNodeScheduler());
+                        createEngineeringUpstreamConnector(
+                                config.upstream(),
+                                executors);
                 TimingSystem system =
                         systemComposer.compose(
                                 resolvedSystem,
@@ -160,6 +162,24 @@ final class TimingApplicationAssembler {
         } catch (RuntimeException | Error failure) {
             executors.close();
             throw failure;
+        }
+    }
+
+    /**
+     * Resolves the configured upstream transport to the implementation available
+     * in this application build.
+     */
+    private static EngineerApiConnector createEngineeringUpstreamConnector(
+            UpstreamConfig upstream,
+            RuntimeExecutors executors) {
+        switch (upstream.transport()) {
+            case ENGINEERING_API:
+                return new EngineerApiConnector(
+                        executors.timingNodeScheduler());
+            default:
+                throw new IllegalStateException(
+                        "Unsupported effective upstream transport "
+                                + upstream.transport());
         }
     }
 

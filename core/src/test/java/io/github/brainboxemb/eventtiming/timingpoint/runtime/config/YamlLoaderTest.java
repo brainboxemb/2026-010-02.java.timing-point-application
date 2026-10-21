@@ -292,6 +292,55 @@ public class YamlLoaderTest {
     }
 
     @Test
+    public void defaultsToEngineeringApiUpstreamTransport()
+            throws Exception {
+        Config config =
+                load(
+                        timingNode("A")
+                                + timingDataStorage());
+
+        assertEquals(
+                UpstreamConfig.Transport.ENGINEERING_API,
+                config.upstream().transport());
+    }
+
+    @Test
+    public void loadsExplicitEngineeringApiUpstreamTransport()
+            throws Exception {
+        Config config =
+                load(
+                        timingNode("A")
+                                + timingDataStorage()
+                                + "upstream:\n"
+                                + "  transport: engineering-api\n");
+
+        assertEquals(
+                UpstreamConfig.Transport.ENGINEERING_API,
+                config.upstream().transport());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnimplementedUpstreamTransport()
+            throws Exception {
+        load(
+                timingNode("A")
+                        + timingDataStorage()
+                        + "upstream:\n"
+                        + "  transport: rabbitmq\n");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnknownUpstreamField()
+            throws Exception {
+        load(
+                timingNode("A")
+                        + timingDataStorage()
+                        + "upstream:\n"
+                        + "  transport: engineering-api\n"
+                        + "  queue: hidden-detail\n");
+    }
+
+    @Test
     public void loadsImplementedPresentationConfig() throws Exception {
         Config config = load(
                 timingNode("A")

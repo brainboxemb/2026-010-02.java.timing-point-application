@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.app;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.UpstreamConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader;
 
 import java.io.ByteArrayOutputStream;
@@ -57,6 +58,9 @@ public class ExampleConfigurationTest {
         assertNotNull(config.presentation().api());
         assertNotNull(config.logging());
         assertNotNull(config.loggingServer());
+        assertEquals(
+                UpstreamConfig.Transport.ENGINEERING_API,
+                config.upstream().transport());
         assertEquals(
                 TagProcessingPolicy.defaults(),
                 config.timingNodes().get(0).tagProcessingPolicy());

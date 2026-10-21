@@ -26,6 +26,10 @@ timingSystems:
           sweepCadenceMillis: 50
           observationQueueCapacity: 256
 
+upstream:
+  # Reference application uses the IF-03 full-duplex Engineering connector.
+  transport: engineering-api
+
 io:
   storage:
     timingData:
