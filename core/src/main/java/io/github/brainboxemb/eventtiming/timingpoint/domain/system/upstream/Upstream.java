@@ -4,8 +4,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,19 +23,15 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * the node upstream protocol awaits successful completion before ACK.</p>
  */
 public final class Upstream extends LifecycleComponent {
-    private final UpstreamGateway gateway;
     private final ComponentLifecycleManager lifecycle =
             new ComponentLifecycleManager();
     private final Map<NodeId, NodeUpstream> nodes =
             new LinkedHashMap<NodeId, NodeUpstream>();
 
     public Upstream(
-            UpstreamGateway gateway,
             List<NodeUpstream> nodeUpstreams) {
 
-        failIfInvalidArgument(gateway != null, "gateway must not be null");
         failIfInvalidArgument(nodeUpstreams != null, "nodeUpstreams must not be null");
-        this.gateway = gateway;
 
         for (NodeUpstream nodeUpstream : nodeUpstreams) {
             failIfInvalidArgument(nodeUpstream != null, "nodeUpstreams must not contain null");
@@ -49,21 +43,9 @@ public final class Upstream extends LifecycleComponent {
         }
     }
 
-    /**
-     * Initial transport reconciliation.
-     *
-     * <p>If the gateway is already connected when TimingSystem activation
-     * reaches Upstream, publish every node's committed TIMING_DATA source head.</p>
-     */
     @Override
     protected void onActivate() {
-
         lifecycle.activateAll();
-        for (Map.Entry<NodeId, NodeUpstream> entry : nodes.entrySet()) {
-            if (gateway.isAvailable(entry.getKey())) {
-                entry.getValue().sendTimingDataSync();
-            }
-        }
     }
 
     @Override
