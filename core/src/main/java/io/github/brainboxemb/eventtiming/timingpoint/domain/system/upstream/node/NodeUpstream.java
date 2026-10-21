@@ -112,10 +112,6 @@ public final class NodeUpstream extends LifecycleComponent {
     @Override
     protected void onActivate() {
         taskRunner.start();
-
-        if (stream.isAvailable()) {
-            queueTimingDataSync();
-        }
         wakeQueuedInput();
     }
 
