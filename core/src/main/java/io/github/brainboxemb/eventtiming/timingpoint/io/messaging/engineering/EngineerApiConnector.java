@@ -60,7 +60,7 @@ public final class EngineerApiConnector extends UpstreamConnector {
             output = newOutput;
         }
 
-        connected();
+        publishConnected();
         return true;
     }
 
@@ -75,7 +75,7 @@ public final class EngineerApiConnector extends UpstreamConnector {
         }
 
         if (disconnected) {
-            disconnected();
+            publishDisconnected();
         }
     }
 
@@ -90,7 +90,7 @@ public final class EngineerApiConnector extends UpstreamConnector {
         synchronized (this) {
             failIfIllegalState(output != null, "Engineering upstream peer is not connected");
         }
-        return receive(message.nodeId(), message.payload());
+        return receiveInput(message.nodeId(), message.payload());
     }
 
     @Override
@@ -146,7 +146,7 @@ public final class EngineerApiConnector extends UpstreamConnector {
     /** Clears the failed session and notifies gateway/application observers exactly once. */
     private void disconnectAfterDeliveryFailure() {
         clearSession();
-        disconnected();
+        publishDisconnected();
     }
 
     /** Clears connector-owned state; callers publish the corresponding disconnect event after this mutation. */
