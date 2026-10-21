@@ -3,6 +3,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.Upstream;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
@@ -43,8 +45,9 @@ public final class TimingSystem extends LifecycleComponent {
         this.antennaManager = antennaManager;
         this.upstream = upstream;
 
+        bindSystemEvents();
+
         if (antennaManager != null) {
-            bindAntennaObservations();
             lifecycle.register(antennaManager);
         }
         lifecycle.register(timingSystemConductor);
@@ -89,13 +92,42 @@ public final class TimingSystem extends LifecycleComponent {
         lifecycle.deactivateAll();
     }
 
-    /** Binds each TimingNode to its already resolved antenna. */
+    /**
+     * Installs the fixed event graph between already constructed system components.
+     *
+     * <p>Runtime resolves construction inputs and mappings, but TimingSystem owns the
+     * stable relationships between the components it contains.</p>
+     */
+    private void bindSystemEvents() {
+        bindAntennaObservations();
+        bindUpstream();
+    }
+
+    /** Binds each TimingNode boundary to its already resolved antenna source. */
     private void bindAntennaObservations() {
+        if (antennaManager == null) {
+            return;
+        }
 
         for (TimingNode node : timingNodes) {
-            TimingNode.TAG_OBSERVATIONS.bind(
-                    node,
-                    antennaManager.tagObservedEvent(node.antennaId()));
+            antennaManager.tagObservedEvent(node.antennaId()).subscribe(node::onTagObserved);
+        }
+    }
+
+    /** Binds each node-scoped upstream stream to the matching semantic endpoint. */
+    private void bindUpstream() {
+        for (TimingNode node : timingNodes) {
+            NodeUpstream nodeUpstream = upstream.node(node.nodeId());
+            UpstreamStream stream = upstream.stream(node.nodeId());
+
+            failIfInvalidArgument((nodeUpstream == null) == (stream == null),
+                    "Incomplete upstream binding for node %s", node.nodeId().value());
+            if (nodeUpstream == null) {
+                continue;
+            }
+
+            stream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
+            stream.DATA_AVAILABLE.subscribe(ignored -> nodeUpstream.inputAvailable());
         }
     }
 
