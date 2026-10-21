@@ -29,8 +29,8 @@ public class UpstreamGatewayTest {
 
         connector.connect();
 
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("A"), "message-a"));
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("B"), "message-b"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("A"), "message-a"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("B"), "message-b"));
         assertEquals(1, dataA.get());
         assertEquals(1, dataB.get());
 
@@ -83,7 +83,7 @@ public class UpstreamGatewayTest {
         UpstreamStream stream = gateway.createApplicationPort(new NodeId("A"), connector);
         connector.connect();
 
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("A"), "queued"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("A"), "queued"));
         assertTrue(stream.hasMessage());
 
         connector.disconnect();
@@ -99,8 +99,8 @@ public class UpstreamGatewayTest {
         UpstreamStream stream = gateway.createApplicationPort(new NodeId("A"), connector);
         connector.connect();
 
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("A"), "first"));
-        assertSame(UpstreamGateway.ReceiveResult.INPUT_FULL, connector.receive(new NodeId("A"), "second"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("A"), "first"));
+        assertSame(UpstreamGateway.ReceiveResult.INPUT_FULL, connector.receiveInput(new NodeId("A"), "second"));
 
         assertEquals("first", stream.read());
         assertFalse(stream.hasMessage());
