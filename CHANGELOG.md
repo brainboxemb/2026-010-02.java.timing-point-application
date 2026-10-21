@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make `UpstreamConnector` an abstract shared base class: own the gateway input binding once, expose public `CONNECTED`/`DISCONNECTED` EventSource ports directly, and let concrete connectors implement only transport-specific availability/session/send behavior.
+
 - Run `YieldingTask` steps directly on the Runtime-owned single-thread `ScheduledExecutorService`, without a nested `SerialLane<TaskRun>` worker or batch setting; keep per-runner bounded admission and task cancellation/timeout behavior. Typed Data Lanes remain unchanged.
 
 
