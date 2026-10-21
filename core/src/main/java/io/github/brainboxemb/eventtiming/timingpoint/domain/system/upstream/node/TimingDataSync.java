@@ -16,7 +16,14 @@ import java.util.function.Consumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Owns TIMING_DATA source-head and replay state for one NodeUpstream. */
+/**
+ * Owns TIMING_DATA source-head and replay state for one NodeUpstream.
+ *
+ * <p>The LogBook is the TIMING_DATA source of truth. One REQ captures the
+ * current source head once; records committed afterwards are intentionally
+ * excluded. Ordered batch reads are asynchronous, while NodeUpstream remains
+ * responsible for encoding and sending the semantic messages produced here.</p>
+ */
 final class TimingDataSync {
     private static final int MAX_RECORDS_PER_BATCH = 256;
 
@@ -44,6 +51,7 @@ final class TimingDataSync {
         this.logBook = logBook;
     }
 
+    /** Sends the current TIMING_DATA source head when transport is available. */
     void sendSourceHead() {
         if (available.getAsBoolean()) {
             sender.accept(
@@ -54,12 +62,14 @@ final class TimingDataSync {
         }
     }
 
+    /** Returns the current committed TIMING_DATA source head; empty means zero. */
     long headSequence() {
         return logBook.process(
                 LogBookQueries.timingDataHead(),
                 ReadConsistency.CURRENT);
     }
 
+    /** Starts one replay at the inclusive sequence requested by the peer. */
     void startReplay(
             UpstreamData.Req req) {
         failIfInvalidArgument(req != null, "req must not be null");
@@ -84,14 +94,17 @@ final class TimingDataSync {
         }
     }
 
+    /** Reports whether the captured replay still has records to send. */
     boolean replayPending() {
         return replayActive;
     }
 
+    /** Cancels the current replay without changing LogBook state. */
     void cancelReplay() {
         replayActive = false;
     }
 
+    /** Submits the next ordered LogBook batch read without blocking NodeUpstream. */
     CompletableFuture<List<TimingRecord>> submitNextBatch() {
         failIfIllegalState(replayActive,
                 "No TIMING_DATA synchronization is active");
@@ -107,6 +120,7 @@ final class TimingDataSync {
                         limit));
     }
 
+    /** Validates and sends one completed ordered LogBook batch. */
     void sendNextBatch(
             List<TimingRecord> records) {
         failIfInvalidArgument(records != null, "records must not be null");
