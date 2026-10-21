@@ -42,13 +42,11 @@ public final class UpstreamApiMessage {
         failIfInvalidArgument(payload != null, "payload must not be null");
 
         try (JsonParser parser = JSON.createParser(payload)) {
-            failIfInvalidArgument(parser.nextToken() == JsonToken.START_OBJECT,
-                    "Upstream API message must be a JSON object");
+            failIfInvalidArgument(parser.nextToken() == JsonToken.START_OBJECT, "Upstream API message must be a JSON object");
 
             String nodeIdValue = null;
             while (parser.nextToken() != JsonToken.END_OBJECT) {
-                failIfInvalidArgument(parser.currentToken() == JsonToken.FIELD_NAME,
-                        "Invalid Upstream API JSON object");
+                failIfInvalidArgument(parser.currentToken() == JsonToken.FIELD_NAME, "Invalid Upstream API JSON object");
 
                 String field = parser.currentName();
                 JsonToken value = parser.nextToken();
@@ -63,8 +61,7 @@ public final class UpstreamApiMessage {
                 }
             }
 
-            failIfInvalidArgument(parser.nextToken() == null,
-                    "Upstream API message contains trailing JSON content");
+            failIfInvalidArgument(parser.nextToken() == null, "Upstream API message contains trailing JSON content");
             failIfInvalidArgument(nodeIdValue != null, "Upstream API message has no nodeId");
 
             return new UpstreamApiMessage(new NodeId(nodeIdValue), payload);
