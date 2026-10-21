@@ -1,8 +1,9 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
+package io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
-import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamMessage;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -85,19 +86,18 @@ public class EngineerApiConnectorTest {
     }
 
     @Test
-    public void receiveForwardsDecodedSemanticMessageToGatewayListener() {
+    public void receiveConvertsApiMessageToGenericRoutingEnvelope() {
         EngineerApiConnector connector =
                 new EngineerApiConnector(scheduler);
         TestListener listener =
                 new TestListener();
         connector.bind(listener);
 
-        UpstreamMessage input =
-                UpstreamMessage.from(
-                        DefaultUpstreamData.sync(
-                                new NodeId("A"),
-                                UpstreamData.Stream.RACE_DATA,
-                                0L));
+        String payload =
+                "{\"v\":1,\"type\":\"SYNC\",\"nodeId\":\"A\","
+                        + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":0}}";
+        UpstreamApiMessage input =
+                UpstreamApiMessage.parse(payload);
 
         EngineerApiConnector.Output peer =
                 message -> true;
@@ -108,7 +108,12 @@ public class EngineerApiConnectorTest {
         assertSame(
                 UpstreamGateway.ReceiveResult.ACCEPTED,
                 connector.receive(input));
-        assertSame(input, listener.received);
+        assertEquals(
+                new NodeId("A"),
+                listener.received.nodeId());
+        assertEquals(
+                payload,
+                listener.received.payload());
 
         listener.receiveResult =
                 UpstreamGateway.ReceiveResult.UNKNOWN_NODE;
@@ -127,33 +132,31 @@ public class EngineerApiConnectorTest {
                 new TestListener();
         connector.bind(listener);
 
-        List<UpstreamMessage> output =
-                new ArrayList<UpstreamMessage>();
+        List<UpstreamApiMessage> output =
+                new ArrayList<UpstreamApiMessage>();
         EngineerApiConnector.Output peer =
                 message -> output.add(message);
         assertTrue(connector.connect(peer));
 
         UpstreamMessage first =
-                UpstreamMessage.from(
-                        DefaultUpstreamData.ping(
-                                new NodeId("A"),
-                                UpstreamData.PingOperation.REQ,
-                                null,
-                                "one"));
+                new UpstreamMessage(
+                        new NodeId("A"),
+                        "first");
         UpstreamMessage second =
-                UpstreamMessage.from(
-                        DefaultUpstreamData.ping(
-                                new NodeId("A"),
-                                UpstreamData.PingOperation.REQ,
-                                null,
-                                "two"));
+                new UpstreamMessage(
+                        new NodeId("A"),
+                        "second");
 
         connector.send(first);
         connector.send(second);
 
         assertEquals(2, output.size());
-        assertSame(first, output.get(0));
-        assertSame(second, output.get(1));
+        assertEquals(
+                "first",
+                output.get(0).payload());
+        assertEquals(
+                "second",
+                output.get(1).payload());
 
         connector.disconnect(peer);
         assertFalse(connector.isAvailable());

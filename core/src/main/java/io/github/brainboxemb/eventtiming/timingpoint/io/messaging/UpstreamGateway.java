@@ -8,20 +8,15 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Routes upstream messages between node streams and transport connectors.
+ * Routes encoded upstream messages between node streams and transport connectors.
  *
- * <p>The gateway owns only routing, queue admission and connector-to-node
- * lifecycle fan-out. It understands only {@link NodeId} and {@link UpstreamMessage};
- * the message payload is opaque to this component.</p>
- *
- * <p>Each NodeUpstream has one independent inbound queue. The current runtime
- * binds one connector to each node, while one connector may serve several nodes.</p>
+ * <p>The gateway owns routing, bounded per-node input queues and connector-to-stream
+ * lifecycle fan-out. Message payloads are opaque.</p>
  */
 public final class UpstreamGateway {
     static final int DEFAULT_INPUT_CAPACITY = 64;
@@ -29,27 +24,20 @@ public final class UpstreamGateway {
     public enum ReceiveResult {
         ACCEPTED,
         UNKNOWN_NODE,
-        INPUT_FULL,
-        INPUT_REJECTED
+        INPUT_FULL
     }
 
     private static final class NodeBinding {
         private final UpstreamConnector connector;
-        private final BooleanSupplier inputAvailable;
-        private final Runnable connected;
-        private final Runnable heartbeatTick;
+        private final UpstreamStream stream;
         private final Deque<UpstreamMessage> input =
                 new ArrayDeque<UpstreamMessage>();
 
         private NodeBinding(
                 UpstreamConnector connector,
-                BooleanSupplier inputAvailable,
-                Runnable connected,
-                Runnable heartbeatTick) {
+                UpstreamStream stream) {
             this.connector = connector;
-            this.inputAvailable = inputAvailable;
-            this.connected = connected;
-            this.heartbeatTick = heartbeatTick;
+            this.stream = stream;
         }
     }
 
@@ -69,22 +57,16 @@ public final class UpstreamGateway {
     }
 
     /**
-     * Connects one NodeUpstream mailbox to one transport connector.
+     * Creates and binds one node-scoped stream to a connector.
      *
-     * <p>Binding is composition-time work. The first node for a connector installs
-     * the gateway listener; later nodes reuse that same connector session.</p>
+     * <p>The first stream for a connector installs the gateway listener; later
+     * streams reuse that same transport session.</p>
      */
-    public synchronized void bindNode(
+    public synchronized UpstreamStream createStream(
             NodeId nodeId,
-            UpstreamConnector connector,
-            BooleanSupplier inputAvailable,
-            Runnable connected,
-            Runnable heartbeatTick) {
+            UpstreamConnector connector) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(connector != null, "connector must not be null");
-        failIfInvalidArgument(inputAvailable != null, "inputAvailable must not be null");
-        failIfInvalidArgument(connected != null, "connected must not be null");
-        failIfInvalidArgument(heartbeatTick != null, "heartbeatTick must not be null");
         failIfInvalidArgument(!nodes.containsKey(nodeId),
                 "duplicate upstream node %s", nodeId.value());
 
@@ -96,18 +78,21 @@ public final class UpstreamGateway {
             connectors.put(connector, connectorBindings);
         }
 
+        UpstreamStream stream =
+                new UpstreamStream(
+                        nodeId,
+                        this);
         NodeBinding binding =
                 new NodeBinding(
                         connector,
-                        inputAvailable,
-                        connected,
-                        heartbeatTick);
+                        stream);
         nodes.put(nodeId, binding);
         connectorBindings.add(binding);
+        return stream;
     }
 
-    /** Returns whether this node's transport connector has an active session. */
-    public boolean isAvailable(NodeId nodeId) {
+    boolean isAvailable(
+            NodeId nodeId) {
         UpstreamConnector connector;
         synchronized (this) {
             connector = requireNode(nodeId).connector;
@@ -115,22 +100,23 @@ public final class UpstreamGateway {
         return connector.isAvailable();
     }
 
-    /** Returns whether one inbound message is queued for this node. */
-    public synchronized boolean hasMessage(NodeId nodeId) {
+    synchronized boolean hasMessage(
+            NodeId nodeId) {
         return !requireNode(nodeId).input.isEmpty();
     }
 
-    /** Removes and returns the next routed message for this node. */
-    public synchronized UpstreamMessage read(NodeId nodeId) {
+    synchronized UpstreamMessage read(
+            NodeId nodeId) {
         UpstreamMessage message =
                 requireNode(nodeId).input.poll();
         failIfIllegalState(message != null,
-                "No upstream input is queued for node %s", nodeId.value());
+                "No upstream input is queued for node %s",
+                nodeId.value());
         return message;
     }
 
-    /** Routes one outbound envelope through the connector bound to its NodeId. */
-    public void send(UpstreamMessage message) {
+    void send(
+            UpstreamMessage message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
         UpstreamConnector connector;
@@ -140,20 +126,15 @@ public final class UpstreamGateway {
         connector.send(message);
     }
 
-    /**
-     * Admits one connector-originated envelope to the addressed node queue.
-     *
-     * <p>If the node cannot retain the wake request, only the just-added envelope
-     * is removed. Earlier queued messages remain untouched and ordered.</p>
-     */
     private ReceiveResult receive(
             UpstreamConnector connector,
             UpstreamMessage message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
-        NodeBinding binding;
+        UpstreamStream stream;
         synchronized (this) {
-            binding = nodes.get(message.nodeId());
+            NodeBinding binding =
+                    nodes.get(message.nodeId());
             if (binding == null
                     || binding.connector != connector) {
                 return ReceiveResult.UNKNOWN_NODE;
@@ -162,19 +143,13 @@ public final class UpstreamGateway {
                 return ReceiveResult.INPUT_FULL;
             }
             binding.input.addLast(message);
+            stream = binding.stream;
         }
 
-        if (binding.inputAvailable.getAsBoolean()) {
-            return ReceiveResult.ACCEPTED;
-        }
-
-        synchronized (this) {
-            binding.input.removeLastOccurrence(message);
-        }
-        return ReceiveResult.INPUT_REJECTED;
+        stream.dataAvailable();
+        return ReceiveResult.ACCEPTED;
     }
 
-    /** Clears unread node input belonging to one disconnected connector session. */
     private synchronized void disconnected(
             UpstreamConnector connector) {
         for (NodeBinding binding : requireConnector(connector)) {
@@ -182,23 +157,20 @@ public final class UpstreamGateway {
         }
     }
 
-    /** Notifies each NodeUpstream carried by a newly connected connector. */
     private void connected(
             UpstreamConnector connector) {
         for (NodeBinding binding : connectorBindings(connector)) {
-            binding.connected.run();
+            binding.stream.connected();
         }
     }
 
-    /** Forwards one connector heartbeat cadence tick to its NodeUpstream bindings. */
     private void heartbeatTick(
             UpstreamConnector connector) {
         for (NodeBinding binding : connectorBindings(connector)) {
-            binding.heartbeatTick.run();
+            binding.stream.heartbeatTick();
         }
     }
 
-    /** Returns a stable snapshot so callbacks run outside the gateway monitor. */
     private synchronized List<NodeBinding> connectorBindings(
             UpstreamConnector connector) {
         return new ArrayList<NodeBinding>(
@@ -219,11 +191,11 @@ public final class UpstreamGateway {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         NodeBinding binding = nodes.get(nodeId);
         failIfInvalidArgument(binding != null,
-                "Unknown upstream node %s", nodeId.value());
+                "Unknown upstream node %s",
+                nodeId.value());
         return binding;
     }
 
-    /** Connector callback adapter; no protocol semantics are interpreted here. */
     private final class ConnectorListener
             implements UpstreamConnector.Listener {
         private final UpstreamConnector connector;

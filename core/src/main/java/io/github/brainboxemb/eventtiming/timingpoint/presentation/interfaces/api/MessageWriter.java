@@ -10,8 +10,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatu
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -246,30 +244,20 @@ public final class MessageWriter {
 
     public static String upstreamDataEvent(
             Instant occurredAt,
-            UpstreamData data,
-            UpstreamDataCodec codec)
-            throws UpstreamDataCodec.CodecException {
+            String encodedPayload) {
         if (occurredAt == null) {
             throw new IllegalArgumentException(
                     "occurredAt must not be null");
         }
-        if (data == null) {
+        if (encodedPayload == null) {
             throw new IllegalArgumentException(
-                    "data must not be null");
-        }
-        if (codec == null) {
-            throw new IllegalArgumentException(
-                    "codec must not be null");
+                    "encodedPayload must not be null");
         }
 
-        String payload =
-                new String(
-                        codec.encode(data),
-                        StandardCharsets.UTF_8);
         return "{"
                 + "\"eventType\":\"UPSTREAM_DATA\","
                 + "\"occurredAt\":" + quote(eventTime(occurredAt)) + ","
-                + "\"payload\":" + payload
+                + "\"payload\":" + encodedPayload
                 + "}";
     }
 

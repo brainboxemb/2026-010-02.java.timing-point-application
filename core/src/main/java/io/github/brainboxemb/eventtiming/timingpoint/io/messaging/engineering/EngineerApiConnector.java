@@ -1,4 +1,8 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
+package io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering;
+
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamMessage;
 
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -18,9 +22,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Engineering-API transport/session implementation of UpstreamConnector.
  *
  * <p>The connector owns the active engineering WebSocket session, bounded
- * outbound delivery queue and heartbeat cadence. It transports UpstreamMessage
- * envelopes and never inspects the semantic payload. Node queues and NodeId routing
- * belong to UpstreamGateway.</p>
+ * outbound delivery queue and heartbeat cadence. Its transport-facing boundary uses
+ * {@link UpstreamApiMessage}; generic Messaging continues to use
+ * {@link UpstreamMessage}. Node queues and NodeId routing belong to
+ * {@link UpstreamGateway}.</p>
  */
 public final class EngineerApiConnector implements UpstreamConnector {
     private static final Logger LOG =
@@ -32,7 +37,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
 
     /** Non-blocking delivery boundary implemented by the IF-03 WebSocket adapter. */
     public interface Output {
-        boolean send(UpstreamMessage message);
+        boolean send(UpstreamApiMessage message);
     }
 
     private final ScheduledExecutorService scheduler;
@@ -133,7 +138,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
      * <p>The connector neither routes by NodeId nor inspects the semantic payload.</p>
      */
     public UpstreamGateway.ReceiveResult receive(
-            UpstreamMessage message) {
+            UpstreamApiMessage message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
         UpstreamConnector.Listener currentListener;
@@ -142,7 +147,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
                     "Engineering upstream peer is not connected");
             currentListener = listener;
         }
-        return currentListener.receive(message);
+        return currentListener.receive(message.toUpstreamMessage());
     }
 
     @Override
@@ -178,7 +183,8 @@ public final class EngineerApiConnector implements UpstreamConnector {
             final boolean accepted;
             try {
                 accepted =
-                        output.send(message);
+                        output.send(
+                                UpstreamApiMessage.from(message));
             } catch (RuntimeException | Error failure) {
                 clearSession();
                 listener.disconnected();

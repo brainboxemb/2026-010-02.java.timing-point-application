@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -87,6 +88,7 @@ final class TimingSystemComposer {
 
         Upstream upstream =
                 createUpstream(
+                        system,
                         nodeCompositions,
                         upstreamGateway,
                         upstreamConnector);
@@ -137,6 +139,7 @@ final class TimingSystemComposer {
 
     /** Builds one independent protocol-state instance for every TimingNode. */
     private Upstream createUpstream(
+            TimingSystemResolvedData system,
             List<TimingNodeComposition> compositions,
             UpstreamGateway upstreamGateway,
             UpstreamConnector upstreamConnector) {
@@ -145,27 +148,35 @@ final class TimingSystemComposer {
                 new ArrayList<NodeUpstream>();
         for (TimingNodeComposition composition
                 : compositions) {
-            TimingNode node = composition.node();
+            TimingNode node =
+                    composition.node();
+            UpstreamStream stream =
+                    upstreamGateway.createStream(
+                            node.nodeId(),
+                            upstreamConnector);
             NodeUpstream nodeUpstream =
                     new NodeUpstream(
                             node.nodeId(),
                             executors.timingNodeScheduler(),
-                            UpstreamStream.forNode(
-                                    upstreamGateway,
-                                    node.nodeId()),
+                            stream,
+                            new DefaultUpstreamDataCodec(
+                                    system.timingDataCodec()),
                             composition.logBook(),
                             composition.nodeService());
 
-            upstreamGateway.bindNode(
-                    node.nodeId(),
-                    upstreamConnector,
-                    nodeUpstream::inputAvailable,
-                    nodeUpstream::sendTimingDataSync,
-                    nodeUpstream::heartbeatTick);
+            NodeUpstream.CONNECTED.bind(
+                    nodeUpstream,
+                    stream.CONNECTED);
+            NodeUpstream.DATA_AVAILABLE.bind(
+                    nodeUpstream,
+                    stream.DATA_AVAILABLE);
+            NodeUpstream.HEARTBEAT_TICK.bind(
+                    nodeUpstream,
+                    stream.HEARTBEAT_TICK);
+
             nodeUpstreams.add(nodeUpstream);
         }
         return new Upstream(
-                upstreamGateway,
                 nodeUpstreams);
     }
 

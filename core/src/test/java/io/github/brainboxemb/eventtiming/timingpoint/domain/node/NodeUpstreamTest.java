@@ -28,6 +28,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.System
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -66,10 +68,6 @@ public class NodeUpstreamTest {
                                             "R0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
-
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.Ack ack =
                     (UpstreamData.Ack) stream.takeSent();
@@ -113,7 +111,6 @@ public class NodeUpstreamTest {
 
             // One notification is sufficient: message 2 remains in the stream
             // queue until the message-1 RaceDataTask has completed.
-            assertTrue(node.nodeUpstream().inputAvailable());
 
             UpstreamData.Ack first =
                     (UpstreamData.Ack) stream.takeSent();
@@ -140,7 +137,7 @@ public class NodeUpstreamTest {
             NodeUpstream port =
                     node.nodeUpstream();
 
-            port.heartbeatTick();
+            stream.heartbeat();
             UpstreamData.Ping first =
                     (UpstreamData.Ping) stream.takeSent();
 
@@ -155,7 +152,7 @@ public class NodeUpstreamTest {
                     first.mode());
             assertEquals("hb-1", first.pingId());
 
-            port.heartbeatTick();
+            stream.heartbeat();
             UpstreamData.Ping second =
                     (UpstreamData.Ping) stream.takeSent();
             assertEquals("hb-2", second.pingId());
@@ -183,30 +180,13 @@ public class NodeUpstreamTest {
                 new ScheduledThreadPoolExecutor(1);
         CountDownLatch heartbeatSent =
                 new CountDownLatch(1);
+        InMemoryUpstreamStream testStream =
+                new InMemoryUpstreamStream();
         UpstreamStream stream =
-                new UpstreamStream() {
-                    @Override
-                    public boolean isAvailable() {
-                        return true;
-                    }
-
-                    @Override
-                    public boolean hasMessage() {
-                        return false;
-                    }
-
-                    @Override
-                    public UpstreamData read() {
-                        throw new IllegalStateException(
-                                "no inbound data expected");
-                    }
-
-                    @Override
-                    public void send(
-                            UpstreamData message) {
-                        heartbeatSent.countDown();
-                    }
-                };
+                testStream.bind(
+                        new NodeId("A"));
+        testStream.onNextSend(
+                heartbeatSent::countDown);
 
         EventData eventData = EventData.empty();
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
@@ -245,8 +225,19 @@ public class NodeUpstreamTest {
                         new NodeId("A"),
                         nodeWorker,
                         stream,
+                        new DefaultUpstreamDataCodec(
+                                new DefaultTimingDataCodec()),
                         logBook,
                         tasks);
+        NodeUpstream.CONNECTED.bind(
+                nodeUpstream,
+                stream.CONNECTED);
+        NodeUpstream.DATA_AVAILABLE.bind(
+                nodeUpstream,
+                stream.DATA_AVAILABLE);
+        NodeUpstream.HEARTBEAT_TICK.bind(
+                nodeUpstream,
+                stream.HEARTBEAT_TICK);
         TagProcessor tags =
                 new TagProcessor(
                         eventData,
@@ -274,7 +265,7 @@ public class NodeUpstreamTest {
                             1L,
                             TimeUnit.SECONDS));
 
-            nodeUpstream.heartbeatTick();
+            testStream.heartbeat();
 
             assertEquals(
                     1L,
@@ -305,7 +296,7 @@ public class NodeUpstreamTest {
         try {
             NodeUpstream port =
                     node.nodeUpstream();
-            port.heartbeatTick();
+            stream.heartbeat();
             UpstreamData.Ping request =
                     (UpstreamData.Ping) stream.takeSent();
 
@@ -315,7 +306,6 @@ public class NodeUpstreamTest {
                             UpstreamData.PingOperation.ANS,
                             UpstreamData.PingMode.HB,
                             request.pingId()));
-            assertTrue(port.inputAvailable());
 
             long deadline =
                     System.nanoTime()
@@ -353,10 +343,6 @@ public class NodeUpstreamTest {
                             UpstreamData.PingMode.HB,
                             "peer-42"));
 
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
-
             UpstreamData.Ping answer =
                     (UpstreamData.Ping) stream.takeSent();
             assertSame(
@@ -374,21 +360,12 @@ public class NodeUpstreamTest {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         stream.setAvailable(false);
-        stream.receive(
-                DefaultUpstreamData.ping(
-                        new NodeId("A"),
-                        UpstreamData.PingOperation.REQ,
-                        null,
-                        "manual-1"));
 
         TimingNodeFixture.Components node =
                 node("A", stream);
         activate(node.node());
         activate(node.nodeUpstream());
         try {
-            assertFalse(
-                    node.nodeUpstream()
-                            .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
             deactivate(node.nodeUpstream());
@@ -402,6 +379,8 @@ public class NodeUpstreamTest {
                 new InMemoryUpstreamStream();
         InMemoryUpstreamStream populatedStream =
                 new InMemoryUpstreamStream();
+        emptyStream.setAvailable(false);
+        populatedStream.setAvailable(false);
         TimingNodeFixture.Components empty =
                 node(
                         "A",
@@ -427,10 +406,8 @@ public class NodeUpstreamTest {
                     populated.node().logBook().process(
                             LogBookQueries.timingDataCount()).intValue());
 
-            empty.nodeUpstream()
-                    .sendTimingDataSync();
-            populated.nodeUpstream()
-                    .sendTimingDataSync();
+            emptyStream.connect();
+            populatedStream.connect();
 
             UpstreamData.Sync emptySync =
                     (UpstreamData.Sync)
@@ -474,10 +451,6 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.Stream.TIMING_DATA,
                             3L));
-
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.TimingDataTransfer transfer =
                     (UpstreamData.TimingDataTransfer)
@@ -525,7 +498,6 @@ public class NodeUpstreamTest {
 
             // Only the first arrival wakes NodeUpstream. The second REQ remains
             // queued until the first TimingDataReplayTask has fully completed.
-            assertTrue(node.nodeUpstream().inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
                     (UpstreamData.TimingDataTransfer)
@@ -566,10 +538,6 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.Stream.TIMING_DATA,
                             1L));
-
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
                     (UpstreamData.TimingDataTransfer)
@@ -621,10 +589,6 @@ public class NodeUpstreamTest {
                             UpstreamData.Stream.TIMING_DATA,
                             1L));
 
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
-
             UpstreamData.TimingDataTransfer first =
                     (UpstreamData.TimingDataTransfer)
                             stream.takeSent();
@@ -667,10 +631,6 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.Stream.TIMING_DATA,
                             3L));
-
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
             deactivate(node.nodeUpstream());
@@ -692,9 +652,6 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.Stream.RACE_DATA,
                             2L));
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.Req req =
                     (UpstreamData.Req)
@@ -713,9 +670,6 @@ public class NodeUpstreamTest {
                                             "R0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
             stream.takeSent(); // cumulative RACE_DATA ACK
 
             stream.receive(
@@ -723,9 +677,6 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.Stream.RACE_DATA,
                             1L));
-            assertTrue(
-                    node.nodeUpstream()
-                            .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
             deactivate(node.nodeUpstream());
@@ -757,9 +708,6 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.Stream.TIMING_DATA,
                             1L));
-            assertTrue(
-                    nodeA.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferA =
                     (UpstreamData.TimingDataTransfer)
@@ -775,9 +723,6 @@ public class NodeUpstreamTest {
                             new NodeId("B"),
                             UpstreamData.Stream.TIMING_DATA,
                             2L));
-            assertTrue(
-                    nodeB.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferB =
                     (UpstreamData.TimingDataTransfer)
@@ -811,7 +756,7 @@ public class NodeUpstreamTest {
 
     private static TimingNodeFixture.Components node(
             String nodeId,
-            UpstreamStream stream) {
+            InMemoryUpstreamStream stream) {
         return node(
                 nodeId,
                 stream,
@@ -820,14 +765,15 @@ public class NodeUpstreamTest {
 
     private static TimingNodeFixture.Components node(
             String nodeId,
-            UpstreamStream stream,
+            InMemoryUpstreamStream stream,
             List<TimingRecord> initialTimingData) {
         return TimingNodeFixture.createDirectComponents(
                 new NodeId(nodeId),
                 new MemoryPersistence(initialTimingData),
                 () -> Instant.parse("2026-10-13T12:00:00Z"),
                 EventData.empty(),
-                stream);
+                stream.bind(
+                        new NodeId(nodeId)));
     }
 
     private static List<TimingRecord> timingData(
@@ -844,7 +790,7 @@ public class NodeUpstreamTest {
                 index <= count;
                 index++) {
             long timestamp =
-                    base.plusMillis(index)
+                    base.plusMillis(index * 10L)
                             .toEpochMilli();
             records.add(
                     TimingRecord.automatic(

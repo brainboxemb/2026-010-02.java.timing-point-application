@@ -2,9 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.nod
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
+
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -14,23 +16,27 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>This object does not execute NodeService work. RaceDataTask first asks
  * whether a sequence may be applied, then calls NodeService directly. Only
- * after that CompletableFuture completes does the task commit the protocol
- * sequence here and send the cumulative ACK.</p>
+ * after that asynchronous operation completes does the task commit the protocol
+ * sequence here and send the cumulative ACK through NodeUpstream.</p>
  */
 final class RaceDataSync {
     private final NodeId nodeId;
-    private final UpstreamStream stream;
+    private final BooleanSupplier available;
+    private final Consumer<UpstreamData> sender;
 
     private long appliedSequence;
     private long applyingSequence;
 
     RaceDataSync(
             NodeId nodeId,
-            UpstreamStream stream) {
+            BooleanSupplier available,
+            Consumer<UpstreamData> sender) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
+        failIfInvalidArgument(sender != null, "sender must not be null");
         this.nodeId = nodeId;
-        this.stream = stream;
+        this.available = available;
+        this.sender = sender;
     }
 
     /**
@@ -46,7 +52,8 @@ final class RaceDataSync {
             UpstreamData.RaceData raceData) {
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfIllegalState(applyingSequence == 0L,
-                "RACE_DATA sequence %s is already being applied", applyingSequence);
+                "RACE_DATA sequence %s is already being applied",
+                applyingSequence);
 
         long receivedSequence = raceData.sequence();
         failIfInvalidArgument(
@@ -60,10 +67,11 @@ final class RaceDataSync {
             return false;
         }
         if (receivedSequence != expectedSequence) {
-            stream.send(DefaultUpstreamData.req(
-                    nodeId,
-                    UpstreamData.Stream.RACE_DATA,
-                    expectedSequence));
+            sender.accept(
+                    DefaultUpstreamData.req(
+                            nodeId,
+                            UpstreamData.Stream.RACE_DATA,
+                            expectedSequence));
             return false;
         }
 
@@ -74,9 +82,9 @@ final class RaceDataSync {
     /**
      * Commits one successfully applied sequence.
      *
-     * <p>The local applied head advances even if the transport disconnected
-     * while NodeService was working. In that case no ACK is sent now; reconnect
-     * synchronization or a repeated sequence will expose the committed head.</p>
+     * <p>The local applied head advances even when transport disappears while
+     * NodeService is working. In that case no ACK is sent now; reconnect
+     * synchronization or a repeated sequence exposes the committed head.</p>
      */
     void completeApply(
             long sequence) {
@@ -86,17 +94,17 @@ final class RaceDataSync {
         appliedSequence = sequence;
         applyingSequence = 0L;
 
-        if (stream.isAvailable()) {
+        if (available.getAsBoolean()) {
             sendAck(sequence);
         }
     }
 
-    /** Drops a failed/incomplete apply without advancing the contiguous applied head. */
+    /** Drops a failed/incomplete apply without advancing the contiguous head. */
     void cancelApply() {
         applyingSequence = 0L;
     }
 
-    /** Reconciles Central's advertised RACE_DATA source head with local applied state. */
+    /** Reconciles Central's advertised RACE_DATA source head with local state. */
     void handleSync(
             UpstreamData.Sync sync) {
         failIfInvalidArgument(sync != null, "sync must not be null");
@@ -112,22 +120,26 @@ final class RaceDataSync {
                 "SYNC sequence is outside the supported range");
 
         if (sourceHead > appliedSequence) {
-            stream.send(DefaultUpstreamData.req(
-                    nodeId,
-                    UpstreamData.Stream.RACE_DATA,
-                    appliedSequence + 1L));
+            sender.accept(
+                    DefaultUpstreamData.req(
+                            nodeId,
+                            UpstreamData.Stream.RACE_DATA,
+                            appliedSequence + 1L));
         } else if (sourceHead < appliedSequence) {
             throw new IllegalStateException(
-                    "Central RACE_DATA source head " + sourceHead
-                            + " is behind already applied sequence " + appliedSequence);
+                    "Central RACE_DATA source head "
+                            + sourceHead
+                            + " is behind already applied sequence "
+                            + appliedSequence);
         }
     }
 
     private void sendAck(
             long sequence) {
-        stream.send(DefaultUpstreamData.ack(
-                nodeId,
-                UpstreamData.Stream.RACE_DATA,
-                sequence));
+        sender.accept(
+                DefaultUpstreamData.ack(
+                        nodeId,
+                        UpstreamData.Stream.RACE_DATA,
+                        sequence));
     }
 }

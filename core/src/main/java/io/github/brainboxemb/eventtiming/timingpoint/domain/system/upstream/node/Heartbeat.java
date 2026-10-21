@@ -1,24 +1,26 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
+
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Owns heartbeat protocol state for one NodeUpstream.
  *
- * <p>This helper has no worker or timer. Runtime scheduling decides when a
- * heartbeat tick occurs; the owning NodeUpstream task lane calls {@link #tick()}
- * and {@link #handle(UpstreamData.Ping)}. Mutable heartbeat protocol state
- * therefore has one serial owner even though its immutable status snapshot may
- * be read directly.</p>
+ * <p>This helper has no worker or timer. Connector heartbeat cadence reaches
+ * NodeUpstream as a typed event; NodeUpstream then executes {@link #tick()} on
+ * its serial task runner. Semantic PING construction and response state stay
+ * here, while actual encoding/sending remains owned by NodeUpstream.</p>
  */
 final class Heartbeat {
     private final NodeId nodeId;
-    private final UpstreamStream stream;
+    private final BooleanSupplier available;
+    private final Consumer<UpstreamData> sender;
 
     private long requestsSent;
     private long answersReceived;
@@ -26,7 +28,6 @@ final class Heartbeat {
     private boolean answerPending;
     private String pendingPingId;
 
-    /** Latest immutable NodeUpstream lane-owned heartbeat state for direct reads. */
     private volatile NodeUpstreamTypes.HeartbeatStatus publishedStatus =
             new NodeUpstreamTypes.HeartbeatStatus(
                     0L,
@@ -34,12 +35,16 @@ final class Heartbeat {
                     0L,
                     false);
 
-    /** Creates heartbeat protocol state for one node-scoped upstream stream. */
-    Heartbeat(NodeId nodeId, UpstreamStream stream) {
+    Heartbeat(
+            NodeId nodeId,
+            BooleanSupplier available,
+            Consumer<UpstreamData> sender) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
+        failIfInvalidArgument(sender != null, "sender must not be null");
         this.nodeId = nodeId;
-        this.stream = stream;
+        this.available = available;
+        this.sender = sender;
     }
 
     /**
@@ -49,7 +54,7 @@ final class Heartbeat {
      * next request replaces its ping id.</p>
      */
     void tick() {
-        if (!stream.isAvailable()) {
+        if (!available.getAsBoolean()) {
             return;
         }
 
@@ -62,25 +67,26 @@ final class Heartbeat {
         pendingPingId = "hb-" + requestsSent;
 
         publishStatus();
-        stream.send(DefaultUpstreamData.ping(
-                nodeId,
-                UpstreamData.PingOperation.REQ,
-                UpstreamData.PingMode.HB,
-                pendingPingId));
+        sender.accept(
+                DefaultUpstreamData.ping(
+                        nodeId,
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        pendingPingId));
     }
 
-    /**
-     * Handles both peer PING requests and answers to our heartbeat request.
-     */
-    void handle(UpstreamData.Ping ping) {
+    /** Handles peer PING requests and answers to this node's heartbeat request. */
+    void handle(
+            UpstreamData.Ping ping) {
         failIfInvalidArgument(ping != null, "ping must not be null");
 
         if (ping.operation() == UpstreamData.PingOperation.REQ) {
-            stream.send(DefaultUpstreamData.ping(
-                    nodeId,
-                    UpstreamData.PingOperation.ANS,
-                    ping.mode(),
-                    ping.pingId()));
+            sender.accept(
+                    DefaultUpstreamData.ping(
+                            nodeId,
+                            UpstreamData.PingOperation.ANS,
+                            ping.mode(),
+                            ping.pingId()));
         } else if (ping.operation() == UpstreamData.PingOperation.ANS
                 && ping.mode() == UpstreamData.PingMode.HB
                 && answerPending
@@ -92,12 +98,12 @@ final class Heartbeat {
         }
     }
 
-    /** Returns the latest immutable heartbeat status published by the NodeUpstream lane. */
+    /** Returns the latest immutable heartbeat state published by the serial owner. */
     NodeUpstreamTypes.HeartbeatStatus status() {
         return publishedStatus;
     }
 
-    /** Publishes the current mutable heartbeat counters as one immutable direct-read snapshot. */
+    /** Publishes the current counters as one immutable direct-read snapshot. */
     private void publishStatus() {
         publishedStatus =
                 new NodeUpstreamTypes.HeartbeatStatus(

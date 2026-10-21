@@ -5,12 +5,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -18,59 +19,69 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Owns TIMING_DATA source-head and replay state for one NodeUpstream.
  *
- * <p>The LogBook is the TIMING_DATA source of truth. One REQ captures the current
- * source head once; records committed afterwards are intentionally excluded.
- * Ordered batch reads are submitted asynchronously to the LogBook Data Lane.
- * TimingDataReplayTask owns the CompletableFuture continuation and therefore
- * releases the shared worker while each batch is being read.</p>
+ * <p>The LogBook is the TIMING_DATA source of truth. One REQ captures the
+ * current source head once; records committed afterwards are intentionally
+ * excluded. Ordered batch reads are asynchronous, while NodeUpstream remains
+ * responsible for encoding and sending the semantic messages produced here.</p>
  */
 final class TimingDataSync {
     private static final int MAX_RECORDS_PER_BATCH = 256;
 
     private final NodeId nodeId;
-    private final UpstreamStream stream;
+    private final BooleanSupplier available;
+    private final Consumer<UpstreamData> sender;
     private final LogBookAccessor logBook;
 
     private boolean replayActive;
     private long nextSequence;
     private long replayHead;
 
-    /** Creates TIMING_DATA synchronization state for one node-scoped upstream stream. */
-    TimingDataSync(NodeId nodeId, UpstreamStream stream, LogBookAccessor logBook) {
+    TimingDataSync(
+            NodeId nodeId,
+            BooleanSupplier available,
+            Consumer<UpstreamData> sender,
+            LogBookAccessor logBook) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
+        failIfInvalidArgument(sender != null, "sender must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         this.nodeId = nodeId;
-        this.stream = stream;
+        this.available = available;
+        this.sender = sender;
         this.logBook = logBook;
     }
 
-    /** Sends the current TIMING_DATA source head. Empty LogBook means sequence 0. */
+    /** Sends the current TIMING_DATA source head when transport is available. */
     void sendSourceHead() {
-        if (stream.isAvailable()) {
-            stream.send(DefaultUpstreamData.sync(
-                    nodeId,
-                    UpstreamData.Stream.TIMING_DATA,
-                    headSequence()));
+        if (available.getAsBoolean()) {
+            sender.accept(
+                    DefaultUpstreamData.sync(
+                            nodeId,
+                            UpstreamData.Stream.TIMING_DATA,
+                            headSequence()));
         }
     }
 
-    /** Returns the directly published committed TIMING_DATA source head. */
+    /** Returns the current committed TIMING_DATA source head; empty means zero. */
     long headSequence() {
         return logBook.process(
                 LogBookQueries.timingDataHead(),
                 ReadConsistency.CURRENT);
     }
 
-    /** Starts one replay at the inclusive requested sequence captured by the REQ. */
-    void startReplay(UpstreamData.Req req) {
+    /** Starts one replay at the inclusive sequence requested by the peer. */
+    void startReplay(
+            UpstreamData.Req req) {
         failIfInvalidArgument(req != null, "req must not be null");
         if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
-            throw new UnsupportedOperationException("Inbound REQ supports TIMING_DATA only");
+            throw new UnsupportedOperationException(
+                    "Inbound REQ supports TIMING_DATA only");
         }
 
         long fromSequence = req.fromSequence();
-        failIfInvalidArgument(fromSequence >= 1L && fromSequence <= TimingRecord.MAX_SEQUENCE_NUMBER,
+        failIfInvalidArgument(
+                fromSequence >= 1L
+                        && fromSequence <= TimingRecord.MAX_SEQUENCE_NUMBER,
                 "REQ fromSequence is outside the supported range");
 
         long capturedHead = headSequence();
@@ -95,11 +106,13 @@ final class TimingDataSync {
 
     /** Submits the next ordered LogBook batch read without blocking NodeUpstream. */
     CompletableFuture<List<TimingRecord>> submitNextBatch() {
-        failIfIllegalState(replayActive, "No TIMING_DATA synchronization is active");
+        failIfIllegalState(replayActive,
+                "No TIMING_DATA synchronization is active");
 
-        int limit = (int) Math.min(
-                (long) MAX_RECORDS_PER_BATCH,
-                replayHead - nextSequence + 1L);
+        int limit =
+                (int) Math.min(
+                        (long) MAX_RECORDS_PER_BATCH,
+                        replayHead - nextSequence + 1L);
 
         return logBook.submit(
                 LogBookQueries.timingRecordRange(
@@ -108,7 +121,8 @@ final class TimingDataSync {
     }
 
     /** Validates and sends one completed ordered LogBook batch. */
-    void sendNextBatch(List<TimingRecord> records) {
+    void sendNextBatch(
+            List<TimingRecord> records) {
         failIfInvalidArgument(records != null, "records must not be null");
 
         if (records.isEmpty()) {
@@ -116,7 +130,8 @@ final class TimingDataSync {
         }
         failIfIllegalState(!records.isEmpty(),
                 "LogBook head %s advertised record %s but synchronization returned no data",
-                replayHead, nextSequence);
+                replayHead,
+                nextSequence);
 
         TimingRecord first = records.get(0);
         if (first.sequenceNumber() != nextSequence) {
@@ -124,16 +139,21 @@ final class TimingDataSync {
         }
         failIfIllegalState(first.sequenceNumber() == nextSequence,
                 "TimingData synchronization expected sequence %s but got %s",
-                nextSequence, first.sequenceNumber());
+                nextSequence,
+                first.sequenceNumber());
 
         TimingRecord last = records.get(records.size() - 1);
         if (last.sequenceNumber() > replayHead) {
             replayActive = false;
         }
         failIfIllegalState(last.sequenceNumber() <= replayHead,
-                "TimingData synchronization crossed captured head %s", replayHead);
+                "TimingData synchronization crossed captured head %s",
+                replayHead);
 
-        stream.send(DefaultUpstreamData.timingData(nodeId, records));
+        sender.accept(
+                DefaultUpstreamData.timingData(
+                        nodeId,
+                        records));
 
         if (last.sequenceNumber() >= replayHead) {
             replayActive = false;

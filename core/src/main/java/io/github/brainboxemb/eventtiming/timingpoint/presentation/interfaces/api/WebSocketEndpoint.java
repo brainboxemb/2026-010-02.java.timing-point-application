@@ -7,12 +7,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering.UpstreamApiMessage;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamMessage;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
-import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -40,10 +37,9 @@ import org.slf4j.LoggerFactory;
  * IF-03 WebSocket transport.
  *
  * <p>Normal event clients are server-to-client only. The dedicated
- * {@code role=upstream} connection is full-duplex: it receives semantic
- * UpstreamData from SI-02 and carries outbound UpstreamData events on the same
- * WebSocket. Historical TimingData recovery remains an upstream protocol
- * responsibility rather than an IF-03 event replay concern.</p>
+ * {@code role=upstream} connection is full-duplex. It carries encoded IF-06
+ * messages for the Engineering upstream connector without interpreting their
+ * semantic payload.</p>
  */
 public final class WebSocketEndpoint implements AutoCloseable {
     public static final String EVENTS_PATH = "/api/v1/events";
@@ -59,7 +55,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final PresentationGateway presentationGateway;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
-    private final UpstreamDataCodec upstreamDataCodec;
     private final List<EngineerApiConnector> upstreamConnectors;
     private final WebSocketOutboundDelivery outboundDelivery;
     private final AtomicReference<WebSocket> upstreamConnection =
@@ -143,9 +138,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
                                 upstreamConnectors));
         this.clock = clock;
         this.timingDataCodec = new DefaultTimingDataCodec();
-        this.upstreamDataCodec =
-                new DefaultUpstreamDataCodec(
-                        timingDataCodec);
         this.outboundDelivery =
                 new WebSocketOutboundDelivery();
 
@@ -475,31 +467,25 @@ public final class WebSocketEndpoint implements AutoCloseable {
                     message);
         }
 
-        /**
-         * Decodes one semantic UpstreamData object received on the upstream-role
-         * WebSocket, wraps it as routing metadata plus opaque payload, and hands
-         * that envelope to the connector/gateway chain.
-         */
+        /** Hands one encoded Engineering upstream API message to Messaging. */
         private void receiveUpstreamData(
                 WebSocket connection,
                 String message) {
-            final UpstreamData upstreamData;
+            final UpstreamApiMessage apiMessage;
             try {
-                upstreamData =
-                        upstreamDataCodec.decode(
-                                message.getBytes(
-                                        java.nio.charset.StandardCharsets.UTF_8));
-            } catch (UpstreamDataCodec.CodecException ex) {
+                apiMessage =
+                        UpstreamApiMessage.parse(
+                                message);
+            } catch (IllegalArgumentException ex) {
                 connection.close(
                         CloseFrame.POLICY_VALIDATION,
-                        "Invalid UpstreamData");
+                        "Invalid upstream API message");
                 return;
             }
 
             UpstreamGateway.ReceiveResult result =
                     routeUpstreamMessage(
-                            UpstreamMessage.from(
-                                    upstreamData));
+                            apiMessage);
             switch (result) {
                 case ACCEPTED:
                     return;
@@ -509,7 +495,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
                             "Unknown upstream NodeId");
                     return;
                 case INPUT_FULL:
-                case INPUT_REJECTED:
                     connection.close(
                             WebSocketOutboundDelivery.TRY_AGAIN_LATER_CLOSE_CODE,
                             "Upstream input is busy");
@@ -521,15 +506,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
             }
         }
 
-        /**
-         * Routes one inbound envelope to the connector whose gateway owns its NodeId.
-         *
-         * <p>The current runtime binds each NodeUpstream to one connector. Multiple
-         * connectors can coexist for different nodes/systems without exposing that
-         * selection to the WebSocket peer.</p>
-         */
         private UpstreamGateway.ReceiveResult routeUpstreamMessage(
-                UpstreamMessage message) {
+                UpstreamApiMessage message) {
             UpstreamGateway.ReceiveResult result =
                     UpstreamGateway.ReceiveResult.UNKNOWN_NODE;
             for (EngineerApiConnector connector
@@ -547,21 +525,11 @@ public final class WebSocketEndpoint implements AutoCloseable {
 
         private boolean sendUpstreamData(
                 WebSocket connection,
-                UpstreamMessage message) {
-            final String event;
-            try {
-                event =
-                        MessageWriter.upstreamDataEvent(
-                                clock.instant(),
-                                message.payload(),
-                                upstreamDataCodec);
-            } catch (UpstreamDataCodec.CodecException ex) {
-                LOG.warn(
-                        "Could not encode UpstreamData for IF-03",
-                        ex);
-                closeAfterDeliveryFailure(connection);
-                return false;
-            }
+                UpstreamApiMessage message) {
+            String event =
+                    MessageWriter.upstreamDataEvent(
+                            clock.instant(),
+                            message.payload());
 
             return deliverEvent(
                     connection,
