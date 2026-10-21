@@ -19,26 +19,39 @@ import java.util.concurrent.TimeUnit;
 final class InMemoryUpstreamStream {
     private static final long SEND_WAIT_MILLIS = 1000L;
 
-    private final NodeId nodeId;
+    private NodeId nodeId;
     private final UpstreamDataCodec codec =
             new DefaultUpstreamDataCodec(
                     new DefaultTimingDataCodec());
     private final TestConnector connector =
             new TestConnector();
-    private final UpstreamStream stream;
+    private UpstreamStream stream;
 
-    InMemoryUpstreamStream(
-            NodeId nodeId) {
-        this.nodeId = nodeId;
-        UpstreamGateway gateway =
-                new UpstreamGateway();
-        this.stream =
-                gateway.createStream(
-                        nodeId,
-                        connector);
+    InMemoryUpstreamStream() {
+    }
+
+    UpstreamStream bind(
+            NodeId requestedNodeId) {
+        if (stream == null) {
+            nodeId = requestedNodeId;
+            UpstreamGateway gateway =
+                    new UpstreamGateway();
+            stream =
+                    gateway.createStream(
+                            nodeId,
+                            connector);
+        } else if (!nodeId.equals(requestedNodeId)) {
+            throw new IllegalStateException(
+                    "test stream is already bound to another node");
+        }
+        return stream;
     }
 
     UpstreamStream stream() {
+        if (stream == null) {
+            throw new IllegalStateException(
+                    "test stream is not bound");
+        }
         return stream;
     }
 
@@ -48,6 +61,15 @@ final class InMemoryUpstreamStream {
 
     void disconnect() {
         connector.disconnect();
+    }
+
+    void setAvailable(
+            boolean available) {
+        if (available) {
+            connector.connect();
+        } else {
+            connector.disconnect();
+        }
     }
 
     void heartbeat() {
@@ -118,7 +140,7 @@ final class InMemoryUpstreamStream {
         private final Queue<UpstreamMessage> outbound =
                 new ArrayDeque<UpstreamMessage>();
         private Listener listener;
-        private boolean available;
+        private boolean available = true;
         private Runnable onNextSend;
 
         @Override
@@ -158,19 +180,29 @@ final class InMemoryUpstreamStream {
         private void connect() {
             Listener current;
             synchronized (this) {
+                if (available) {
+                    return;
+                }
                 available = true;
                 current = listener;
             }
-            current.connected();
+            if (current != null) {
+                current.connected();
+            }
         }
 
         private void disconnect() {
             Listener current;
             synchronized (this) {
+                if (!available) {
+                    return;
+                }
                 available = false;
                 current = listener;
             }
-            current.disconnected();
+            if (current != null) {
+                current.disconnected();
+            }
         }
 
         private void heartbeat() {
