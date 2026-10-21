@@ -3,8 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -22,7 +20,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>Session lifecycle is exposed as typed post-fact events. Inbound API data uses the gateway's explicit
  * {@link UpstreamGateway.ConnectorPort} because queue admission has a meaningful return value.</p>
  */
-public final class EngineerApiConnector implements UpstreamConnector {
+public final class EngineerApiConnector extends UpstreamConnector {
     static final int DEFAULT_OUTPUT_CAPACITY = 64;
 
     /** Non-blocking delivery boundary implemented by the IF-03 WebSocket adapter. */
@@ -32,10 +30,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
 
     private final int outputCapacity;
     private final Queue<UpstreamApiMessage> outputQueue = new ArrayDeque<UpstreamApiMessage>();
-    private final Event<UpstreamConnector> connectedEvent = new Event<UpstreamConnector>();
-    private final Event<UpstreamConnector> disconnectedEvent = new Event<UpstreamConnector>();
 
-    private UpstreamGateway.ConnectorPort input;
     private Output output;
 
     public EngineerApiConnector() {
@@ -48,30 +43,6 @@ public final class EngineerApiConnector implements UpstreamConnector {
     }
 
     /**
-     * Binds the command-style gateway input once during composition.
-     *
-     * <p>The connector cannot accept an upstream-role WebSocket before this binding exists because no application
-     * routing target would be available.</p>
-     */
-    @Override
-    public synchronized void bindInput(UpstreamGateway.ConnectorPort newInput) {
-        failIfInvalidArgument(newInput != null, "input must not be null");
-        failIfIllegalState(input == null, "Engineering connector input is already bound");
-        failIfIllegalState(output == null, "Cannot bind input while connector is connected");
-        input = newInput;
-    }
-
-    @Override
-    public EventSource<UpstreamConnector> connectedEvent() {
-        return connectedEvent;
-    }
-
-    @Override
-    public EventSource<UpstreamConnector> disconnectedEvent() {
-        return disconnectedEvent;
-    }
-
-    /**
      * Activates one engineering WebSocket peer after its status snapshot has been delivered.
      *
      * <p>The connection event is emitted only after the peer becomes the authoritative connector output, so
@@ -80,8 +51,8 @@ public final class EngineerApiConnector implements UpstreamConnector {
     public boolean connect(Output newOutput) {
         failIfInvalidArgument(newOutput != null, "output must not be null");
 
+        requireBound();
         synchronized (this) {
-            failIfIllegalState(input != null, "Engineering connector is not bound to an UpstreamGateway");
             if (output != null) {
                 return false;
             }
@@ -89,7 +60,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
             output = newOutput;
         }
 
-        connectedEvent.emit(this);
+        publishConnected();
         return true;
     }
 
@@ -104,7 +75,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
         }
 
         if (disconnected) {
-            disconnectedEvent.emit(this);
+            publishDisconnected();
         }
     }
 
@@ -116,12 +87,10 @@ public final class EngineerApiConnector implements UpstreamConnector {
     public UpstreamGateway.ReceiveResult receive(UpstreamApiMessage message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
-        UpstreamGateway.ConnectorPort currentInput;
         synchronized (this) {
             failIfIllegalState(output != null, "Engineering upstream peer is not connected");
-            currentInput = input;
         }
-        return currentInput.receive(message.nodeId(), message.payload());
+        return receiveInput(message.nodeId(), message.payload());
     }
 
     @Override
@@ -177,7 +146,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
     /** Clears the failed session and notifies gateway/application observers exactly once. */
     private void disconnectAfterDeliveryFailure() {
         clearSession();
-        disconnectedEvent.emit(this);
+        publishDisconnected();
     }
 
     /** Clears connector-owned state; callers publish the corresponding disconnect event after this mutation. */

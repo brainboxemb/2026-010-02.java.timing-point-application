@@ -19,8 +19,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnec
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
@@ -347,25 +345,7 @@ public final class TimingNodeFixture {
     }
 
     /** Minimal unavailable connector used when a test does not exercise upstream transport. */
-    private static final class UnavailableConnector implements UpstreamConnector {
-        private final Event<UpstreamConnector> connected = new Event<UpstreamConnector>();
-        private final Event<UpstreamConnector> disconnected = new Event<UpstreamConnector>();
-
-        @Override
-        public void bindInput(UpstreamGateway.ConnectorPort input) {
-            // No inbound transport exists in this fixture.
-        }
-
-        @Override
-        public EventSource<UpstreamConnector> connectedEvent() {
-            return connected;
-        }
-
-        @Override
-        public EventSource<UpstreamConnector> disconnectedEvent() {
-            return disconnected;
-        }
-
+    private static final class UnavailableConnector extends UpstreamConnector {
         @Override
         public boolean isAvailable() {
             return false;
