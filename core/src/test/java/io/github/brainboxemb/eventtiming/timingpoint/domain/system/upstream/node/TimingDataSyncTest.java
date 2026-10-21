@@ -23,7 +23,12 @@ public class TimingDataSyncTest {
     public void raceDataReqIsNotOwnedByTimingDataSync() {
         NodeId nodeId = new NodeId("A");
         TimingDataSync sync =
-                new TimingDataSync(nodeId, new TestUpstreamStream(), emptyLogBook(nodeId));
+                new TimingDataSync(
+                        nodeId,
+                        () -> true,
+                        data -> {
+                        },
+                        emptyLogBook(nodeId));
 
         try {
             sync.startReplay(
