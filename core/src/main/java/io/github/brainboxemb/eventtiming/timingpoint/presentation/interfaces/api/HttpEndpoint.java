@@ -21,19 +21,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.application.CommandResult;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
-import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -54,8 +47,6 @@ public final class HttpEndpoint implements AutoCloseable {
     private final PresentationGateway presentationGateway;
     private final ConfigurationControl configuration;
     private final TimingDataCodec timingDataCodec;
-    private final UpstreamDataCodec upstreamDataCodec;
-    private final List<EngineerApiConnector> upstreamConnectors;
     private final HttpRequestReader requestReader = new HttpRequestReader();
 
     private HttpServer server;
@@ -65,18 +56,6 @@ public final class HttpEndpoint implements AutoCloseable {
             String bindAddress,
             int port,
             PresentationGateway presentationGateway) {
-        this(
-                bindAddress,
-                port,
-                presentationGateway,
-                Collections.<EngineerApiConnector>emptyList());
-    }
-
-    public HttpEndpoint(
-            String bindAddress,
-            int port,
-            PresentationGateway presentationGateway,
-            List<EngineerApiConnector> upstreamConnectors) {
         if (bindAddress == null || bindAddress.trim().isEmpty()) {
             throw new IllegalArgumentException("bindAddress must not be blank");
         }
@@ -86,22 +65,11 @@ public final class HttpEndpoint implements AutoCloseable {
         if (presentationGateway == null) {
             throw new IllegalArgumentException("presentationGateway must not be null");
         }
-        if (upstreamConnectors == null) {
-            throw new IllegalArgumentException("upstreamConnectors must not be null");
-        }
-
         this.bindAddress = bindAddress.trim();
         this.port = port;
         this.presentationGateway = presentationGateway;
         this.configuration = presentationGateway.configuration();
         this.timingDataCodec = new DefaultTimingDataCodec();
-        this.upstreamDataCodec =
-                new DefaultUpstreamDataCodec(
-                        timingDataCodec);
-        this.upstreamConnectors =
-                Collections.unmodifiableList(
-                        new ArrayList<EngineerApiConnector>(
-                                upstreamConnectors));
     }
 
     public synchronized void start() throws IOException {
@@ -185,11 +153,6 @@ public final class HttpEndpoint implements AutoCloseable {
                     MessageWriter.capabilities(presentationGateway.capabilities()));
             return;
         }
-        if ("/api/v1/dev/upstream/message".equals(path)) {
-            requireMethod(exchange, "POST");
-            handleUpstreamMessage(exchange);
-            return;
-        }
         if (path.startsWith("/api/v1/node/")) {
             routeNode(exchange, path.substring("/api/v1/node/".length()));
             return;
@@ -203,87 +166,6 @@ public final class HttpEndpoint implements AutoCloseable {
                 exchange,
                 404,
                 MessageWriter.error("NOT_FOUND", "Unknown IF-03 resource"));
-    }
-
-    private void handleUpstreamMessage(
-            HttpExchange exchange)
-            throws IOException {
-        UpstreamData message =
-                requestReader.readUpstreamData(
-                        exchange,
-                        upstreamDataCodec);
-        if (!(message instanceof UpstreamData.NodeScoped)) {
-            throw HttpRequestReader.invalidValue(
-                    "UpstreamData message must be node-scoped");
-        }
-
-        NodeId nodeId =
-                ((UpstreamData.NodeScoped) message)
-                        .timingNodeId();
-        EngineerApiConnector connector =
-                upstreamConnector(nodeId);
-        if (connector == null) {
-            sendJson(
-                    exchange,
-                    404,
-                    MessageWriter.error(
-                            "NODE_NOT_FOUND",
-                            "Unknown upstream TimingNode "
-                                    + nodeId.value()));
-            return;
-        }
-
-        EngineerApiConnector.ReceiveResult result =
-                connector.receive(message);
-        switch (result) {
-            case ACCEPTED:
-                sendJson(
-                        exchange,
-                        202,
-                        MessageWriter.result("ACCEPTED"));
-                return;
-            case NOT_CONNECTED:
-                sendJson(
-                        exchange,
-                        409,
-                        MessageWriter.error(
-                                "UPSTREAM_NOT_CONNECTED",
-                                "No Engineering upstream peer is connected"));
-                return;
-            case INPUT_FULL:
-            case INPUT_REJECTED:
-                sendJson(
-                        exchange,
-                        503,
-                        MessageWriter.error(
-                                "UPSTREAM_BUSY",
-                                "Upstream input could not be queued"));
-                return;
-            case UNKNOWN_NODE:
-                sendJson(
-                        exchange,
-                        404,
-                        MessageWriter.error(
-                                "NODE_NOT_FOUND",
-                                "Unknown upstream TimingNode "
-                                        + nodeId.value()));
-                return;
-            default:
-                throw new IllegalStateException(
-                        "Unsupported upstream receive result "
-                                + result);
-        }
-    }
-
-    private EngineerApiConnector upstreamConnector(
-            NodeId nodeId) {
-        for (EngineerApiConnector connector
-                : upstreamConnectors) {
-            if (connector.handles(nodeId)) {
-                return connector;
-            }
-        }
-        return null;
     }
 
     private void routeNode(HttpExchange exchange, String remainder) throws IOException {
