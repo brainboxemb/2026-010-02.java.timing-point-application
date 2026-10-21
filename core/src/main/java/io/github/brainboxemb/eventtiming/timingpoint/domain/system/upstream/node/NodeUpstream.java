@@ -117,6 +117,11 @@ public final class NodeUpstream extends LifecycleComponent {
         return nodeId;
     }
 
+    /** Returns the latest published heartbeat protocol status. */
+    public NodeUpstreamTypes.HeartbeatStatus heartbeatStatus() {
+        return heartbeat.status();
+    }
+
     /** Starts this node's protocol-owned logical lane. */
     @Override
     protected void onActivate() {
