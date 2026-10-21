@@ -87,8 +87,8 @@ public final class UpstreamGateway {
         List<UpstreamStream> connectorStreams = connectors.get(connector);
         if (connectorStreams == null) {
             connector.bindInput((messageNodeId, encodedMessage) -> receive(connector, messageNodeId, encodedMessage));
-            CONNECTED.bind(this, connector.connectedEvent());
-            DISCONNECTED.bind(this, connector.disconnectedEvent());
+            CONNECTED.bind(this, connector.CONNECTED);
+            DISCONNECTED.bind(this, connector.DISCONNECTED);
 
             connectorStreams = new ArrayList<UpstreamStream>();
             connectors.put(connector, connectorStreams);
