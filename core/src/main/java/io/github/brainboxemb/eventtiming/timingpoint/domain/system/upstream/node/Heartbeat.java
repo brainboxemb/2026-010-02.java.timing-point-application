@@ -9,7 +9,14 @@ import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Owns heartbeat protocol state for one NodeUpstream. */
+/**
+ * Owns heartbeat protocol state for one NodeUpstream.
+ *
+ * <p>This helper has no worker or timer. Connector heartbeat cadence reaches
+ * NodeUpstream as a typed event; NodeUpstream then executes {@link #tick()} on
+ * its serial task runner. Semantic PING construction and response state stay
+ * here, while actual encoding/sending remains owned by NodeUpstream.</p>
+ */
 final class Heartbeat {
     private final NodeId nodeId;
     private final BooleanSupplier available;
@@ -40,6 +47,12 @@ final class Heartbeat {
         this.sender = sender;
     }
 
+    /**
+     * Sends one heartbeat request when communication is available.
+     *
+     * <p>An unanswered previous request counts as one missed interval before the
+     * next request replaces its ping id.</p>
+     */
     void tick() {
         if (!available.getAsBoolean()) {
             return;
@@ -62,6 +75,7 @@ final class Heartbeat {
                         pendingPingId));
     }
 
+    /** Handles peer PING requests and answers to this node's heartbeat request. */
     void handle(
             UpstreamData.Ping ping) {
         failIfInvalidArgument(ping != null, "ping must not be null");
@@ -84,10 +98,12 @@ final class Heartbeat {
         }
     }
 
+    /** Returns the latest immutable heartbeat state published by the serial owner. */
     NodeUpstreamTypes.HeartbeatStatus status() {
         return publishedStatus;
     }
 
+    /** Publishes the current counters as one immutable direct-read snapshot. */
     private void publishStatus() {
         publishedStatus =
                 new NodeUpstreamTypes.HeartbeatStatus(
