@@ -15,7 +15,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * outbound delivery.</p>
  *
  * <p>Inbound admission remains command-style because it returns {@link UpstreamGateway.ReceiveResult}. Subclasses pass
- * the resolved routing NodeId and unchanged encoded payload to {@link #receive(NodeId, String)}.</p>
+ * the resolved routing NodeId and unchanged encoded payload to {@link #receiveInput(NodeId, String)}.</p>
  */
 public abstract class UpstreamConnector {
     private final Event<UpstreamConnector> connectedEvent = new Event<UpstreamConnector>();
@@ -41,7 +41,7 @@ public abstract class UpstreamConnector {
      *
      * <p>NodeId remains routing context only; the payload is not interpreted by this base class.</p>
      */
-    protected final UpstreamGateway.ReceiveResult receive(NodeId nodeId, String encodedMessage) {
+    protected final UpstreamGateway.ReceiveResult receiveInput(NodeId nodeId, String encodedMessage) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(encodedMessage != null, "encodedMessage must not be null");
 
@@ -59,12 +59,12 @@ public abstract class UpstreamConnector {
     }
 
     /** Publishes one post-fact connection notification after the concrete transport became operational. */
-    protected final void connected() {
+    protected final void publishConnected() {
         connectedEvent.emit(this);
     }
 
     /** Publishes one post-fact disconnect notification after the concrete transport session ended. */
-    protected final void disconnected() {
+    protected final void publishDisconnected() {
         disconnectedEvent.emit(this);
     }
 
