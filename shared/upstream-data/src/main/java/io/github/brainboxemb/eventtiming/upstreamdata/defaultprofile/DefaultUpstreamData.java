@@ -22,6 +22,7 @@ public final class DefaultUpstreamData {
     private DefaultUpstreamData() {
     }
 
+    /** Creates one validated TIMING_DATA transfer for the reference profile. */
     public static UpstreamData.TimingDataTransfer timingData(
             NodeId nodeId,
             List<TimingRecord> records) {
@@ -29,6 +30,7 @@ public final class DefaultUpstreamData {
         return new UpstreamData.TimingDataTransfer(nodeId, records);
     }
 
+    /** Creates one ordered RACE_DATA change message. */
     public static UpstreamData.RaceData raceData(
             NodeId nodeId,
             long sequence,
@@ -42,6 +44,7 @@ public final class DefaultUpstreamData {
                 stageStartTimeChanges);
     }
 
+    /** Creates one stream-head synchronization message. */
     public static UpstreamData.Sync sync(
             NodeId nodeId,
             UpstreamData.Stream stream,
@@ -50,6 +53,7 @@ public final class DefaultUpstreamData {
         return new UpstreamData.Sync(nodeId, stream, sequence);
     }
 
+    /** Creates one reference-profile cumulative RACE_DATA acknowledgement. */
     public static UpstreamData.Ack ack(
             NodeId nodeId,
             UpstreamData.Stream stream,
@@ -61,6 +65,7 @@ public final class DefaultUpstreamData {
         return new UpstreamData.Ack(nodeId, stream, sequence);
     }
 
+    /** Creates one inclusive replay request. */
     public static UpstreamData.Req req(
             NodeId nodeId,
             UpstreamData.Stream stream,
@@ -69,6 +74,7 @@ public final class DefaultUpstreamData {
         return new UpstreamData.Req(nodeId, stream, fromSequence);
     }
 
+    /** Creates one manual or heartbeat PING request/answer value. */
     public static UpstreamData.Ping ping(
             NodeId nodeId,
             UpstreamData.PingOperation operation,
@@ -78,6 +84,7 @@ public final class DefaultUpstreamData {
         return new UpstreamData.Ping(nodeId, operation, mode, pingId);
     }
 
+    /** Creates one team-assignment SET change. */
     public static UpstreamData.TeamAssignmentChange teamAssignmentSet(
             String registrationId,
             String teamId) {
@@ -88,6 +95,7 @@ public final class DefaultUpstreamData {
                 new TeamId(teamId));
     }
 
+    /** Creates one team-assignment DEL change. */
     public static UpstreamData.TeamAssignmentChange teamAssignmentDelete(String registrationId) {
         return new UpstreamData.TeamAssignmentChange(
                 UpstreamData.ChangeOperation.DEL,
@@ -95,6 +103,7 @@ public final class DefaultUpstreamData {
                 null);
     }
 
+    /** Creates one time-only stage-start SET change. */
     public static UpstreamData.StageStartTimeChange stageStartSet(
             String teamId,
             LocalTime startTime) {
@@ -102,6 +111,7 @@ public final class DefaultUpstreamData {
         return stageStartSet(teamId, TimingTimestamp.localTime(startTime));
     }
 
+    /** Creates one date+time or time-only stage-start SET change. */
     public static UpstreamData.StageStartTimeChange stageStartSet(
             String teamId,
             LocalTime startTime,
@@ -114,6 +124,7 @@ public final class DefaultUpstreamData {
                         : TimingTimestamp.localDateTime(startDate, startTime));
     }
 
+    /** Creates one stage-start SET change from an already parsed IF-06 timestamp. */
     public static UpstreamData.StageStartTimeChange stageStartSet(
             String teamId,
             TimingTimestamp start) {
@@ -127,6 +138,7 @@ public final class DefaultUpstreamData {
                 start);
     }
 
+    /** Creates one stage-start DEL change. */
     public static UpstreamData.StageStartTimeChange stageStartDelete(String teamId) {
         return new UpstreamData.StageStartTimeChange(
                 UpstreamData.ChangeOperation.DEL,
