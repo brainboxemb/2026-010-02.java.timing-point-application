@@ -11,7 +11,14 @@ import java.util.function.Consumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Owns ordered Central-to-node RACE_DATA protocol state for one NodeUpstream. */
+/**
+ * Owns ordered Central-to-node RACE_DATA protocol state for one NodeUpstream.
+ *
+ * <p>This object does not execute NodeService work. RaceDataTask first asks
+ * whether a sequence may be applied, then calls NodeService directly. Only
+ * after that asynchronous operation completes does the task commit the protocol
+ * sequence here and send the cumulative ACK through NodeUpstream.</p>
+ */
 final class RaceDataSync {
     private final NodeId nodeId;
     private final BooleanSupplier available;
@@ -32,6 +39,15 @@ final class RaceDataSync {
         this.sender = sender;
     }
 
+    /**
+     * Starts the next contiguous RACE_DATA apply when the message is eligible.
+     *
+     * <p>A duplicate or older sequence is not applied again and receives the
+     * current cumulative ACK. A gap is not applied and receives REQ for the
+     * first missing sequence.</p>
+     *
+     * @return true only when RaceDataTask must call NodeService for this message
+     */
     boolean beginApply(
             UpstreamData.RaceData raceData) {
         failIfInvalidArgument(raceData != null, "raceData must not be null");
@@ -63,6 +79,13 @@ final class RaceDataSync {
         return true;
     }
 
+    /**
+     * Commits one successfully applied sequence.
+     *
+     * <p>The local applied head advances even when transport disappears while
+     * NodeService is working. In that case no ACK is sent now; reconnect
+     * synchronization or a repeated sequence exposes the committed head.</p>
+     */
     void completeApply(
             long sequence) {
         failIfIllegalState(applyingSequence == sequence,
@@ -76,10 +99,12 @@ final class RaceDataSync {
         }
     }
 
+    /** Drops a failed/incomplete apply without advancing the contiguous head. */
     void cancelApply() {
         applyingSequence = 0L;
     }
 
+    /** Reconciles Central's advertised RACE_DATA source head with local state. */
     void handleSync(
             UpstreamData.Sync sync) {
         failIfInvalidArgument(sync != null, "sync must not be null");
