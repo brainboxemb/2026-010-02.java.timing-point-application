@@ -92,11 +92,12 @@ public class EngineerApiConnectorTest {
                 new TestListener();
         connector.bind(listener);
 
-        UpstreamData.Sync input =
-                DefaultUpstreamData.sync(
-                        new NodeId("A"),
-                        UpstreamData.Stream.RACE_DATA,
-                        0L);
+        UpstreamMessage input =
+                UpstreamMessage.from(
+                        DefaultUpstreamData.sync(
+                                new NodeId("A"),
+                                UpstreamData.Stream.RACE_DATA,
+                                0L));
 
         EngineerApiConnector.Output peer =
                 message -> true;
@@ -126,24 +127,26 @@ public class EngineerApiConnectorTest {
                 new TestListener();
         connector.bind(listener);
 
-        List<UpstreamData> output =
-                new ArrayList<UpstreamData>();
+        List<UpstreamMessage> output =
+                new ArrayList<UpstreamMessage>();
         EngineerApiConnector.Output peer =
                 message -> output.add(message);
         assertTrue(connector.connect(peer));
 
-        UpstreamData.Ping first =
-                DefaultUpstreamData.ping(
-                        new NodeId("A"),
-                        UpstreamData.PingOperation.REQ,
-                        null,
-                        "one");
-        UpstreamData.Ping second =
-                DefaultUpstreamData.ping(
-                        new NodeId("A"),
-                        UpstreamData.PingOperation.REQ,
-                        null,
-                        "two");
+        UpstreamMessage first =
+                UpstreamMessage.from(
+                        DefaultUpstreamData.ping(
+                                new NodeId("A"),
+                                UpstreamData.PingOperation.REQ,
+                                null,
+                                "one"));
+        UpstreamMessage second =
+                UpstreamMessage.from(
+                        DefaultUpstreamData.ping(
+                                new NodeId("A"),
+                                UpstreamData.PingOperation.REQ,
+                                null,
+                                "two"));
 
         connector.send(first);
         connector.send(second);
@@ -167,13 +170,13 @@ public class EngineerApiConnectorTest {
 
         private UpstreamGateway.ReceiveResult receiveResult =
                 UpstreamGateway.ReceiveResult.ACCEPTED;
-        private UpstreamData received;
+        private UpstreamMessage received;
         private Runnable heartbeat =
                 heartbeatCount::incrementAndGet;
 
         @Override
         public UpstreamGateway.ReceiveResult receive(
-                UpstreamData message) {
+                UpstreamMessage message) {
             received = message;
             return receiveResult;
         }
