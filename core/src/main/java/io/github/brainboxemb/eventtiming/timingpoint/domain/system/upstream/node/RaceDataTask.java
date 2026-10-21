@@ -6,12 +6,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Yi
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /** Applies one RACE_DATA message through NodeService before acknowledging it. */
 final class RaceDataTask implements YieldingTask {
-    private final NodeUpstream upstream;
+    private final BooleanSupplier available;
     private final RaceDataSync sync;
     private final NodeService nodeService;
     private final UpstreamData.RaceData raceData;
@@ -19,15 +20,15 @@ final class RaceDataTask implements YieldingTask {
     private CompletableFuture<Void> applyFuture;
 
     RaceDataTask(
-            NodeUpstream upstream,
+            BooleanSupplier available,
             RaceDataSync sync,
             NodeService nodeService,
             UpstreamData.RaceData raceData) {
-        failIfInvalidArgument(upstream != null, "upstream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sync != null, "sync must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
         failIfInvalidArgument(raceData != null, "raceData must not be null");
-        this.upstream = upstream;
+        this.available = available;
         this.sync = sync;
         this.nodeService = nodeService;
         this.raceData = raceData;
@@ -36,7 +37,7 @@ final class RaceDataTask implements YieldingTask {
     @Override
     public TaskStep runStep() {
         if (applyFuture == null) {
-            if (!upstream.isAvailable()
+            if (!available.getAsBoolean()
                     || !sync.beginApply(raceData)) {
                 return TaskStep.done();
             }
