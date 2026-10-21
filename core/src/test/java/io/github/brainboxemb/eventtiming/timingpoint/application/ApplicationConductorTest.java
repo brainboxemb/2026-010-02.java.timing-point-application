@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.Upstream;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
@@ -143,7 +142,7 @@ public class ApplicationConductorTest {
                     timingNodes,
                     manager,
                     timingSystemConductor,
-                    new Upstream(new UpstreamGateway(), Collections.emptyList()));
+                    new Upstream(Collections.emptyList()));
         }
 
         @Override
