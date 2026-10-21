@@ -11,7 +11,14 @@ import java.util.function.BooleanSupplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Serves one queued TIMING_DATA replay request from the retained LogBook. */
+/**
+ * Serves one queued TIMING_DATA replay request from the retained LogBook.
+ *
+ * <p>Each batch read yields while the LogBook Data Lane completes. Replay state
+ * stays in TimingDataSync; this task owns only the asynchronous continuation.
+ * Later upstream messages remain queued in UpstreamStream until this replay is
+ * completely finished.</p>
+ */
 final class TimingDataReplayTask implements YieldingTask {
     private final BooleanSupplier available;
     private final TimingDataSync sync;
