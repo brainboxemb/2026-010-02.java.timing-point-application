@@ -52,16 +52,18 @@ public class UpstreamGatewayTest {
                 });
         connector.connect();
 
-        UpstreamData.Sync inputA =
-                DefaultUpstreamData.sync(
-                        new NodeId("A"),
-                        UpstreamData.Stream.RACE_DATA,
-                        1L);
-        UpstreamData.Sync inputB =
-                DefaultUpstreamData.sync(
-                        new NodeId("B"),
-                        UpstreamData.Stream.RACE_DATA,
-                        2L);
+        UpstreamMessage inputA =
+                UpstreamMessage.from(
+                        DefaultUpstreamData.sync(
+                                new NodeId("A"),
+                                UpstreamData.Stream.RACE_DATA,
+                                1L));
+        UpstreamMessage inputB =
+                UpstreamMessage.from(
+                        DefaultUpstreamData.sync(
+                                new NodeId("B"),
+                                UpstreamData.Stream.RACE_DATA,
+                                2L));
 
         assertSame(
                 UpstreamGateway.ReceiveResult.ACCEPTED,
@@ -77,12 +79,13 @@ public class UpstreamGatewayTest {
         assertFalse(gateway.hasMessage(new NodeId("A")));
         assertFalse(gateway.hasMessage(new NodeId("B")));
 
-        UpstreamData.Ping outbound =
-                DefaultUpstreamData.ping(
-                        new NodeId("B"),
-                        UpstreamData.PingOperation.REQ,
-                        null,
-                        "p-1");
+        UpstreamMessage outbound =
+                UpstreamMessage.from(
+                        DefaultUpstreamData.ping(
+                                new NodeId("B"),
+                                UpstreamData.PingOperation.REQ,
+                                null,
+                                "p-1"));
         gateway.send(outbound);
 
         assertEquals(1, connector.sent.size());
@@ -151,11 +154,12 @@ public class UpstreamGatewayTest {
                 });
         connector.connect();
 
-        UpstreamData.Sync message =
-                DefaultUpstreamData.sync(
-                        new NodeId("A"),
-                        UpstreamData.Stream.RACE_DATA,
-                        1L);
+        UpstreamMessage message =
+                UpstreamMessage.from(
+                        DefaultUpstreamData.sync(
+                                new NodeId("A"),
+                                UpstreamData.Stream.RACE_DATA,
+                                1L));
         assertSame(
                 UpstreamGateway.ReceiveResult.ACCEPTED,
                 connector.receive(message));
@@ -187,17 +191,18 @@ public class UpstreamGatewayTest {
         assertSame(
                 UpstreamGateway.ReceiveResult.INPUT_REJECTED,
                 connector.receive(
-                        DefaultUpstreamData.sync(
-                                new NodeId("A"),
-                                UpstreamData.Stream.RACE_DATA,
-                                0L)));
+                        UpstreamMessage.from(
+                                DefaultUpstreamData.sync(
+                                        new NodeId("A"),
+                                        UpstreamData.Stream.RACE_DATA,
+                                        0L))));
         assertFalse(gateway.hasMessage(new NodeId("A")));
     }
 
     private static final class TestConnector
             implements UpstreamConnector {
-        private final List<UpstreamData> sent =
-                new ArrayList<UpstreamData>();
+        private final List<UpstreamMessage> sent =
+                new ArrayList<UpstreamMessage>();
 
         private Listener listener;
         private boolean available;
@@ -219,7 +224,7 @@ public class UpstreamGatewayTest {
 
         @Override
         public void send(
-                UpstreamData message) {
+                UpstreamMessage message) {
             if (!available) {
                 throw new IllegalStateException(
                         "connector is not available");
@@ -242,7 +247,7 @@ public class UpstreamGatewayTest {
         }
 
         private UpstreamGateway.ReceiveResult receive(
-                UpstreamData message) {
+                UpstreamMessage message) {
             return listener.receive(message);
         }
     }
