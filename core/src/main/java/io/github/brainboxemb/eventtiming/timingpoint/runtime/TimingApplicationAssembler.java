@@ -85,10 +85,7 @@ final class TimingApplicationAssembler {
                         runtimeTimeSources.createTimeSource();
                 UpstreamGateway upstreamGateway =
                         new UpstreamGateway();
-                EngineerApiConnector upstreamConnector =
-                        createEngineeringUpstreamConnector(
-                                config.upstream(),
-                                executors);
+                EngineerApiConnector upstreamConnector = createEngineeringUpstreamConnector(config.upstream());
                 TimingSystem system =
                         systemComposer.compose(
                                 resolvedSystem,
@@ -165,21 +162,13 @@ final class TimingApplicationAssembler {
         }
     }
 
-    /**
-     * Resolves the configured upstream transport to the implementation available
-     * in this application build.
-     */
-    private static EngineerApiConnector createEngineeringUpstreamConnector(
-            UpstreamConfig upstream,
-            RuntimeExecutors executors) {
+    /** Resolves the configured upstream transport to the implementation available in this application build. */
+    private static EngineerApiConnector createEngineeringUpstreamConnector(UpstreamConfig upstream) {
         switch (upstream.transport()) {
             case ENGINEERING_API:
-                return new EngineerApiConnector(
-                        executors.timingNodeScheduler());
+                return new EngineerApiConnector();
             default:
-                throw new IllegalStateException(
-                        "Unsupported effective upstream transport "
-                                + upstream.transport());
+                throw new IllegalStateException("Unsupported effective upstream transport " + upstream.transport());
         }
     }
 
