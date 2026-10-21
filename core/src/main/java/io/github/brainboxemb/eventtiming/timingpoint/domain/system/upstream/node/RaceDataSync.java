@@ -2,51 +2,35 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.nod
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/**
- * Owns ordered Central-to-node RACE_DATA protocol state for one NodeUpstream.
- *
- * <p>This object does not execute NodeService work. RaceDataTask first asks
- * whether a sequence may be applied, then calls NodeService directly. Only
- * after that CompletableFuture completes does the task commit the protocol
- * sequence here and send the cumulative ACK.</p>
- */
+/** Owns ordered Central-to-node RACE_DATA protocol state for one NodeUpstream. */
 final class RaceDataSync {
     private final NodeId nodeId;
-    private final UpstreamStream stream;
+    private final NodeUpstream upstream;
 
     private long appliedSequence;
     private long applyingSequence;
 
     RaceDataSync(
             NodeId nodeId,
-            UpstreamStream stream) {
+            NodeUpstream upstream) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(upstream != null, "upstream must not be null");
         this.nodeId = nodeId;
-        this.stream = stream;
+        this.upstream = upstream;
     }
 
-    /**
-     * Starts the next contiguous RACE_DATA apply when the message is eligible.
-     *
-     * <p>A duplicate or older sequence is not applied again and receives the
-     * current cumulative ACK. A gap is not applied and receives REQ for the
-     * first missing sequence.</p>
-     *
-     * @return true only when RaceDataTask must call NodeService for this message
-     */
     boolean beginApply(
             UpstreamData.RaceData raceData) {
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfIllegalState(applyingSequence == 0L,
-                "RACE_DATA sequence %s is already being applied", applyingSequence);
+                "RACE_DATA sequence %s is already being applied",
+                applyingSequence);
 
         long receivedSequence = raceData.sequence();
         failIfInvalidArgument(
@@ -60,10 +44,11 @@ final class RaceDataSync {
             return false;
         }
         if (receivedSequence != expectedSequence) {
-            stream.send(DefaultUpstreamData.req(
-                    nodeId,
-                    UpstreamData.Stream.RACE_DATA,
-                    expectedSequence));
+            upstream.send(
+                    DefaultUpstreamData.req(
+                            nodeId,
+                            UpstreamData.Stream.RACE_DATA,
+                            expectedSequence));
             return false;
         }
 
@@ -71,13 +56,6 @@ final class RaceDataSync {
         return true;
     }
 
-    /**
-     * Commits one successfully applied sequence.
-     *
-     * <p>The local applied head advances even if the transport disconnected
-     * while NodeService was working. In that case no ACK is sent now; reconnect
-     * synchronization or a repeated sequence will expose the committed head.</p>
-     */
     void completeApply(
             long sequence) {
         failIfIllegalState(applyingSequence == sequence,
@@ -86,17 +64,15 @@ final class RaceDataSync {
         appliedSequence = sequence;
         applyingSequence = 0L;
 
-        if (stream.isAvailable()) {
+        if (upstream.isAvailable()) {
             sendAck(sequence);
         }
     }
 
-    /** Drops a failed/incomplete apply without advancing the contiguous applied head. */
     void cancelApply() {
         applyingSequence = 0L;
     }
 
-    /** Reconciles Central's advertised RACE_DATA source head with local applied state. */
     void handleSync(
             UpstreamData.Sync sync) {
         failIfInvalidArgument(sync != null, "sync must not be null");
@@ -112,22 +88,26 @@ final class RaceDataSync {
                 "SYNC sequence is outside the supported range");
 
         if (sourceHead > appliedSequence) {
-            stream.send(DefaultUpstreamData.req(
-                    nodeId,
-                    UpstreamData.Stream.RACE_DATA,
-                    appliedSequence + 1L));
+            upstream.send(
+                    DefaultUpstreamData.req(
+                            nodeId,
+                            UpstreamData.Stream.RACE_DATA,
+                            appliedSequence + 1L));
         } else if (sourceHead < appliedSequence) {
             throw new IllegalStateException(
-                    "Central RACE_DATA source head " + sourceHead
-                            + " is behind already applied sequence " + appliedSequence);
+                    "Central RACE_DATA source head "
+                            + sourceHead
+                            + " is behind already applied sequence "
+                            + appliedSequence);
         }
     }
 
     private void sendAck(
             long sequence) {
-        stream.send(DefaultUpstreamData.ack(
-                nodeId,
-                UpstreamData.Stream.RACE_DATA,
-                sequence));
+        upstream.send(
+                DefaultUpstreamData.ack(
+                        nodeId,
+                        UpstreamData.Stream.RACE_DATA,
+                        sequence));
     }
 }
