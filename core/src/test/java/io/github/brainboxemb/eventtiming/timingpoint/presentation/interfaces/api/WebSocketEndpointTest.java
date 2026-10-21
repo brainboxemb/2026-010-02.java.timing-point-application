@@ -36,12 +36,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
-import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -50,14 +48,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class WebSocketEndpointTest {
-    private final ScheduledThreadPoolExecutor upstreamScheduler =
-            new ScheduledThreadPoolExecutor(1);
-
-    @After
-    public void closeUpstreamScheduler() {
-        upstreamScheduler.shutdownNow();
-    }
-
     private static final TimingTimestamp TIME =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
     private static final TimingTimestamp RECORDED_AT =
@@ -117,14 +107,14 @@ public class WebSocketEndpointTest {
         UpstreamGateway upstreamGateway =
                 new UpstreamGateway();
         EngineerApiConnector connector =
-                new EngineerApiConnector(upstreamScheduler);
+                new EngineerApiConnector();
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
                         nodeId,
                         new MemoryStore(),
                         () -> RECORDED_AT.instant(),
                         EventData.empty(),
-                        upstreamGateway.createStream(
+                        upstreamGateway.createApplicationPort(
                                 nodeId,
                                 connector));
 

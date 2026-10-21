@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,136 +18,74 @@ import static org.junit.Assert.assertTrue;
 public class UpstreamGatewayTest {
 
     @Test
-    public void routesIndependentNodeQueuesThroughOneConnector() {
-        UpstreamGateway gateway =
-                new UpstreamGateway();
-        TestConnector connector =
-                new TestConnector();
-        AtomicInteger dataA =
-                new AtomicInteger();
-        AtomicInteger dataB =
-                new AtomicInteger();
+    public void routesInboundOnceAndThenUsesIndependentApplicationPortQueues() {
+        UpstreamGateway gateway = new UpstreamGateway();
+        TestConnector connector = new TestConnector();
+        AtomicInteger dataA = new AtomicInteger();
+        AtomicInteger dataB = new AtomicInteger();
 
-        UpstreamStream streamA =
-                gateway.createStream(
-                        new NodeId("A"),
-                        connector);
-        UpstreamStream streamB =
-                gateway.createStream(
-                        new NodeId("B"),
-                        connector);
-        streamA.DATA_AVAILABLE.subscribe(
-                ignored -> dataA.incrementAndGet());
-        streamB.DATA_AVAILABLE.subscribe(
-                ignored -> dataB.incrementAndGet());
+        UpstreamStream streamA = gateway.createApplicationPort(new NodeId("A"), connector);
+        UpstreamStream streamB = gateway.createApplicationPort(new NodeId("B"), connector);
+        streamA.DATA_AVAILABLE.subscribe(source -> dataA.incrementAndGet());
+        streamB.DATA_AVAILABLE.subscribe(source -> dataB.incrementAndGet());
 
         connector.connect();
 
-        UpstreamMessage inputA =
-                new UpstreamMessage(
-                        new NodeId("A"),
-                        "message-a");
-        UpstreamMessage inputB =
-                new UpstreamMessage(
-                        new NodeId("B"),
-                        "message-b");
-
-        assertSame(
-                UpstreamGateway.ReceiveResult.ACCEPTED,
-                connector.receive(inputA));
-        assertSame(
-                UpstreamGateway.ReceiveResult.ACCEPTED,
-                connector.receive(inputB));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("A"), "message-a"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("B"), "message-b"));
         assertEquals(1, dataA.get());
         assertEquals(1, dataB.get());
 
-        assertEquals(
-                "message-a",
-                streamA.read());
-        assertEquals(
-                "message-b",
-                streamB.read());
+        assertEquals("message-a", streamA.read());
+        assertEquals("message-b", streamB.read());
         assertFalse(streamA.hasMessage());
         assertFalse(streamB.hasMessage());
 
         streamB.send("outbound-b");
 
         assertEquals(1, connector.sent.size());
-        assertEquals(
-                new NodeId("B"),
-                connector.sent.get(0).nodeId());
-        assertEquals(
-                "outbound-b",
-                connector.sent.get(0).payload());
+        assertEquals(new NodeId("B"), connector.sent.get(0).nodeId);
+        assertEquals("outbound-b", connector.sent.get(0).payload);
     }
 
     @Test
-    public void connectorLifecycleIsForwardedOnlyToItsBoundStreams() {
-        UpstreamGateway gateway =
-                new UpstreamGateway();
-        TestConnector first =
-                new TestConnector();
-        TestConnector second =
-                new TestConnector();
-        AtomicInteger connectedA =
-                new AtomicInteger();
-        AtomicInteger connectedB =
-                new AtomicInteger();
-        AtomicInteger heartbeatA =
-                new AtomicInteger();
-        AtomicInteger heartbeatB =
-                new AtomicInteger();
+    public void connectorConnectionEventReachesOnlyItsBoundApplicationPorts() {
+        UpstreamGateway gateway = new UpstreamGateway();
+        TestConnector first = new TestConnector();
+        TestConnector second = new TestConnector();
+        AtomicInteger connectedA = new AtomicInteger();
+        AtomicInteger connectedB = new AtomicInteger();
 
-        UpstreamStream streamA =
-                gateway.createStream(
-                        new NodeId("A"),
-                        first);
-        UpstreamStream streamB =
-                gateway.createStream(
-                        new NodeId("B"),
-                        second);
-        streamA.CONNECTED.subscribe(
-                ignored -> connectedA.incrementAndGet());
-        streamB.CONNECTED.subscribe(
-                ignored -> connectedB.incrementAndGet());
-        streamA.HEARTBEAT_TICK.subscribe(
-                ignored -> heartbeatA.incrementAndGet());
-        streamB.HEARTBEAT_TICK.subscribe(
-                ignored -> heartbeatB.incrementAndGet());
+        UpstreamStream streamA = gateway.createApplicationPort(new NodeId("A"), first);
+        UpstreamStream streamB = gateway.createApplicationPort(new NodeId("B"), second);
+        streamA.CONNECTED.subscribe(source -> {
+            assertSame(streamA, source);
+            connectedA.incrementAndGet();
+        });
+        streamB.CONNECTED.subscribe(source -> {
+            assertSame(streamB, source);
+            connectedB.incrementAndGet();
+        });
 
         first.connect();
-        first.heartbeat();
 
         assertEquals(1, connectedA.get());
         assertEquals(0, connectedB.get());
-        assertEquals(1, heartbeatA.get());
-        assertEquals(0, heartbeatB.get());
 
         second.connect();
-        second.heartbeat();
 
+        assertEquals(1, connectedA.get());
         assertEquals(1, connectedB.get());
-        assertEquals(1, heartbeatB.get());
     }
 
     @Test
     public void disconnectClearsUnreadInputForThatConnectorSession() {
-        UpstreamGateway gateway =
-                new UpstreamGateway();
-        TestConnector connector =
-                new TestConnector();
-        UpstreamStream stream =
-                gateway.createStream(
-                        new NodeId("A"),
-                        connector);
+        UpstreamGateway gateway = new UpstreamGateway();
+        TestConnector connector = new TestConnector();
+        UpstreamStream stream = gateway.createApplicationPort(new NodeId("A"), connector);
         connector.connect();
 
-        assertSame(
-                UpstreamGateway.ReceiveResult.ACCEPTED,
-                connector.receive(
-                        new UpstreamMessage(
-                                new NodeId("A"),
-                                "queued")));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("A"), "queued"));
         assertTrue(stream.hasMessage());
 
         connector.disconnect();
@@ -155,52 +95,54 @@ public class UpstreamGatewayTest {
     }
 
     @Test
-    public void fullNodeQueueRejectsOnlyAdditionalInput() {
-        UpstreamGateway gateway =
-                new UpstreamGateway(1);
-        TestConnector connector =
-                new TestConnector();
-        UpstreamStream stream =
-                gateway.createStream(
-                        new NodeId("A"),
-                        connector);
+    public void fullApplicationPortRejectsOnlyAdditionalInput() {
+        UpstreamGateway gateway = new UpstreamGateway(1);
+        TestConnector connector = new TestConnector();
+        UpstreamStream stream = gateway.createApplicationPort(new NodeId("A"), connector);
         connector.connect();
 
-        assertSame(
-                UpstreamGateway.ReceiveResult.ACCEPTED,
-                connector.receive(
-                        new UpstreamMessage(
-                                new NodeId("A"),
-                                "first")));
-        assertSame(
-                UpstreamGateway.ReceiveResult.INPUT_FULL,
-                connector.receive(
-                        new UpstreamMessage(
-                                new NodeId("A"),
-                                "second")));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(new NodeId("A"), "first"));
+        assertSame(UpstreamGateway.ReceiveResult.INPUT_FULL, connector.receive(new NodeId("A"), "second"));
 
-        assertEquals(
-                "first",
-                stream.read());
+        assertEquals("first", stream.read());
         assertFalse(stream.hasMessage());
     }
 
-    private static final class TestConnector
-            implements UpstreamConnector {
-        private final List<UpstreamMessage> sent =
-                new ArrayList<UpstreamMessage>();
+    private static final class SentMessage {
+        private final NodeId nodeId;
+        private final String payload;
 
-        private Listener listener;
+        private SentMessage(NodeId nodeId, String payload) {
+            this.nodeId = nodeId;
+            this.payload = payload;
+        }
+    }
+
+    /** Transport double that exposes the same input port and lifecycle events as a real connector. */
+    private static final class TestConnector implements UpstreamConnector {
+        private final List<SentMessage> sent = new ArrayList<SentMessage>();
+        private final Event<UpstreamConnector> connected = new Event<UpstreamConnector>();
+        private final Event<UpstreamConnector> disconnected = new Event<UpstreamConnector>();
+
+        private UpstreamGateway.ConnectorPort input;
         private boolean available;
 
         @Override
-        public void bind(
-                Listener newListener) {
-            if (listener != null) {
-                throw new IllegalStateException(
-                        "connector already bound");
+        public void bindInput(UpstreamGateway.ConnectorPort newInput) {
+            if (input != null) {
+                throw new IllegalStateException("connector input already bound");
             }
-            listener = newListener;
+            input = newInput;
+        }
+
+        @Override
+        public EventSource<UpstreamConnector> connectedEvent() {
+            return connected;
+        }
+
+        @Override
+        public EventSource<UpstreamConnector> disconnectedEvent() {
+            return disconnected;
         }
 
         @Override
@@ -209,32 +151,25 @@ public class UpstreamGatewayTest {
         }
 
         @Override
-        public void send(
-                UpstreamMessage message) {
+        public void send(NodeId nodeId, String encodedMessage) {
             if (!available) {
-                throw new IllegalStateException(
-                        "connector is not available");
+                throw new IllegalStateException("connector is not available");
             }
-            sent.add(message);
+            sent.add(new SentMessage(nodeId, encodedMessage));
         }
 
         private void connect() {
             available = true;
-            listener.connected();
+            connected.emit(this);
         }
 
         private void disconnect() {
             available = false;
-            listener.disconnected();
+            disconnected.emit(this);
         }
 
-        private void heartbeat() {
-            listener.heartbeatTick();
-        }
-
-        private UpstreamGateway.ReceiveResult receive(
-                UpstreamMessage message) {
-            return listener.receive(message);
+        private UpstreamGateway.ReceiveResult receive(NodeId nodeId, String encodedMessage) {
+            return input.receive(nodeId, encodedMessage);
         }
     }
 }

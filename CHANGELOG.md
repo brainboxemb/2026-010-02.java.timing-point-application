@@ -5,11 +5,11 @@
 - Run `YieldingTask` steps directly on the Runtime-owned single-thread `ScheduledExecutorService`, without a nested `SerialLane<TaskRun>` worker or batch setting; keep per-runner bounded admission and task cancellation/timeout behavior. Typed Data Lanes remain unchanged.
 
 
-- Refine upstream messaging boundaries: make `UpstreamStream` one concrete encoded-message view per node; move IF-06 encode/decode ownership into `NodeUpstream`; route generic `UpstreamMessage` as NodeId + opaque payload; replace gateway callbacks with typed stream events; and isolate `EngineerApiConnector` plus `UpstreamApiMessage` under `io.messaging.engineering`.
+- Refine upstream messaging boundaries: make each `UpstreamStream` a fixed gateway application port resolved once by NodeId during composition; remove the redundant generic `UpstreamMessage` envelope; use typed connector/stream events for post-fact lifecycle/data notifications; keep command-style inbound admission on an explicit gateway port; move heartbeat cadence and IF-06 semantics into `NodeUpstream`; and keep Engineering-specific adaptation under `io.messaging.engineering`.
 
 - Add effective `upstream.transport` startup configuration. The current build supports `engineering-api`; an absent section preserves that existing default, while explicitly configured but unimplemented transports such as `rabbitmq` are rejected until their connector exists. Runtime connector composition now follows this effective setting.
 
-- Align upstream messaging with the gateway/connector architecture: `UpstreamGateway` now owns NodeId routing and one inbound queue per `NodeUpstream`; `UpstreamConnector` owns transport/session mechanics; `EngineerApiConnector` owns the Engineering WebSocket session, bounded outbound delivery and heartbeat cadence; and the `role=upstream` WebSocket is full-duplex for inbound and outbound UpstreamData. The temporary HTTP upstream-message endpoint is removed.
+- Align upstream messaging with the gateway/connector architecture: `UpstreamGateway` resolves inbound NodeId routing to fixed node-scoped application ports, `UpstreamConnector` owns transport/session mechanics only, `EngineerApiConnector` owns the Engineering WebSocket session and bounded outbound delivery, and `NodeUpstream` owns heartbeat protocol cadence/state. The `role=upstream` WebSocket remains full-duplex for inbound and outbound UpstreamData.
 
 - Split `NodeUpstream` inbound processing into focused message tasks: `RaceDataTask` waits on the existing `CompletableFuture` from `NodeService`, `TimingDataReplayTask` owns LogBook batch waits, later messages remain queued in `UpstreamStream`, and protocol state is named explicitly as `RaceDataSync`, `TimingDataSync`, and `Heartbeat`.
 
