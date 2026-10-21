@@ -5,8 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
@@ -72,7 +70,7 @@ final class InMemoryUpstreamStream {
 
         try {
             String encoded = new String(codec.encode(data), StandardCharsets.UTF_8);
-            UpstreamGateway.ReceiveResult result = connector.receive(nodeId, encoded);
+            UpstreamGateway.ReceiveResult result = connector.receiveInput(nodeId, encoded);
             if (result != UpstreamGateway.ReceiveResult.ACCEPTED) {
                 throw new IllegalStateException("test upstream input was not accepted: " + result);
             }
@@ -109,33 +107,12 @@ final class InMemoryUpstreamStream {
         }
     }
 
-    /** Minimal transport double that keeps the real event/input-port wiring intact. */
-    private static final class TestConnector implements UpstreamConnector {
+    /** Minimal transport double that keeps the real shared connector/event wiring intact. */
+    private static final class TestConnector extends UpstreamConnector {
         private final Queue<SentMessage> outbound = new ArrayDeque<SentMessage>();
-        private final Event<UpstreamConnector> connectedEvent = new Event<UpstreamConnector>();
-        private final Event<UpstreamConnector> disconnectedEvent = new Event<UpstreamConnector>();
 
-        private UpstreamGateway.ConnectorPort input;
         private boolean available = true;
         private Runnable onNextSend;
-
-        @Override
-        public synchronized void bindInput(UpstreamGateway.ConnectorPort newInput) {
-            if (input != null) {
-                throw new IllegalStateException("test connector input already bound");
-            }
-            input = newInput;
-        }
-
-        @Override
-        public EventSource<UpstreamConnector> connectedEvent() {
-            return connectedEvent;
-        }
-
-        @Override
-        public EventSource<UpstreamConnector> disconnectedEvent() {
-            return disconnectedEvent;
-        }
 
         @Override
         public synchronized boolean isAvailable() {
@@ -166,7 +143,7 @@ final class InMemoryUpstreamStream {
                 }
                 available = true;
             }
-            connectedEvent.emit(this);
+            connected();
         }
 
         private void disconnect() {
@@ -176,16 +153,16 @@ final class InMemoryUpstreamStream {
                 }
                 available = false;
             }
-            disconnectedEvent.emit(this);
+            disconnected();
         }
 
-        private UpstreamGateway.ReceiveResult receive(NodeId nodeId, String encodedMessage) {
+        private UpstreamGateway.ReceiveResult receiveInput(NodeId nodeId, String encodedMessage) {
             synchronized (this) {
                 if (!available) {
                     throw new IllegalStateException("test connector is not connected");
                 }
             }
-            return input.receive(nodeId, encodedMessage);
+            return receive(nodeId, encodedMessage);
         }
 
         private SentMessage takeSent() {
