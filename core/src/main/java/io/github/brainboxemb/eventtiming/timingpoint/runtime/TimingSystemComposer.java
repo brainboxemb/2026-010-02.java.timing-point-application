@@ -150,10 +150,7 @@ final class TimingSystemComposer {
                 : compositions) {
             TimingNode node =
                     composition.node();
-            UpstreamStream stream =
-                    upstreamGateway.createStream(
-                            node.nodeId(),
-                            upstreamConnector);
+            UpstreamStream stream = upstreamGateway.createApplicationPort(node.nodeId(), upstreamConnector);
             NodeUpstream nodeUpstream =
                     new NodeUpstream(
                             node.nodeId(),
@@ -164,15 +161,8 @@ final class TimingSystemComposer {
                             composition.logBook(),
                             composition.nodeService());
 
-            NodeUpstream.CONNECTED.bind(
-                    nodeUpstream,
-                    stream.CONNECTED);
-            NodeUpstream.DATA_AVAILABLE.bind(
-                    nodeUpstream,
-                    stream.DATA_AVAILABLE);
-            NodeUpstream.HEARTBEAT_TICK.bind(
-                    nodeUpstream,
-                    stream.HEARTBEAT_TICK);
+            NodeUpstream.CONNECTED.bind(nodeUpstream, stream.CONNECTED);
+            NodeUpstream.DATA_AVAILABLE.bind(nodeUpstream, stream.DATA_AVAILABLE);
 
             nodeUpstreams.add(nodeUpstream);
         }
