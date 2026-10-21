@@ -136,12 +136,12 @@ public class UpstreamGatewayTest {
 
         private void connect() {
             available = true;
-            connected();
+            publishConnected();
         }
 
         private void disconnect() {
             available = false;
-            disconnected();
+            publishDisconnected();
         }
     }
 }
