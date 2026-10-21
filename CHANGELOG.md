@@ -5,7 +5,7 @@
 - Run `YieldingTask` steps directly on the Runtime-owned single-thread `ScheduledExecutorService`, without a nested `SerialLane<TaskRun>` worker or batch setting; keep per-runner bounded admission and task cancellation/timeout behavior. Typed Data Lanes remain unchanged.
 
 
-- Decouple upstream routing from IF-06 protocol types: add `UpstreamMessage` as the small NodeId + semantic-payload envelope used by `UpstreamGateway` and `UpstreamConnector`; keep `UpstreamData` only at the `UpstreamStream`/WebSocket adaptation edges; simplify gateway queues/bindings; and remove the test-only unavailable stream from production `io.messaging`.
+- Refine upstream messaging boundaries: make `UpstreamStream` one concrete encoded-message view per node; move IF-06 encode/decode ownership into `NodeUpstream`; route generic `UpstreamMessage` as NodeId + opaque payload; replace gateway callbacks with typed stream events; and isolate `EngineerApiConnector` plus `UpstreamApiMessage` under `io.messaging.engineering`.
 
 - Add effective `upstream.transport` startup configuration. The current build supports `engineering-api`; an absent section preserves that existing default, while explicitly configured but unimplemented transports such as `rabbitmq` are rejected until their connector exists. Runtime connector composition now follows this effective setting.
 
