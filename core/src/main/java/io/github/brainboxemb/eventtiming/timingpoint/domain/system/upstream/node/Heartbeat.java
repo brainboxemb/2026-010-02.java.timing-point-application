@@ -4,12 +4,16 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /** Owns heartbeat protocol state for one NodeUpstream. */
 final class Heartbeat {
     private final NodeId nodeId;
-    private final NodeUpstream upstream;
+    private final BooleanSupplier available;
+    private final Consumer<UpstreamData> sender;
 
     private long requestsSent;
     private long answersReceived;
@@ -26,15 +30,18 @@ final class Heartbeat {
 
     Heartbeat(
             NodeId nodeId,
-            NodeUpstream upstream) {
+            BooleanSupplier available,
+            Consumer<UpstreamData> sender) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(upstream != null, "upstream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
+        failIfInvalidArgument(sender != null, "sender must not be null");
         this.nodeId = nodeId;
-        this.upstream = upstream;
+        this.available = available;
+        this.sender = sender;
     }
 
     void tick() {
-        if (!upstream.isAvailable()) {
+        if (!available.getAsBoolean()) {
             return;
         }
 
@@ -47,7 +54,7 @@ final class Heartbeat {
         pendingPingId = "hb-" + requestsSent;
 
         publishStatus();
-        upstream.send(
+        sender.accept(
                 DefaultUpstreamData.ping(
                         nodeId,
                         UpstreamData.PingOperation.REQ,
@@ -60,7 +67,7 @@ final class Heartbeat {
         failIfInvalidArgument(ping != null, "ping must not be null");
 
         if (ping.operation() == UpstreamData.PingOperation.REQ) {
-            upstream.send(
+            sender.accept(
                     DefaultUpstreamData.ping(
                             nodeId,
                             UpstreamData.PingOperation.ANS,
