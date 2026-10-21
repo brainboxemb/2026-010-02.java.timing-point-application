@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
-
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -20,9 +18,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Engineering-API transport/session implementation of UpstreamConnector.
  *
  * <p>The connector owns the active engineering WebSocket session, bounded
- * outbound delivery queue and heartbeat cadence. It does not own NodeId queues:
- * decoded inbound UpstreamData is handed directly to the bound UpstreamGateway
- * listener for node routing.</p>
+ * outbound delivery queue and heartbeat cadence. It transports UpstreamMessage
+ * envelopes and never inspects the semantic payload. Node queues and NodeId routing
+ * belong to UpstreamGateway.</p>
  */
 public final class EngineerApiConnector implements UpstreamConnector {
     private static final Logger LOG =
@@ -34,14 +32,14 @@ public final class EngineerApiConnector implements UpstreamConnector {
 
     /** Non-blocking delivery boundary implemented by the IF-03 WebSocket adapter. */
     public interface Output {
-        boolean send(UpstreamData message);
+        boolean send(UpstreamMessage message);
     }
 
     private final ScheduledExecutorService scheduler;
     private final long heartbeatPeriodNanos;
     private final int outputCapacity;
-    private final Queue<UpstreamData> outputQueue =
-            new ArrayDeque<UpstreamData>();
+    private final Queue<UpstreamMessage> outputQueue =
+            new ArrayDeque<UpstreamMessage>();
 
     private UpstreamConnector.Listener listener;
     private Output output;
@@ -130,12 +128,12 @@ public final class EngineerApiConnector implements UpstreamConnector {
     }
 
     /**
-     * Hands one decoded WebSocket message to UpstreamGateway.
+     * Hands one decoded routing envelope to UpstreamGateway.
      *
-     * <p>The connector performs no NodeId routing itself.</p>
+     * <p>The connector neither routes by NodeId nor inspects the semantic payload.</p>
      */
     public UpstreamGateway.ReceiveResult receive(
-            UpstreamData message) {
+            UpstreamMessage message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
         UpstreamConnector.Listener currentListener;
@@ -153,14 +151,14 @@ public final class EngineerApiConnector implements UpstreamConnector {
     }
 
     /**
-     * Queues one semantic outbound message for the active WebSocket peer.
+     * Queues one outbound routing envelope for the active WebSocket peer.
      *
      * <p>WebSocket socket-drain behavior remains below Output; this queue only
-     * bounds connector-side semantic delivery.</p>
+     * bounds connector-side delivery.</p>
      */
     @Override
     public synchronized void send(
-            UpstreamData message) {
+            UpstreamMessage message) {
         failIfInvalidArgument(message != null, "message must not be null");
         failIfIllegalState(output != null, "Engineering upstream peer is not connected");
 
@@ -175,7 +173,7 @@ public final class EngineerApiConnector implements UpstreamConnector {
 
     private void drainOutput() {
         while (!outputQueue.isEmpty()) {
-            UpstreamData message =
+            UpstreamMessage message =
                     outputQueue.peek();
             final boolean accepted;
             try {
