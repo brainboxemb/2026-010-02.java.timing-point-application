@@ -15,10 +15,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeSer
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamMessage;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -35,32 +39,6 @@ public final class TimingNodeFixture {
             LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS;
     private static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS =
             LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS;
-
-    private static final UpstreamStream NO_UPSTREAM =
-            new UpstreamStream() {
-                @Override
-                public boolean isAvailable() {
-                    return false;
-                }
-
-                @Override
-                public boolean hasMessage() {
-                    return false;
-                }
-
-                @Override
-                public UpstreamData read() {
-                    throw new IllegalStateException(
-                            "test upstream communication is unavailable");
-                }
-
-                @Override
-                public void send(
-                        UpstreamData message) {
-                    throw new IllegalStateException(
-                            "test upstream communication is unavailable");
-                }
-            };
 
     private static final ScheduledThreadPoolExecutor NODE_WORKER =
             new ScheduledThreadPoolExecutor(
@@ -181,7 +159,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 eventData,
-                NO_UPSTREAM,
+                unavailableStream(nodeId),
                 NODE_WORKER,
                 32,
                 32,
@@ -202,7 +180,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 EventData.empty(),
-                NO_UPSTREAM);
+                unavailableStream(nodeId));
     }
 
     /** Creates one same-thread TimingNode with explicit EventData and upstream stream. */
@@ -268,7 +246,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 EventData.empty(),
-                NO_UPSTREAM,
+                unavailableStream(nodeId),
                 dataLaneExecutor,
                 dataLaneCapacity,
                 dataLaneMaxItemsPerRun,
@@ -328,8 +306,20 @@ public final class TimingNodeFixture {
                         nodeId,
                         nodeWorker,
                         upstreamStream,
+                        new DefaultUpstreamDataCodec(
+                                new DefaultTimingDataCodec()),
                         logBook,
                         nodeService);
+
+        NodeUpstream.CONNECTED.bind(
+                nodeUpstream,
+                upstreamStream.CONNECTED);
+        NodeUpstream.DATA_AVAILABLE.bind(
+                nodeUpstream,
+                upstreamStream.DATA_AVAILABLE);
+        NodeUpstream.HEARTBEAT_TICK.bind(
+                nodeUpstream,
+                upstreamStream.HEARTBEAT_TICK);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -356,4 +346,36 @@ public final class TimingNodeFixture {
                 nodeUpstream,
                 raceData);
     }
+    private static UpstreamStream unavailableStream(
+            NodeId nodeId) {
+        UpstreamGateway gateway =
+                new UpstreamGateway();
+        return gateway.createStream(
+                nodeId,
+                new UnavailableConnector());
+    }
+
+    private static final class UnavailableConnector
+            implements UpstreamConnector {
+        private Listener listener;
+
+        @Override
+        public void bind(
+                Listener newListener) {
+            listener = newListener;
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return false;
+        }
+
+        @Override
+        public void send(
+                UpstreamMessage message) {
+            throw new IllegalStateException(
+                    "test upstream communication is unavailable");
+        }
+    }
+
 }
