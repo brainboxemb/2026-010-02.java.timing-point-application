@@ -57,8 +57,8 @@ public class EngineerApiConnectorTest {
         connector.bindInput(input);
 
         String payload =
-                "{"v":1,"type":"SYNC","nodeId":"A","
-                        + ""data":{"stream":"RACE_DATA","seq":0}}";
+                "{\"v\":1,\"type\":\"SYNC\",\"nodeId\":\"A\","
+                        + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":0}}";
         UpstreamApiMessage message = UpstreamApiMessage.parse(payload);
 
         EngineerApiConnector.Output peer = output -> true;
