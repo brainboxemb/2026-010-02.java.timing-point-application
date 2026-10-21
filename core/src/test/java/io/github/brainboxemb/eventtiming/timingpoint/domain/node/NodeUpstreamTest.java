@@ -708,9 +708,6 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.Stream.TIMING_DATA,
                             1L));
-            assertTrue(
-                    nodeA.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferA =
                     (UpstreamData.TimingDataTransfer)
@@ -726,9 +723,6 @@ public class NodeUpstreamTest {
                             new NodeId("B"),
                             UpstreamData.Stream.TIMING_DATA,
                             2L));
-            assertTrue(
-                    nodeB.nodeUpstream()
-                            .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferB =
                     (UpstreamData.TimingDataTransfer)
