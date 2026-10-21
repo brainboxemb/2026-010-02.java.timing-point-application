@@ -255,9 +255,9 @@ public final class MessageWriter {
         }
 
         return "{"
-                + "\\\"eventType\\\":\\\"UPSTREAM_DATA\\\","
-                + "\\\"occurredAt\\\":" + quote(eventTime(occurredAt)) + ","
-                + "\\\"payload\\\":" + encodedPayload
+                + "\"eventType\":\"UPSTREAM_DATA\","
+                + "\"occurredAt\":" + quote(eventTime(occurredAt)) + ","
+                + "\"payload\":" + encodedPayload
                 + "}";
     }
 
