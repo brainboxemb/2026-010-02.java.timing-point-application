@@ -143,7 +143,7 @@ final class InMemoryUpstreamStream {
                 }
                 available = true;
             }
-            connected();
+            publishConnected();
         }
 
         private void disconnect() {
@@ -153,7 +153,7 @@ final class InMemoryUpstreamStream {
                 }
                 available = false;
             }
-            disconnected();
+            publishDisconnected();
         }
 
         private UpstreamGateway.ReceiveResult receiveInput(NodeId nodeId, String encodedMessage) {
@@ -162,7 +162,7 @@ final class InMemoryUpstreamStream {
                     throw new IllegalStateException("test connector is not connected");
                 }
             }
-            return receive(nodeId, encodedMessage);
+            return receiveInput(nodeId, encodedMessage);
         }
 
         private SentMessage takeSent() {
