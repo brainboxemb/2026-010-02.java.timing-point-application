@@ -10,7 +10,14 @@ import java.util.function.BooleanSupplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Applies one RACE_DATA message through NodeService before acknowledging it. */
+/**
+ * Applies one RACE_DATA message through NodeService before acknowledging it.
+ *
+ * <p>The task has exactly one asynchronous wait: NodeService.applyRaceData().
+ * While that future is incomplete, SerialTaskRunner releases the shared worker.
+ * NodeUpstream does not admit the next queued upstream message until this task
+ * has completed, preserving semantic message order.</p>
+ */
 final class RaceDataTask implements YieldingTask {
     private final BooleanSupplier available;
     private final RaceDataSync sync;
