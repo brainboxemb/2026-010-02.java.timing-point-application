@@ -168,6 +168,7 @@ public final class Config {
 
     private final TimingSystemConfigRegistry timingSystems;
     private final AntennaManagerConfigRegistry antennaManagers;
+    private final UpstreamConfig upstream;
     private final Presentation presentation;
     private final LoggingConfig logging;
     private final LoggingServerConfig loggingServer;
@@ -178,6 +179,7 @@ public final class Config {
             LoggingConfig logging,
             LoggingServerConfig loggingServer) {
         this(timingSystems, Collections.<AntennaManagerConfig>emptyList(),
+                YamlUpstreamMapper.engineeringApi(),
                 presentation, logging, loggingServer);
     }
 
@@ -187,6 +189,26 @@ public final class Config {
             Presentation presentation,
             LoggingConfig logging,
             LoggingServerConfig loggingServer) {
+        this(
+                timingSystems,
+                antennaManagers,
+                YamlUpstreamMapper.engineeringApi(),
+                presentation,
+                logging,
+                loggingServer);
+    }
+
+    public Config(
+            List<TimingSystemConfig> timingSystems,
+            List<AntennaManagerConfig> antennaManagers,
+            UpstreamConfig upstream,
+            Presentation presentation,
+            LoggingConfig logging,
+            LoggingServerConfig loggingServer) {
+        if (upstream == null) {
+            throw new IllegalArgumentException(
+                    "upstream must not be null");
+        }
         if (presentation == null) {
             throw new IllegalArgumentException(
                     "presentation must not be null");
@@ -202,6 +224,7 @@ public final class Config {
 
         this.antennaManagers = antennaBindings;
         this.timingSystems = systems;
+        this.upstream = upstream;
         this.presentation = presentation;
         this.logging = logging;
         this.loggingServer = loggingServer;
@@ -235,6 +258,10 @@ public final class Config {
             NodeId nodeId) {
         return timingSystems.timingNode(
                 nodeId);
+    }
+
+    public UpstreamConfig upstream() {
+        return upstream;
     }
 
     public Presentation presentation() {
