@@ -4,17 +4,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 /**
- * Non-blocking bidirectional semantic mailbox owned by one NodeUpstream.
+ * NodeUpstream's non-blocking semantic view of upstream communication.
  *
- * <p>The stream is already scoped to one NodeId. Real transport I/O stays
- * below UpstreamGateway and never becomes NodeUpstream protocol state.</p>
+ * <p>NodeUpstream reads and writes {@link UpstreamData}; it never sees connector
+ * sessions, routing envelopes or transport queues. The gateway-backed implementation
+ * performs that adaptation at the I/O boundary.</p>
  */
 public interface UpstreamStream {
-
-    /** Returns the default unavailable stream used when no transport is composed. */
-    static UpstreamStream unavailable() {
-        return UnavailableUpstreamStream.INSTANCE;
-    }
 
     /** Returns one node-scoped semantic view over a shared system gateway. */
     static UpstreamStream forNode(

@@ -3,10 +3,16 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Bidirectional semantic view owned by one NodeUpstream over UpstreamGateway. */
+/**
+ * Adapts one NodeUpstream's semantic stream to the shared routing gateway.
+ *
+ * <p>This is the boundary where semantic {@link UpstreamData} becomes the small
+ * {@link UpstreamMessage} envelope used by Messaging. UpstreamGateway therefore
+ * never needs to inspect the IF-06 type hierarchy.</p>
+ */
 final class GatewayUpstreamStream implements UpstreamStream {
     private final NodeId nodeId;
     private final UpstreamGateway gateway;
@@ -32,32 +38,21 @@ final class GatewayUpstreamStream implements UpstreamStream {
 
     @Override
     public UpstreamData read() {
-        UpstreamData message = gateway.read(nodeId);
-        failIfIllegalState(
-                message instanceof UpstreamData.NodeScoped,
-                "UpstreamGateway returned non-node-scoped data for node %s",
-                nodeId.value());
-
-        UpstreamData.NodeScoped nodeScoped =
-                (UpstreamData.NodeScoped) message;
-        failIfIllegalState(
-                nodeId.equals(nodeScoped.timingNodeId()),
+        UpstreamMessage message =
+                gateway.read(nodeId);
+        failIfIllegalState(nodeId.equals(message.nodeId()),
                 "UpstreamGateway routed node %s data to node %s",
-                nodeScoped.timingNodeId().value(),
+                message.nodeId().value(),
                 nodeId.value());
-        return message;
+        return message.payload();
     }
 
     @Override
-    public void send(UpstreamData message) {
-        failIfInvalidArgument(
-                message instanceof UpstreamData.NodeScoped,
-                "Outbound upstream data must be node-scoped");
-
-        UpstreamData.NodeScoped nodeScoped =
-                (UpstreamData.NodeScoped) message;
-        failIfInvalidArgument(
-                nodeId.equals(nodeScoped.timingNodeId()),
+    public void send(
+            UpstreamData payload) {
+        UpstreamMessage message =
+                UpstreamMessage.from(payload);
+        failIfInvalidArgument(nodeId.equals(message.nodeId()),
                 "Outbound UpstreamData NodeId does not match node stream");
         gateway.send(message);
     }

@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -34,6 +35,32 @@ public final class TimingNodeFixture {
             LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS;
     private static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS =
             LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS;
+
+    private static final UpstreamStream NO_UPSTREAM =
+            new UpstreamStream() {
+                @Override
+                public boolean isAvailable() {
+                    return false;
+                }
+
+                @Override
+                public boolean hasMessage() {
+                    return false;
+                }
+
+                @Override
+                public UpstreamData read() {
+                    throw new IllegalStateException(
+                            "test upstream communication is unavailable");
+                }
+
+                @Override
+                public void send(
+                        UpstreamData message) {
+                    throw new IllegalStateException(
+                            "test upstream communication is unavailable");
+                }
+            };
 
     private static final ScheduledThreadPoolExecutor NODE_WORKER =
             new ScheduledThreadPoolExecutor(
@@ -154,7 +181,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 eventData,
-                UpstreamStream.unavailable(),
+                NO_UPSTREAM,
                 NODE_WORKER,
                 32,
                 32,
@@ -175,7 +202,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 EventData.empty(),
-                UpstreamStream.unavailable());
+                NO_UPSTREAM);
     }
 
     /** Creates one same-thread TimingNode with explicit EventData and upstream stream. */
@@ -241,7 +268,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 EventData.empty(),
-                UpstreamStream.unavailable(),
+                NO_UPSTREAM,
                 dataLaneExecutor,
                 dataLaneCapacity,
                 dataLaneMaxItemsPerRun,

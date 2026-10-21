@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGat
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamMessage;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
@@ -476,7 +477,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
 
         /**
          * Decodes one semantic UpstreamData object received on the upstream-role
-         * WebSocket and hands it to the connector/gateway routing chain.
+         * WebSocket, wraps it as routing metadata plus opaque payload, and hands
+         * that envelope to the connector/gateway chain.
          */
         private void receiveUpstreamData(
                 WebSocket connection,
@@ -495,8 +497,9 @@ public final class WebSocketEndpoint implements AutoCloseable {
             }
 
             UpstreamGateway.ReceiveResult result =
-                    routeUpstreamData(
-                            upstreamData);
+                    routeUpstreamMessage(
+                            UpstreamMessage.from(
+                                    upstreamData));
             switch (result) {
                 case ACCEPTED:
                     return;
@@ -519,14 +522,14 @@ public final class WebSocketEndpoint implements AutoCloseable {
         }
 
         /**
-         * Routes one inbound message to the connector whose gateway owns its NodeId.
+         * Routes one inbound envelope to the connector whose gateway owns its NodeId.
          *
          * <p>The current runtime binds each NodeUpstream to one connector. Multiple
          * connectors can coexist for different nodes/systems without exposing that
          * selection to the WebSocket peer.</p>
          */
-        private UpstreamGateway.ReceiveResult routeUpstreamData(
-                UpstreamData message) {
+        private UpstreamGateway.ReceiveResult routeUpstreamMessage(
+                UpstreamMessage message) {
             UpstreamGateway.ReceiveResult result =
                     UpstreamGateway.ReceiveResult.UNKNOWN_NODE;
             for (EngineerApiConnector connector
@@ -544,13 +547,13 @@ public final class WebSocketEndpoint implements AutoCloseable {
 
         private boolean sendUpstreamData(
                 WebSocket connection,
-                UpstreamData message) {
+                UpstreamMessage message) {
             final String event;
             try {
                 event =
                         MessageWriter.upstreamDataEvent(
                                 clock.instant(),
-                                message,
+                                message.payload(),
                                 upstreamDataCodec);
             } catch (UpstreamDataCodec.CodecException ex) {
                 LOG.warn(
