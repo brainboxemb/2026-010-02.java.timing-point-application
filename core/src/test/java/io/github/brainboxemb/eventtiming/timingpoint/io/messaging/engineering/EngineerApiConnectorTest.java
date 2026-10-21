@@ -23,11 +23,11 @@ public class EngineerApiConnectorTest {
         AtomicInteger connected = new AtomicInteger();
         AtomicInteger disconnected = new AtomicInteger();
 
-        connector.connectedEvent().subscribe(source -> {
+        connector.CONNECTED.subscribe(source -> {
             assertSame(connector, source);
             connected.incrementAndGet();
         });
-        connector.disconnectedEvent().subscribe(source -> {
+        connector.DISCONNECTED.subscribe(source -> {
             assertSame(connector, source);
             disconnected.incrementAndGet();
         });
