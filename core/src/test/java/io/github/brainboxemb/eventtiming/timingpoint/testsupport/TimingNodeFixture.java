@@ -35,6 +35,32 @@ public final class TimingNodeFixture {
     private static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS =
             LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS;
 
+    private static final UpstreamStream NO_UPSTREAM =
+            new UpstreamStream() {
+                @Override
+                public boolean isAvailable() {
+                    return false;
+                }
+
+                @Override
+                public boolean hasMessage() {
+                    return false;
+                }
+
+                @Override
+                public io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData read() {
+                    throw new IllegalStateException(
+                            "test upstream communication is unavailable");
+                }
+
+                @Override
+                public void send(
+                        io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData message) {
+                    throw new IllegalStateException(
+                            "test upstream communication is unavailable");
+                }
+            };
+
     private static final ScheduledThreadPoolExecutor NODE_WORKER =
             new ScheduledThreadPoolExecutor(
                     1,
@@ -154,7 +180,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 eventData,
-                UpstreamStream.unavailable(),
+                NO_UPSTREAM,
                 NODE_WORKER,
                 32,
                 32,
@@ -175,7 +201,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 EventData.empty(),
-                UpstreamStream.unavailable());
+                NO_UPSTREAM);
     }
 
     /** Creates one same-thread TimingNode with explicit EventData and upstream stream. */
@@ -241,7 +267,7 @@ public final class TimingNodeFixture {
                 persistence,
                 timeSource,
                 EventData.empty(),
-                UpstreamStream.unavailable(),
+                NO_UPSTREAM,
                 dataLaneExecutor,
                 dataLaneCapacity,
                 dataLaneMaxItemsPerRun,
