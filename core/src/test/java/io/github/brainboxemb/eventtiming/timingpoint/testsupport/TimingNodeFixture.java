@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
+import UpstreamData;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -48,14 +49,14 @@ public final class TimingNodeFixture {
                 }
 
                 @Override
-                public io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData read() {
+                public UpstreamData read() {
                     throw new IllegalStateException(
                             "test upstream communication is unavailable");
                 }
 
                 @Override
                 public void send(
-                        io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData message) {
+                        UpstreamData message) {
                     throw new IllegalStateException(
                             "test upstream communication is unavailable");
                 }
