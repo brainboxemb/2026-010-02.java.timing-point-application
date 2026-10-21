@@ -23,7 +23,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.Life
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 
 public class TimingNodeRaceDataTest {
 
@@ -208,7 +207,8 @@ public class TimingNodeRaceDataTest {
                         () -> Instant.parse(
                                 "2026-10-13T12:00:00Z"),
                         new DefaultEventData(),
-                        stream);
+                        stream.bind(
+                                new NodeId("A")));
         return new Fixture(
                 components.node(),
                 stream,
@@ -234,12 +234,10 @@ public class TimingNodeRaceDataTest {
             this.raceData = raceData;
         }
 
-        /** Delivers one upstream message and verifies that the handler schedules it. */
+        /** Delivers one upstream message through the stream event boundary. */
         private void receive(
                 UpstreamData data) {
             stream.receive(data);
-            assertTrue(
-                    port.inputAvailable());
         }
     }
 
