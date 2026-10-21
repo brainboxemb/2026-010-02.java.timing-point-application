@@ -1,8 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -118,32 +116,10 @@ public class UpstreamGatewayTest {
         }
     }
 
-    /** Transport double that exposes the same input port and lifecycle events as a real connector. */
-    private static final class TestConnector implements UpstreamConnector {
+    /** Transport double using the same shared connector base as production transports. */
+    private static final class TestConnector extends UpstreamConnector {
         private final List<SentMessage> sent = new ArrayList<SentMessage>();
-        private final Event<UpstreamConnector> connected = new Event<UpstreamConnector>();
-        private final Event<UpstreamConnector> disconnected = new Event<UpstreamConnector>();
-
-        private UpstreamGateway.ConnectorPort input;
         private boolean available;
-
-        @Override
-        public void bindInput(UpstreamGateway.ConnectorPort newInput) {
-            if (input != null) {
-                throw new IllegalStateException("connector input already bound");
-            }
-            input = newInput;
-        }
-
-        @Override
-        public EventSource<UpstreamConnector> connectedEvent() {
-            return connected;
-        }
-
-        @Override
-        public EventSource<UpstreamConnector> disconnectedEvent() {
-            return disconnected;
-        }
 
         @Override
         public boolean isAvailable() {
@@ -160,16 +136,12 @@ public class UpstreamGatewayTest {
 
         private void connect() {
             available = true;
-            connected.emit(this);
+            connected();
         }
 
         private void disconnect() {
             available = false;
-            disconnected.emit(this);
-        }
-
-        private UpstreamGateway.ReceiveResult receive(NodeId nodeId, String encodedMessage) {
-            return input.receive(nodeId, encodedMessage);
+            disconnected();
         }
     }
 }
