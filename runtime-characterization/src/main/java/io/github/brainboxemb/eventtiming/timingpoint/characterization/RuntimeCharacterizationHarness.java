@@ -238,10 +238,7 @@ final class RuntimeCharacterizationHarness
                         antennaSet,
                         antennaLane);
 
-        TimingNode.TAG_OBSERVATIONS.bind(
-                node,
-                antennaManager.tagObservedEvent(
-                        ANTENNA_ID));
+        antennaManager.tagObservedEvent(ANTENNA_ID).subscribe(node::onTagObserved);
         nodeLifecycle.register(node);
         antennaLifecycle.register(antennaManager);
         logBook.NEW_DATA_ENTRY
