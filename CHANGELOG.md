@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Run `YieldingTask` steps directly on the Runtime-owned single-thread `ScheduledExecutorService`, without a nested `SerialLane<TaskRun>` worker or batch setting; keep per-runner bounded admission and task cancellation/timeout behavior. Typed Data Lanes remain unchanged.
+
 - Add effective `upstream.transport` startup configuration. The current build supports `engineering-api`; an absent section preserves that existing default, while explicitly configured but unimplemented transports such as `rabbitmq` are rejected until their connector exists. Runtime connector composition now follows this effective setting.
 
 - Align upstream messaging with the gateway/connector architecture: `UpstreamGateway` now owns NodeId routing and one inbound queue per `NodeUpstream`; `UpstreamConnector` owns transport/session mechanics; `EngineerApiConnector` owns the Engineering WebSocket session, bounded outbound delivery and heartbeat cadence; and the `role=upstream` WebSocket is full-duplex for inbound and outbound UpstreamData. The temporary HTTP upstream-message endpoint is removed.

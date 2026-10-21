@@ -4,7 +4,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 
 import java.time.Duration;
 import java.util.HashSet;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -16,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
@@ -78,7 +78,7 @@ public final class SerialTaskRunner implements AutoCloseable {
             }
 
             try {
-                offerOrReject();
+                queueStep(this);
             } catch (RuntimeException ex) {
                 result.completeExceptionally(ex);
                 throw ex;
@@ -148,14 +148,10 @@ public final class SerialTaskRunner implements AutoCloseable {
                 return;
             }
             try {
-                offerOrReject();
+                queueStep(this);
             } catch (RuntimeException ex) {
                 result.completeExceptionally(ex);
             }
-        }
-
-        private void offerOrReject() {
-            queueStep(this);
         }
 
         /** Releases the worker and re-admits this task only after the delay. */
@@ -189,6 +185,9 @@ public final class SerialTaskRunner implements AutoCloseable {
                                 this::delayedAdmissionReady,
                                 delayNanos,
                                 TimeUnit.NANOSECONDS);
+                if (result.isDone()) {
+                    delayedAdmission.cancel(false);
+                }
             } catch (RejectedExecutionException ex) {
                 result.completeExceptionally(ex);
             }
@@ -252,13 +251,11 @@ public final class SerialTaskRunner implements AutoCloseable {
     /** Creates a runner without a configured synchronous wait timeout. */
     public SerialTaskRunner(
             int capacity,
-            int maxItemsPerRun,
             String name,
             ScheduledExecutorService executor) {
 
         this(
                 capacity,
-                maxItemsPerRun,
                 name,
                 executor,
                 0L);
@@ -267,14 +264,12 @@ public final class SerialTaskRunner implements AutoCloseable {
     /** Creates a runner with a default timeout for {@link #await}. */
     public SerialTaskRunner(
             int capacity,
-            int maxItemsPerRun,
             String name,
             ScheduledExecutorService executor,
             Duration timeout) {
 
         this(
                 capacity,
-                maxItemsPerRun,
                 name,
                 executor,
                 timeoutNanos(timeout));
@@ -282,7 +277,6 @@ public final class SerialTaskRunner implements AutoCloseable {
 
     private SerialTaskRunner(
             int capacity,
-            int maxItemsPerRun,
             String name,
             ScheduledExecutorService executor,
             long timeoutNanos) {
@@ -290,7 +284,6 @@ public final class SerialTaskRunner implements AutoCloseable {
         failIfInvalidArgument(executor != null, "executor must not be null");
         scheduler = executor;
         failIfInvalidArgument(capacity > 0, "capacity must be positive");
-        failIfInvalidArgument(maxItemsPerRun > 0, "maxItemsPerRun must be positive");
         failIfInvalidArgument(name != null && !name.trim().isEmpty(),
                 "name must not be blank");
         this.capacity = capacity;
@@ -315,7 +308,7 @@ public final class SerialTaskRunner implements AutoCloseable {
         return executingThread == Thread.currentThread();
     }
 
-    /** Returns metrics for the queued task runs. */
+    /** Returns metrics for executor-queued task steps (rather than whole task runs). */
     public SerialLaneMetrics metrics() {
         return metrics;
     }
@@ -451,7 +444,6 @@ public final class SerialTaskRunner implements AutoCloseable {
         for (TaskRun run : runs) {
             run.result.cancel(true);
         }
-
     }
 
     private static long timeoutNanos(Duration timeout) {

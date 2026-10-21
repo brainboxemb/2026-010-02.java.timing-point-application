@@ -367,7 +367,6 @@ public class AntennaMultiplexTest {
                 antennaSet,
                 new SerialTaskRunner(
                         capacity,
-                        capacity,
                         "antenna-multiplex-test",
                         shared,
                         timeout));

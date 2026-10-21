@@ -46,7 +46,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class NodeUpstream extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
-    private static final int TASK_MAX_ITEMS_PER_RUN = 32;
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
@@ -75,7 +74,6 @@ public final class NodeUpstream extends LifecycleComponent {
         this.taskRunner =
                 new SerialTaskRunner(
                         TASK_QUEUE_CAPACITY,
-                        TASK_MAX_ITEMS_PER_RUN,
                         "Upstream-" + nodeId.value(),
                         scheduler);
         this.stream = stream;

@@ -155,7 +155,6 @@ final class RuntimeCharacterizationHarness
         antennaLane =
                 new SerialTaskRunner(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
-                        ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         ioWorker,
                         ANTENNA_CONTROL_TIMEOUT);

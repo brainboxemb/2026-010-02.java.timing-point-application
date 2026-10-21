@@ -47,7 +47,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  */
 public final class TimingNode extends LifecycleComponent {
     private static final int TASK_QUEUE_CAPACITY = 32;
-    private static final int TASK_MAX_ITEMS_PER_RUN = 32;
     /** Typed identity of the functional OPEN/CLOSED property. */
     public static final PropertyKey<FunctionalState> FUNCTIONAL_STATE =
             PropertyKey.of("functionalState");
@@ -129,7 +128,6 @@ public final class TimingNode extends LifecycleComponent {
         this.taskRunner =
                 new SerialTaskRunner(
                         TASK_QUEUE_CAPACITY,
-                        TASK_MAX_ITEMS_PER_RUN,
                         "TimingNode-" + timingNodeId.value(),
                         scheduler);
         lifecycle.register(nodeService);

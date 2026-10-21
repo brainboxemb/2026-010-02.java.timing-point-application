@@ -61,7 +61,6 @@ public class RuntimeExecutorsTest {
         SerialTaskRunner componentLane =
                 new SerialTaskRunner(
                         8,
-                        8,
                         "component-owned-test",
                         execution.nodeScheduler());
 

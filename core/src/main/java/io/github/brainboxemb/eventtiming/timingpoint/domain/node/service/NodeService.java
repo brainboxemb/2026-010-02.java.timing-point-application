@@ -48,7 +48,6 @@ public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
     private static final int TASK_QUEUE_CAPACITY = 32;
-    private static final int TASK_MAX_ITEMS_PER_RUN = 32;
 
     /** LogBook availability status input. */
     public static final EventInput<NodeService, LogBookStatus> LOGBOOK_STATUS =
@@ -93,7 +92,6 @@ public final class NodeService extends LifecycleComponent {
         this.taskRunner =
                 new SerialTaskRunner(
                         TASK_QUEUE_CAPACITY,
-                        TASK_MAX_ITEMS_PER_RUN,
                         "NodeService-" + nodeId.value(),
                         scheduler);
         this.timeSource = timeSource;
