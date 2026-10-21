@@ -129,17 +129,16 @@ public class NodeUpstreamTest {
     public void heartbeatUsesSameOutboundStreamAndTracksMissedIntervals() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNodeFixture.Components node =
-                node("A", stream);
+        stream.setAvailable(false);
+        TimingNodeFixture.Components node = node("A", stream);
         activate(node.node());
         activate(node.nodeUpstream());
         try {
-            NodeUpstream port =
-                    node.nodeUpstream();
+            NodeUpstream port = node.nodeUpstream();
 
-            stream.heartbeat();
-            UpstreamData.Ping first =
-                    (UpstreamData.Ping) stream.takeSent();
+            stream.connect();
+            stream.takeSent(); // reconnect TIMING_DATA source-head SYNC
+            UpstreamData.Ping first = (UpstreamData.Ping) stream.takeSent();
 
             assertEquals(
                     new NodeId("A"),
@@ -152,9 +151,10 @@ public class NodeUpstreamTest {
                     first.mode());
             assertEquals("hb-1", first.pingId());
 
-            stream.heartbeat();
-            UpstreamData.Ping second =
-                    (UpstreamData.Ping) stream.takeSent();
+            stream.disconnect();
+            stream.connect();
+            stream.takeSent(); // reconnect TIMING_DATA source-head SYNC
+            UpstreamData.Ping second = (UpstreamData.Ping) stream.takeSent();
             assertEquals("hb-2", second.pingId());
 
             NodeUpstreamTypes.HeartbeatStatus status =
@@ -180,11 +180,9 @@ public class NodeUpstreamTest {
                 new ScheduledThreadPoolExecutor(1);
         CountDownLatch heartbeatSent =
                 new CountDownLatch(1);
-        InMemoryUpstreamStream testStream =
-                new InMemoryUpstreamStream();
-        UpstreamStream stream =
-                testStream.bind(
-                        new NodeId("A"));
+        InMemoryUpstreamStream testStream = new InMemoryUpstreamStream();
+        testStream.setAvailable(false);
+        UpstreamStream stream = testStream.bind(new NodeId("A"));
         testStream.onNextSend(
                 heartbeatSent::countDown);
 
@@ -229,15 +227,8 @@ public class NodeUpstreamTest {
                                 new DefaultTimingDataCodec()),
                         logBook,
                         tasks);
-        NodeUpstream.CONNECTED.bind(
-                nodeUpstream,
-                stream.CONNECTED);
-        NodeUpstream.DATA_AVAILABLE.bind(
-                nodeUpstream,
-                stream.DATA_AVAILABLE);
-        NodeUpstream.HEARTBEAT_TICK.bind(
-                nodeUpstream,
-                stream.HEARTBEAT_TICK);
+        NodeUpstream.CONNECTED.bind(nodeUpstream, stream.CONNECTED);
+        NodeUpstream.DATA_AVAILABLE.bind(nodeUpstream, stream.DATA_AVAILABLE);
         TagProcessor tags =
                 new TagProcessor(
                         eventData,
@@ -265,7 +256,7 @@ public class NodeUpstreamTest {
                             1L,
                             TimeUnit.SECONDS));
 
-            testStream.heartbeat();
+            testStream.connect();
 
             assertEquals(
                     1L,
@@ -289,16 +280,15 @@ public class NodeUpstreamTest {
     public void matchingHeartbeatAnswerIsReadFromStream() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNodeFixture.Components node =
-                node("A", stream);
+        stream.setAvailable(false);
+        TimingNodeFixture.Components node = node("A", stream);
         activate(node.node());
         activate(node.nodeUpstream());
         try {
-            NodeUpstream port =
-                    node.nodeUpstream();
-            stream.heartbeat();
-            UpstreamData.Ping request =
-                    (UpstreamData.Ping) stream.takeSent();
+            NodeUpstream port = node.nodeUpstream();
+            stream.connect();
+            stream.takeSent(); // reconnect TIMING_DATA source-head SYNC
+            UpstreamData.Ping request = (UpstreamData.Ping) stream.takeSent();
 
             stream.receive(
                     DefaultUpstreamData.ping(
