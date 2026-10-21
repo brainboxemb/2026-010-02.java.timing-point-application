@@ -7,12 +7,13 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /** Serves one queued TIMING_DATA replay request from the retained LogBook. */
 final class TimingDataReplayTask implements YieldingTask {
-    private final NodeUpstream upstream;
+    private final BooleanSupplier available;
     private final TimingDataSync sync;
     private final UpstreamData.Req request;
 
@@ -20,20 +21,20 @@ final class TimingDataReplayTask implements YieldingTask {
     private CompletableFuture<List<TimingRecord>> pendingBatch;
 
     TimingDataReplayTask(
-            NodeUpstream upstream,
+            BooleanSupplier available,
             TimingDataSync sync,
             UpstreamData.Req request) {
-        failIfInvalidArgument(upstream != null, "upstream must not be null");
+        failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sync != null, "sync must not be null");
         failIfInvalidArgument(request != null, "request must not be null");
-        this.upstream = upstream;
+        this.available = available;
         this.sync = sync;
         this.request = request;
     }
 
     @Override
     public TaskStep runStep() {
-        if (!upstream.isAvailable()) {
+        if (!available.getAsBoolean()) {
             sync.cancelReplay();
             return TaskStep.done();
         }
