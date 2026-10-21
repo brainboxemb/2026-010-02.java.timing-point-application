@@ -17,8 +17,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Routes upstream messages between node streams and transport connectors.
  *
  * <p>The gateway owns only routing, queue admission and connector-to-node
- * lifecycle fan-out. It understands {@link NodeId} and {@link UpstreamMessage};
- * it does not know IF-06 message families or concrete UpstreamData subtypes.</p>
+ * lifecycle fan-out. It understands only {@link NodeId} and {@link UpstreamMessage};
+ * the message payload is opaque to this component.</p>
  *
  * <p>Each NodeUpstream has one independent inbound queue. The current runtime
  * binds one connector to each node, while one connector may serve several nodes.</p>
