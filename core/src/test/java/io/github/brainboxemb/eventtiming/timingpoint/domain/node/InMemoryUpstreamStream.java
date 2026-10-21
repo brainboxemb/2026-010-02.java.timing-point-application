@@ -70,7 +70,7 @@ final class InMemoryUpstreamStream {
 
         try {
             String encoded = new String(codec.encode(data), StandardCharsets.UTF_8);
-            UpstreamGateway.ReceiveResult result = connector.receiveInput(nodeId, encoded);
+            UpstreamGateway.ReceiveResult result = connector.receiveTestInput(nodeId, encoded);
             if (result != UpstreamGateway.ReceiveResult.ACCEPTED) {
                 throw new IllegalStateException("test upstream input was not accepted: " + result);
             }
@@ -156,7 +156,7 @@ final class InMemoryUpstreamStream {
             publishDisconnected();
         }
 
-        private UpstreamGateway.ReceiveResult receiveInput(NodeId nodeId, String encodedMessage) {
+        private UpstreamGateway.ReceiveResult receiveTestInput(NodeId nodeId, String encodedMessage) {
             synchronized (this) {
                 if (!available) {
                     throw new IllegalStateException("test connector is not connected");
