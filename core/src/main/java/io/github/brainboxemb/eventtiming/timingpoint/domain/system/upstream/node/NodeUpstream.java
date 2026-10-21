@@ -94,12 +94,21 @@ public final class NodeUpstream extends LifecycleComponent {
         this.stream = stream;
         this.codec = codec;
         this.nodeService = nodeService;
-        this.heartbeat = new Heartbeat(nodeId, this);
-        this.raceDataSync = new RaceDataSync(nodeId, this);
+        this.heartbeat =
+                new Heartbeat(
+                        nodeId,
+                        this::isAvailable,
+                        this::send);
+        this.raceDataSync =
+                new RaceDataSync(
+                        nodeId,
+                        this::isAvailable,
+                        this::send);
         this.timingDataSync =
                 new TimingDataSync(
                         nodeId,
-                        this,
+                        this::isAvailable,
+                        this::send,
                         logBook);
     }
 
@@ -173,7 +182,7 @@ public final class NodeUpstream extends LifecycleComponent {
                 failIfInvalidArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
                 return new RaceDataTask(
-                        this,
+                        this::isAvailable,
                         raceDataSync,
                         nodeService,
                         (UpstreamData.RaceData) data);
@@ -182,7 +191,7 @@ public final class NodeUpstream extends LifecycleComponent {
                 failIfInvalidArgument(data instanceof UpstreamData.Req,
                         "REQ has incompatible semantic type");
                 return new TimingDataReplayTask(
-                        this,
+                        this::isAvailable,
                         timingDataSync,
                         (UpstreamData.Req) data);
 
