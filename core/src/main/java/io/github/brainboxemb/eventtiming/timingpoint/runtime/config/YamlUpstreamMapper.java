@@ -21,7 +21,8 @@ final class YamlUpstreamMapper {
     static UpstreamConfig map(
             Object rawUpstream) {
         if (rawUpstream == null) {
-            return engineeringApi();
+            return new UpstreamConfig(
+                    UpstreamConfig.Transport.ENGINEERING_API);
         }
 
         Map<?, ?> values =
@@ -43,15 +44,12 @@ final class YamlUpstreamMapper {
                                 "upstream.transport")
                         .trim();
         if (ENGINEERING_API.equals(transport)) {
-            return engineeringApi();
+            return new UpstreamConfig(
+                    UpstreamConfig.Transport.ENGINEERING_API);
         }
 
         throw new IllegalArgumentException(
                 "Unsupported upstream transport: " + transport);
     }
 
-    static UpstreamConfig engineeringApi() {
-        return new UpstreamConfig(
-                UpstreamConfig.Transport.ENGINEERING_API);
-    }
 }

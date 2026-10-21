@@ -179,7 +179,7 @@ public final class Config {
             LoggingConfig logging,
             LoggingServerConfig loggingServer) {
         this(timingSystems, Collections.<AntennaManagerConfig>emptyList(),
-                YamlUpstreamMapper.engineeringApi(),
+                defaultUpstream(),
                 presentation, logging, loggingServer);
     }
 
@@ -192,7 +192,7 @@ public final class Config {
         this(
                 timingSystems,
                 antennaManagers,
-                YamlUpstreamMapper.engineeringApi(),
+                defaultUpstream(),
                 presentation,
                 logging,
                 loggingServer);
@@ -274,6 +274,11 @@ public final class Config {
 
     public LoggingServerConfig loggingServer() {
         return loggingServer;
+    }
+
+    private static UpstreamConfig defaultUpstream() {
+        return new UpstreamConfig(
+                UpstreamConfig.Transport.ENGINEERING_API);
     }
 
     private static String requireProviderId(
