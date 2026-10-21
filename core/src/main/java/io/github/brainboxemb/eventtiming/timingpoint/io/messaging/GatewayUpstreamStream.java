@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
-/** Node-scoped semantic view over one system-level UpstreamGateway. */
+/** Bidirectional semantic view owned by one NodeUpstream over UpstreamGateway. */
 final class GatewayUpstreamStream implements UpstreamStream {
     private final NodeId nodeId;
     private final UpstreamGateway gateway;
@@ -14,7 +14,6 @@ final class GatewayUpstreamStream implements UpstreamStream {
     GatewayUpstreamStream(
             NodeId nodeId,
             UpstreamGateway gateway) {
-
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(gateway != null, "gateway must not be null");
         this.nodeId = nodeId;
@@ -23,7 +22,7 @@ final class GatewayUpstreamStream implements UpstreamStream {
 
     @Override
     public boolean isAvailable() {
-        return gateway.isAvailable();
+        return gateway.isAvailable(nodeId);
     }
 
     @Override

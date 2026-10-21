@@ -12,8 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
@@ -28,26 +26,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class HttpEndpointTest {
-    private final ScheduledThreadPoolExecutor upstreamScheduler =
-            new ScheduledThreadPoolExecutor(1);
-
-    @After
-    public void closeUpstreamScheduler() {
-        upstreamScheduler.shutdownNow();
-    }
-
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
@@ -75,125 +61,6 @@ public class HttpEndpointTest {
             assertTrue(status.body.contains("\"state\":\"CLOSED\""));
             assertTrue(!status.body.contains("\"build\":"));
             assertTrue(!status.body.contains("\"apiVersion\":"));
-        } finally {
-            server.close();
-            fixture.close();
-        }
-    }
-
-    @Test
-    public void queuesStructuredUpstreamDataThroughEngineeringHttp()
-            throws Exception {
-        PresentationGatewayFixture fixture =
-                new PresentationGatewayFixture(
-                        identity());
-        EngineerApiConnector connector =
-                new EngineerApiConnector(upstreamScheduler);
-        AtomicInteger inputSignals =
-                new AtomicInteger();
-
-        connector.bindNode(
-                new NodeId("A"),
-                () -> {
-                    inputSignals.incrementAndGet();
-                    return true;
-                },
-                () -> {
-                },
-                () -> {
-                });
-        assertTrue(
-                connector.connect(
-                        message -> true));
-
-        HttpEndpoint server =
-                new HttpEndpoint(
-                        "127.0.0.1",
-                        0,
-                        fixture.handler(),
-                        Collections.singletonList(
-                                connector));
-        server.start();
-
-        try {
-            Response response =
-                    request(
-                            server.boundPort(),
-                            "POST",
-                            "/api/v1/dev/upstream/message",
-                            "{"
-                                    + "\"v\":1,"
-                                    + "\"type\":\"SYNC\","
-                                    + "\"nodeId\":\"A\","
-                                    + "\"data\":{"
-                                    + "\"stream\":\"RACE_DATA\","
-                                    + "\"seq\":0"
-                                    + "}}");
-
-            assertEquals(202, response.status);
-            assertEquals(
-                    "{\"result\":\"ACCEPTED\"}",
-                    response.body);
-            assertEquals(1, inputSignals.get());
-
-            UpstreamData.Sync queued =
-                    (UpstreamData.Sync)
-                            connector.read(
-                                    new NodeId("A"));
-            assertSame(
-                    UpstreamData.Stream.RACE_DATA,
-                    queued.stream());
-            assertEquals(0L, queued.sequence());
-        } finally {
-            server.close();
-            fixture.close();
-        }
-    }
-
-    @Test
-    public void rejectsEngineeringUpstreamHttpWithoutConnectedPeer()
-            throws Exception {
-        PresentationGatewayFixture fixture =
-                new PresentationGatewayFixture(
-                        identity());
-        EngineerApiConnector connector =
-                new EngineerApiConnector(upstreamScheduler);
-        connector.bindNode(
-                new NodeId("A"),
-                () -> true,
-                () -> {
-                },
-                () -> {
-                });
-
-        HttpEndpoint server =
-                new HttpEndpoint(
-                        "127.0.0.1",
-                        0,
-                        fixture.handler(),
-                        Collections.singletonList(
-                                connector));
-        server.start();
-
-        try {
-            Response response =
-                    request(
-                            server.boundPort(),
-                            "POST",
-                            "/api/v1/dev/upstream/message",
-                            "{"
-                                    + "\"v\":1,"
-                                    + "\"type\":\"SYNC\","
-                                    + "\"nodeId\":\"A\","
-                                    + "\"data\":{"
-                                    + "\"stream\":\"RACE_DATA\","
-                                    + "\"seq\":0"
-                                    + "}}");
-
-            assertEquals(409, response.status);
-            assertTrue(
-                    response.body.contains(
-                            "\"code\":\"UPSTREAM_NOT_CONNECTED\""));
         } finally {
             server.close();
             fixture.close();

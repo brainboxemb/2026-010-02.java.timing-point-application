@@ -145,7 +145,7 @@ public class ApplicationConductorTest {
                     timingNodes,
                     manager,
                     timingSystemConductor,
-                    new Upstream(UpstreamGateway.unavailable(), Collections.emptyList()));
+                    new Upstream(new UpstreamGateway(), Collections.emptyList()));
         }
 
         @Override

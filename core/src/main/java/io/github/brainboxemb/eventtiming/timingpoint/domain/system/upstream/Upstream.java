@@ -17,8 +17,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>One node-scoped NodeUpstream is retained for every TimingNode. Each
  * NodeUpstream therefore owns independent TIMING_DATA, RACE_DATA and heartbeat
- * protocol state. The physical connection and queue implementation belongs to
- * the shared UpstreamGateway.</p>
+ * protocol state. Node-scoped queues and connector routing belong to the
+ * shared UpstreamGateway; transport sessions remain connector-owned.</p>
  *
  * <p>Each NodeUpstream owns a separate logical task lane backed by the same
  * Runtime-supplied scheduled executor. NodeService applies RACE_DATA separately;
@@ -59,9 +59,9 @@ public final class Upstream extends LifecycleComponent {
     protected void onActivate() {
 
         lifecycle.activateAll();
-        if (gateway.isAvailable()) {
-            for (NodeUpstream nodeUpstream : nodes.values()) {
-                nodeUpstream.sendTimingDataSync();
+        for (Map.Entry<NodeId, NodeUpstream> entry : nodes.entrySet()) {
+            if (gateway.isAvailable(entry.getKey())) {
+                entry.getValue().sendTimingDataSync();
             }
         }
     }

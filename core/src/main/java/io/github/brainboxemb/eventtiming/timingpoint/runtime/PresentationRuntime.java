@@ -79,8 +79,7 @@ final class PresentationRuntime {
                         : new HttpEndpoint(
                                 httpConfig.bindAddress(),
                                 httpConfig.port(),
-                                gateway,
-                                upstreamConnectors);
+                                gateway);
 
         Api.WebSocket webSocketConfig =
                 api == null

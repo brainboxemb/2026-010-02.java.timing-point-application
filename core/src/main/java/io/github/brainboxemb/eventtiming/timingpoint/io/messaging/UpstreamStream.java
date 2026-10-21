@@ -4,12 +4,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 /**
- * Non-blocking semantic mailbox between one TimingNode and its upstream
- * transport adapter.
+ * Non-blocking bidirectional semantic mailbox owned by one NodeUpstream.
  *
- * <p>The stream is already scoped to one TimingNode. Real transport I/O stays
- * outside the TimingNode serial lane: read and send operate only on local
- * inbound/outbound queues owned by the adapter.</p>
+ * <p>The stream is already scoped to one NodeId. Real transport I/O stays
+ * below UpstreamGateway and never becomes NodeUpstream protocol state.</p>
  */
 public interface UpstreamStream {
 

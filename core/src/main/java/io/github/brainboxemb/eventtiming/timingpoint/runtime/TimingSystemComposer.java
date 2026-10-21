@@ -7,7 +7,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.Upstream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
@@ -62,7 +63,8 @@ final class TimingSystemComposer {
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
             TimeSource timeSource,
-            EngineerApiConnector upstreamConnector) {
+            UpstreamGateway upstreamGateway,
+            UpstreamConnector upstreamConnector) {
 
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
         List<TimingNodeComposition> nodeCompositions =
@@ -86,6 +88,7 @@ final class TimingSystemComposer {
         Upstream upstream =
                 createUpstream(
                         nodeCompositions,
+                        upstreamGateway,
                         upstreamConnector);
 
         return new TimingSystem(
@@ -135,7 +138,8 @@ final class TimingSystemComposer {
     /** Builds one independent protocol-state instance for every TimingNode. */
     private Upstream createUpstream(
             List<TimingNodeComposition> compositions,
-            EngineerApiConnector upstreamConnector) {
+            UpstreamGateway upstreamGateway,
+            UpstreamConnector upstreamConnector) {
 
         List<NodeUpstream> nodeUpstreams =
                 new ArrayList<NodeUpstream>();
@@ -147,20 +151,21 @@ final class TimingSystemComposer {
                             node.nodeId(),
                             executors.timingNodeScheduler(),
                             UpstreamStream.forNode(
-                                    upstreamConnector,
+                                    upstreamGateway,
                                     node.nodeId()),
                             composition.logBook(),
                             composition.nodeService());
 
-            upstreamConnector.bindNode(
+            upstreamGateway.bindNode(
                     node.nodeId(),
+                    upstreamConnector,
                     nodeUpstream::inputAvailable,
                     nodeUpstream::sendTimingDataSync,
                     nodeUpstream::heartbeatTick);
             nodeUpstreams.add(nodeUpstream);
         }
         return new Upstream(
-                upstreamConnector,
+                upstreamGateway,
                 nodeUpstreams);
     }
 

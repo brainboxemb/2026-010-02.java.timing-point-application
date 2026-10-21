@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatu
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
@@ -35,15 +36,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Server-to-client IF-03 event stream.
+ * IF-03 WebSocket transport.
  *
- * <p>The endpoint subscribes only to the transport-independent
- * {@link PresentationGateway}. It sends a STATUS_SNAPSHOT when a client
- * connects, then broadcasts authoritative STATUS_CHANGED and
- * TIMING_DATA_COMMITTED notifications. Slow clients are disconnected before
- * their transport backlog can grow without bound. Historical TimingData is
- * deliberately not replayed here; reconnect recovery uses the HTTP history
- * resource.</p>
+ * <p>Normal event clients are server-to-client only. The dedicated
+ * {@code role=upstream} connection is full-duplex: it receives semantic
+ * UpstreamData from SI-02 and carries outbound UpstreamData events on the same
+ * WebSocket. Historical TimingData recovery remains an upstream protocol
+ * responsibility rather than an IF-03 event replay concern.</p>
  */
 public final class WebSocketEndpoint implements AutoCloseable {
     public static final String EVENTS_PATH = "/api/v1/events";
@@ -438,6 +437,12 @@ public final class WebSocketEndpoint implements AutoCloseable {
 
         @Override
         public void onMessage(WebSocket connection, String message) {
+            if (connection == upstreamConnection.get()) {
+                receiveUpstreamData(
+                        connection,
+                        message);
+                return;
+            }
             rejectClientMessage(connection);
         }
 
@@ -467,6 +472,74 @@ public final class WebSocketEndpoint implements AutoCloseable {
             deliverEvent(
                     connection,
                     message);
+        }
+
+        /**
+         * Decodes one semantic UpstreamData object received on the upstream-role
+         * WebSocket and hands it to the connector/gateway routing chain.
+         */
+        private void receiveUpstreamData(
+                WebSocket connection,
+                String message) {
+            final UpstreamData upstreamData;
+            try {
+                upstreamData =
+                        upstreamDataCodec.decode(
+                                message.getBytes(
+                                        java.nio.charset.StandardCharsets.UTF_8));
+            } catch (UpstreamDataCodec.CodecException ex) {
+                connection.close(
+                        CloseFrame.POLICY_VALIDATION,
+                        "Invalid UpstreamData");
+                return;
+            }
+
+            UpstreamGateway.ReceiveResult result =
+                    routeUpstreamData(
+                            upstreamData);
+            switch (result) {
+                case ACCEPTED:
+                    return;
+                case UNKNOWN_NODE:
+                    connection.close(
+                            CloseFrame.POLICY_VALIDATION,
+                            "Unknown upstream NodeId");
+                    return;
+                case INPUT_FULL:
+                case INPUT_REJECTED:
+                    connection.close(
+                            WebSocketOutboundDelivery.TRY_AGAIN_LATER_CLOSE_CODE,
+                            "Upstream input is busy");
+                    return;
+                default:
+                    throw new IllegalStateException(
+                            "Unsupported upstream receive result "
+                                    + result);
+            }
+        }
+
+        /**
+         * Routes one inbound message to the connector whose gateway owns its NodeId.
+         *
+         * <p>The current runtime binds each NodeUpstream to one connector. Multiple
+         * connectors can coexist for different nodes/systems without exposing that
+         * selection to the WebSocket peer.</p>
+         */
+        private UpstreamGateway.ReceiveResult routeUpstreamData(
+                UpstreamData message) {
+            UpstreamGateway.ReceiveResult result =
+                    UpstreamGateway.ReceiveResult.UNKNOWN_NODE;
+            for (EngineerApiConnector connector
+                    : upstreamConnectors) {
+                UpstreamGateway.ReceiveResult candidate =
+                        connector.receive(message);
+                if (candidate
+                        != UpstreamGateway.ReceiveResult.UNKNOWN_NODE) {
+                    return candidate;
+                }
+                result = candidate;
+            }
+            return result;
         }
 
         private boolean sendUpstreamData(

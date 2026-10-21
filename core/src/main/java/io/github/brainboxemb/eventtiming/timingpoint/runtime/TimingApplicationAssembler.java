@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelC
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
@@ -81,6 +82,8 @@ final class TimingApplicationAssembler {
                     : resolvedSystems) {
                 TimeSource timeSource =
                         runtimeTimeSources.createTimeSource();
+                UpstreamGateway upstreamGateway =
+                        new UpstreamGateway();
                 EngineerApiConnector upstreamConnector =
                         new EngineerApiConnector(
                                 executors.timingNodeScheduler());
@@ -93,6 +96,7 @@ final class TimingApplicationAssembler {
                                                 .timingSystemId()),
                                 antennaSet,
                                 timeSource,
+                                upstreamGateway,
                                 upstreamConnector);
                 upstreamConnectors.add(upstreamConnector);
                 systems.add(system);

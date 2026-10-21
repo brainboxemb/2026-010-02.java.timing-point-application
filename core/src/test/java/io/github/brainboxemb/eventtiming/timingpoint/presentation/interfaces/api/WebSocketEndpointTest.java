@@ -1,11 +1,14 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
@@ -14,12 +17,17 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -36,6 +44,7 @@ import org.java_websocket.handshake.ServerHandshake;
 import org.junit.After;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -101,30 +110,52 @@ public class WebSocketEndpointTest {
     }
 
     @Test
-    public void sendsUpstreamDataOnlyToUpstreamRoleConnection()
+    public void upstreamRoleWebSocketCarriesRaceDataAndAckBidirectionally()
             throws Exception {
-        Fixture fixture =
-                new Fixture();
-        fixture.start();
-
+        NodeId nodeId =
+                new NodeId("A");
+        UpstreamGateway upstreamGateway =
+                new UpstreamGateway();
         EngineerApiConnector connector =
                 new EngineerApiConnector(upstreamScheduler);
-        connector.bindNode(
-                new NodeId("A"),
-                () -> true,
-                () -> connector.send(
-                        DefaultUpstreamData.sync(
-                                new NodeId("A"),
-                                UpstreamData.Stream.TIMING_DATA,
-                                0L)),
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
+                        nodeId,
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant(),
+                        EventData.empty(),
+                        UpstreamStream.forNode(
+                                upstreamGateway,
+                                nodeId));
+
+        upstreamGateway.bindNode(
+                nodeId,
+                connector,
+                components.nodeUpstream()::inputAvailable,
                 () -> {
+                    // Protocol connect behavior is covered by NodeUpstream tests.
+                },
+                () -> {
+                    // Heartbeat cadence is covered by EngineerApiConnectorTest.
                 });
+
+        PresentationGateway presentation =
+                new PresentationGateway(
+                        identity(),
+                        nodes(components.node()),
+                        PresentationGatewayFixture.configurationControl(
+                                nodeId));
+
+        LifecycleTestSupport.activate(
+                components.node());
+        LifecycleTestSupport.activate(
+                components.nodeUpstream());
 
         WebSocketEndpoint server =
                 new WebSocketEndpoint(
                         "127.0.0.1",
                         0,
-                        fixture.handler,
+                        presentation,
                         Collections.singletonList(
                                 connector),
                         EVENT_CLOCK);
@@ -148,48 +179,55 @@ public class WebSocketEndpointTest {
                     "CLOSED",
                     "null");
 
-            String syncEvent =
+            UpstreamData.RaceData raceData =
+                    DefaultUpstreamData.raceData(
+                            nodeId,
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "R0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList());
+
+            upstream.send(
+                    upstreamJson(
+                            raceData));
+
+            String ackEvent =
                     upstream.awaitMessage();
+            assertNotNull(ackEvent);
             assertTrue(
-                    syncEvent.contains(
+                    ackEvent.contains(
                             "\"eventType\":\"UPSTREAM_DATA\""));
             assertTrue(
-                    syncEvent.contains(
-                            "\"type\":\"SYNC\""));
+                    ackEvent.contains(
+                            "\"type\":\"ACK\""));
             assertTrue(
-                    syncEvent.contains(
+                    ackEvent.contains(
                             "\"nodeId\":\"A\""));
             assertTrue(
-                    syncEvent.contains(
-                            "\"stream\":\"TIMING_DATA\""));
-            assertNull(
-                    normal.pollMessage(250));
+                    ackEvent.contains(
+                            "\"stream\":\"RACE_DATA\""));
+            assertTrue(
+                    ackEvent.contains(
+                            "\"seq\":1"));
 
-            connector.send(
-                    DefaultUpstreamData.ping(
-                            new NodeId("A"),
-                            UpstreamData.PingOperation.REQ,
-                            null,
-                            "manual-1"));
+            assertEquals(
+                    new TeamId("0042"),
+                    components.raceData().teamIdFor(
+                            new RegistrationId("R0001")));
 
-            String pingEvent =
-                    upstream.awaitMessage();
-            assertTrue(
-                    pingEvent.contains(
-                            "\"eventType\":\"UPSTREAM_DATA\""));
-            assertTrue(
-                    pingEvent.contains(
-                            "\"type\":\"PING\""));
-            assertTrue(
-                    pingEvent.contains(
-                            "\"pingId\":\"manual-1\""));
+            // Generic event clients never receive upstream protocol traffic.
             assertNull(
                     normal.pollMessage(250));
         } finally {
             upstream.closeBlocking();
             normal.closeBlocking();
             server.close();
-            fixture.close();
+            LifecycleTestSupport.deactivate(
+                    components.nodeUpstream());
+            LifecycleTestSupport.deactivate(
+                    components.node());
         }
     }
 
@@ -487,6 +525,21 @@ public class WebSocketEndpointTest {
                         2,
                         TimeUnit.SECONDS));
         return client;
+    }
+
+    private static String upstreamJson(
+            UpstreamData data) {
+        try {
+            return new String(
+                    new DefaultUpstreamDataCodec(
+                            new DefaultTimingDataCodec())
+                            .encode(data),
+                    StandardCharsets.UTF_8);
+        } catch (UpstreamDataCodec.CodecException ex) {
+            throw new IllegalStateException(
+                    "Could not encode test UpstreamData",
+                    ex);
+        }
     }
 
     private static void assertSnapshot(
