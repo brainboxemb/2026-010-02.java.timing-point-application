@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
@@ -23,6 +24,8 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Constructs concrete Domain and I/O components for one configured system.
@@ -144,10 +147,9 @@ final class TimingSystemComposer {
             UpstreamGateway upstreamGateway,
             UpstreamConnector upstreamConnector) {
 
-        List<NodeUpstream> nodeUpstreams =
-                new ArrayList<NodeUpstream>();
-        for (TimingNodeComposition composition
-                : compositions) {
+        List<NodeUpstream> nodeUpstreams = new ArrayList<NodeUpstream>();
+        Map<NodeId, UpstreamStream> streams = new LinkedHashMap<NodeId, UpstreamStream>();
+        for (TimingNodeComposition composition : compositions) {
             TimingNode node =
                     composition.node();
             UpstreamStream stream = upstreamGateway.createApplicationPort(node.nodeId(), upstreamConnector);
@@ -161,13 +163,10 @@ final class TimingSystemComposer {
                             composition.logBook(),
                             composition.nodeService());
 
-            NodeUpstream.CONNECTED.bind(nodeUpstream, stream.CONNECTED);
-            NodeUpstream.DATA_AVAILABLE.bind(nodeUpstream, stream.DATA_AVAILABLE);
-
             nodeUpstreams.add(nodeUpstream);
+            streams.put(node.nodeId(), stream);
         }
-        return new Upstream(
-                nodeUpstreams);
+        return new Upstream(nodeUpstreams, streams);
     }
 
     /** Resolves an optional node antenna id against the antennas available to this system. */

@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
@@ -43,14 +42,6 @@ public final class NodeUpstream extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
     private static final long HEARTBEAT_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(30L);
-
-    /** Connection facts from this node's already-bound application stream. */
-    public static final EventInput<NodeUpstream, UpstreamStream> CONNECTED =
-            EventInput.of((upstream, source) -> source.subscribe(upstream::onConnected));
-
-    /** Data-available facts from this node's already-bound application stream. */
-    public static final EventInput<NodeUpstream, UpstreamStream> DATA_AVAILABLE =
-            EventInput.of((upstream, source) -> source.subscribe(upstream::onDataAvailable));
 
     private final NodeId nodeId;
     private final ScheduledExecutorService scheduler;
@@ -107,7 +98,7 @@ public final class NodeUpstream extends LifecycleComponent {
      * Starts serial protocol execution and its periodic heartbeat cadence.
      *
      * <p>The first periodic tick is delayed by one full interval. A newly connected stream requests an immediate
-     * heartbeat through {@link #onConnected(UpstreamStream)}.</p>
+     * heartbeat through {@link #connectionAvailable()}.</p>
      */
     @Override
     protected void onActivate() {
@@ -140,10 +131,14 @@ public final class NodeUpstream extends LifecycleComponent {
      */
     void send(UpstreamData data) {
         failIfInvalidArgument(data != null, "data must not be null");
-        failIfInvalidArgument(data instanceof UpstreamData.NodeScoped, "UpstreamData is not node-scoped: %s", data.family());
+        failIfInvalidArgument(
+                data instanceof UpstreamData.NodeScoped,
+                "UpstreamData is not node-scoped: %s", data.family());
 
         UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
-        failIfInvalidArgument(nodeId.equals(nodeScoped.timingNodeId()), "UpstreamData NodeId does not match NodeUpstream");
+        failIfInvalidArgument(
+                nodeId.equals(nodeScoped.timingNodeId()),
+                "UpstreamData NodeId does not match NodeUpstream");
 
         try {
             stream.send(new String(codec.encode(data), StandardCharsets.UTF_8));
@@ -162,11 +157,15 @@ public final class NodeUpstream extends LifecycleComponent {
                 "UpstreamData is not node-scoped: %s", data.family());
 
         UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
-        failIfInvalidArgument(nodeId.equals(nodeScoped.timingNodeId()), "UpstreamData NodeId does not match node-scoped stream");
+        failIfInvalidArgument(
+                nodeId.equals(nodeScoped.timingNodeId()),
+                "UpstreamData NodeId does not match node-scoped stream");
 
         switch (data.family()) {
             case RACE_DATA:
-                failIfInvalidArgument(data instanceof UpstreamData.RaceData, "RACE_DATA has incompatible semantic type");
+                failIfInvalidArgument(
+                        data instanceof UpstreamData.RaceData,
+                        "RACE_DATA has incompatible semantic type");
                 return new RaceDataTask(this::isAvailable, raceDataSync, nodeService, (UpstreamData.RaceData) data);
 
             case REQ:
@@ -270,7 +269,14 @@ public final class NodeUpstream extends LifecycleComponent {
      * <p>The stream object itself is the event subject; NodeId is not repeated in the event payload. Reconnection
      * publishes the current TIMING_DATA head and starts a fresh PING exchange immediately.</p>
      */
-    private void onConnected(UpstreamStream source) {
+    /**
+     * Handles a connection fact from the stream paired with this NodeUpstream by TimingSystem.
+     *
+     * <p>The source identity is deliberately not part of this API. TimingSystem owns the fixed
+     * stream-to-node binding, so this component only receives the semantic fact that its upstream
+     * connection became available.</p>
+     */
+    public void connectionAvailable() {
         if (!taskRunner.isRunning()) {
             return;
         }
@@ -280,8 +286,12 @@ public final class NodeUpstream extends LifecycleComponent {
         wakeQueuedInput();
     }
 
-    /** Wakes semantic input admission after the stream has already accepted one encoded message. */
-    private void onDataAvailable(UpstreamStream source) {
+    /**
+     * Handles a data-available fact from the stream paired with this NodeUpstream by TimingSystem.
+     *
+     * <p>The stream already owns the queued encoded data. This input only wakes semantic admission.</p>
+     */
+    public void inputAvailable() {
         wakeQueuedInput();
     }
 

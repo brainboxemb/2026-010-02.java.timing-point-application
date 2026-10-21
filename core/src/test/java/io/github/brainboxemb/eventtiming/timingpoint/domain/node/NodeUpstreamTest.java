@@ -227,8 +227,8 @@ public class NodeUpstreamTest {
                                 new DefaultTimingDataCodec()),
                         logBook,
                         tasks);
-        NodeUpstream.CONNECTED.bind(nodeUpstream, stream.CONNECTED);
-        NodeUpstream.DATA_AVAILABLE.bind(nodeUpstream, stream.DATA_AVAILABLE);
+        stream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
+        stream.DATA_AVAILABLE.subscribe(ignored -> nodeUpstream.inputAvailable());
         TagProcessor tags =
                 new TagProcessor(
                         eventData,

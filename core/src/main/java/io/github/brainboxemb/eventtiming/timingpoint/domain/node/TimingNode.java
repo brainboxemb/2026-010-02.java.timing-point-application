@@ -82,11 +82,6 @@ public final class TimingNode extends LifecycleComponent {
 
     private final MainTask mainTask = new MainTask();
 
-    /** Antenna observation input; internally consumed by the TagProcessor. */
-    public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
-            EventInput.of(
-                    (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
-
     /** Selected registration input from the TagProcessor lane. */
     private static final EventInput<TimingNode, TagProcessor.NewRegistration> NEW_REGISTRATION =
             EventInput.of(
@@ -147,6 +142,17 @@ public final class TimingNode extends LifecycleComponent {
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
+    }
+
+    /**
+     * Accepts one antenna observation from the AntennaManager binding owned by TimingSystem.
+     *
+     * <p>TimingNode keeps the TagProcessor as an internal child. External system wiring therefore
+     * targets this node boundary rather than reaching into TagProcessor directly.</p>
+     */
+    public void onTagObserved(TagObservation observation) {
+        failIfInvalidArgument(observation != null, "observation must not be null");
+        tagProcessor.onTagObserved(observation);
     }
 
     /** Returns this node's ID. */

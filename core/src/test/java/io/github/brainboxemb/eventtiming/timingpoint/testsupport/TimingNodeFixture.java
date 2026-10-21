@@ -310,8 +310,8 @@ public final class TimingNodeFixture {
                         logBook,
                         nodeService);
 
-        NodeUpstream.CONNECTED.bind(nodeUpstream, upstreamStream.CONNECTED);
-        NodeUpstream.DATA_AVAILABLE.bind(nodeUpstream, upstreamStream.DATA_AVAILABLE);
+        upstreamStream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
+        upstreamStream.DATA_AVAILABLE.subscribe(ignored -> nodeUpstream.inputAvailable());
 
         TagProcessor tagProcessor =
                 new TagProcessor(
