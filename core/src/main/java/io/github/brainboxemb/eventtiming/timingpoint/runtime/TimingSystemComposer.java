@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
@@ -147,8 +148,7 @@ final class TimingSystemComposer {
             UpstreamConnector upstreamConnector) {
 
         List<NodeUpstream> nodeUpstreams = new ArrayList<NodeUpstream>();
-        Map<io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId, UpstreamStream> streams =
-                new LinkedHashMap<io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId, UpstreamStream>();
+        Map<NodeId, UpstreamStream> streams = new LinkedHashMap<NodeId, UpstreamStream>();
         for (TimingNodeComposition composition : compositions) {
             TimingNode node =
                     composition.node();
