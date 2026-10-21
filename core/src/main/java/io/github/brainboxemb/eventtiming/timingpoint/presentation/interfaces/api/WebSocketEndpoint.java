@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatu
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.EngineerApiConnector;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
@@ -493,7 +494,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
                 return;
             }
 
-            EngineerApiConnector.ReceiveResult result =
+            UpstreamGateway.ReceiveResult result =
                     routeUpstreamData(
                             upstreamData);
             switch (result) {
@@ -510,11 +511,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
                             WebSocketOutboundDelivery.TRY_AGAIN_LATER_CLOSE_CODE,
                             "Upstream input is busy");
                     return;
-                case NOT_CONNECTED:
-                    connection.close(
-                            CloseFrame.UNEXPECTED_CONDITION,
-                            "Upstream connector is not connected");
-                    return;
                 default:
                     throw new IllegalStateException(
                             "Unsupported upstream receive result "
@@ -529,16 +525,16 @@ public final class WebSocketEndpoint implements AutoCloseable {
          * connectors can coexist for different nodes/systems without exposing that
          * selection to the WebSocket peer.</p>
          */
-        private EngineerApiConnector.ReceiveResult routeUpstreamData(
+        private UpstreamGateway.ReceiveResult routeUpstreamData(
                 UpstreamData message) {
-            EngineerApiConnector.ReceiveResult result =
-                    EngineerApiConnector.ReceiveResult.UNKNOWN_NODE;
+            UpstreamGateway.ReceiveResult result =
+                    UpstreamGateway.ReceiveResult.UNKNOWN_NODE;
             for (EngineerApiConnector connector
                     : upstreamConnectors) {
-                EngineerApiConnector.ReceiveResult candidate =
+                UpstreamGateway.ReceiveResult candidate =
                         connector.receive(message);
                 if (candidate
-                        != EngineerApiConnector.ReceiveResult.UNKNOWN_NODE) {
+                        != UpstreamGateway.ReceiveResult.UNKNOWN_NODE) {
                     return candidate;
                 }
                 result = candidate;

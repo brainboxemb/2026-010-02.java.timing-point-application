@@ -140,22 +140,6 @@ public final class UpstreamGateway {
         return connector.isAvailable();
     }
 
-    /** Returns true when at least one configured node has an available connector. */
-    public boolean isAvailable() {
-        List<UpstreamConnector> connectors;
-        synchronized (this) {
-            connectors =
-                    new ArrayList<UpstreamConnector>(
-                            connectorNodes.keySet());
-        }
-        for (UpstreamConnector connector : connectors) {
-            if (connector.isAvailable()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public synchronized boolean hasMessage(NodeId nodeId) {
         return !requireNode(nodeId).input.isEmpty();
     }

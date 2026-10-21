@@ -98,10 +98,6 @@ public class EngineerApiConnectorTest {
                         UpstreamData.Stream.RACE_DATA,
                         0L);
 
-        assertSame(
-                EngineerApiConnector.ReceiveResult.NOT_CONNECTED,
-                connector.receive(input));
-
         EngineerApiConnector.Output peer =
                 message -> true;
         assertTrue(connector.connect(peer));
@@ -109,14 +105,14 @@ public class EngineerApiConnectorTest {
         listener.receiveResult =
                 UpstreamGateway.ReceiveResult.ACCEPTED;
         assertSame(
-                EngineerApiConnector.ReceiveResult.ACCEPTED,
+                UpstreamGateway.ReceiveResult.ACCEPTED,
                 connector.receive(input));
         assertSame(input, listener.received);
 
         listener.receiveResult =
                 UpstreamGateway.ReceiveResult.UNKNOWN_NODE;
         assertSame(
-                EngineerApiConnector.ReceiveResult.UNKNOWN_NODE,
+                UpstreamGateway.ReceiveResult.UNKNOWN_NODE,
                 connector.receive(input));
 
         connector.disconnect(peer);

@@ -37,14 +37,6 @@ public final class EngineerApiConnector implements UpstreamConnector {
         boolean send(UpstreamData message);
     }
 
-    public enum ReceiveResult {
-        ACCEPTED,
-        NOT_CONNECTED,
-        UNKNOWN_NODE,
-        INPUT_FULL,
-        INPUT_REJECTED
-    }
-
     private final ScheduledExecutorService scheduler;
     private final long heartbeatPeriodNanos;
     private final int outputCapacity;
@@ -142,33 +134,17 @@ public final class EngineerApiConnector implements UpstreamConnector {
      *
      * <p>The connector performs no NodeId routing itself.</p>
      */
-    public ReceiveResult receive(
+    public UpstreamGateway.ReceiveResult receive(
             UpstreamData message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
         UpstreamConnector.Listener currentListener;
         synchronized (this) {
-            if (output == null) {
-                return ReceiveResult.NOT_CONNECTED;
-            }
+            failIfIllegalState(output != null,
+                    "Engineering upstream peer is not connected");
             currentListener = listener;
         }
-
-        UpstreamGateway.ReceiveResult result =
-                currentListener.receive(message);
-        switch (result) {
-            case ACCEPTED:
-                return ReceiveResult.ACCEPTED;
-            case UNKNOWN_NODE:
-                return ReceiveResult.UNKNOWN_NODE;
-            case INPUT_FULL:
-                return ReceiveResult.INPUT_FULL;
-            case INPUT_REJECTED:
-                return ReceiveResult.INPUT_REJECTED;
-            default:
-                throw new IllegalStateException(
-                        "Unsupported gateway receive result " + result);
-        }
+        return currentListener.receive(message);
     }
 
     @Override
