@@ -56,11 +56,6 @@ final class UpstreamInputTask extends AbstractTask {
     }
 
     @Override
-    protected void resetForRun() {
-        currentMessageTask = null;
-    }
-
-    @Override
     public TaskStep runStep() {
         if (currentMessageTask == null) {
             if (!available.getAsBoolean() || !stream.hasMessage()) {
@@ -99,17 +94,9 @@ final class UpstreamInputTask extends AbstractTask {
         return nextMessageStep();
     }
 
-    /** Yields before consuming a following queued message. */
-    private TaskStep nextMessageStep() {
-        return available.getAsBoolean() && stream.hasMessage()
-                ? TaskStep.again()
-                : TaskStep.done();
-    }
-
-    /** Resets message-specific protocol state after a consumed message fails. */
-    private void reportMessageFailure(Throwable failure) {
-        failureCleanup.run();
-        LOG.warn("Upstream message task failed for node {}", nodeId.value(), failure);
+    @Override
+    protected void resetForRun() {
+        currentMessageTask = null;
     }
 
     @Override
@@ -123,5 +110,18 @@ final class UpstreamInputTask extends AbstractTask {
             failureCleanup.run();
         }
         LOG.warn("Upstream input task failed for node {}", nodeId.value(), failure);
+    }
+
+    /** Yields before consuming a following queued message. */
+    private TaskStep nextMessageStep() {
+        return available.getAsBoolean() && stream.hasMessage()
+                ? TaskStep.again()
+                : TaskStep.done();
+    }
+
+    /** Resets message-specific protocol state after a consumed message fails. */
+    private void reportMessageFailure(Throwable failure) {
+        failureCleanup.run();
+        LOG.warn("Upstream message task failed for node {}", nodeId.value(), failure);
     }
 }
