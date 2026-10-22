@@ -102,21 +102,18 @@ public class WebSocketEndpointTest {
     @Test
     public void upstreamRoleWebSocketCarriesRaceDataAndAckBidirectionally()
             throws Exception {
-        NodeId nodeId =
-                new NodeId("A");
-        UpstreamGateway upstreamGateway =
-                new UpstreamGateway();
-        EngineerApiConnector connector =
-                new EngineerApiConnector();
+        NodeId nodeId = new NodeId("A");
+        EngineerApiConnector connector = new EngineerApiConnector();
+        UpstreamStream stream = new UpstreamStream(nodeId, connector);
+        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
+
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
                         nodeId,
                         new MemoryStore(),
                         () -> RECORDED_AT.instant(),
                         EventData.empty(),
-                        upstreamGateway.createApplicationPort(
-                                nodeId,
-                                connector));
+                        stream);
 
         PresentationGateway presentation =
                 new PresentationGateway(
