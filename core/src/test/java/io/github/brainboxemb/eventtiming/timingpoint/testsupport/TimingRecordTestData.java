@@ -40,7 +40,7 @@ public final class TimingRecordTestData {
             TimingRecord.Action action,
             TimingRecord.TagSource tagSource,
             TimingRecord.AutomaticTimeSource timeSource) {
-        return TimingRecord.automatic(
+        return TimingRecord.createAutomaticRegistration(
                 nodeId.value().charAt(0),
                 sequence,
                 locationId.value(),
@@ -80,7 +80,7 @@ public final class TimingRecordTestData {
             RegistrationId registrationId,
             TimingRecord.ManualTimeSource timeSource,
             TimingRecord.Action action) {
-        return TimingRecord.manual(
+        return TimingRecord.createManualRegistration(
                 nodeId.value().charAt(0),
                 sequence,
                 locationId.value(),
@@ -97,7 +97,7 @@ public final class TimingRecordTestData {
             LocationId locationId,
             TimingTimestamp effectiveTime,
             TimingTimestamp recordedAt) {
-        return TimingRecord.opened(
+        return TimingRecord.createNodeOpened(
                 nodeId.value().charAt(0),
                 sequence,
                 locationId.value(),
@@ -111,7 +111,7 @@ public final class TimingRecordTestData {
             LocationId locationId,
             TimingTimestamp effectiveTime,
             TimingTimestamp recordedAt) {
-        return TimingRecord.closed(
+        return TimingRecord.createNodeClosed(
                 nodeId.value().charAt(0),
                 sequence,
                 locationId.value(),
