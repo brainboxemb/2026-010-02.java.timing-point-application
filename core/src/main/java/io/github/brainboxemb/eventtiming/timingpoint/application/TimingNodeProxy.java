@@ -24,6 +24,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -35,6 +39,71 @@ public final class TimingNodeProxy {
     public enum RegistrationRecordType {
         AUTO_REG,
         MAN_REG
+    }
+
+    /** One live Central-owned RegistrationId-to-TeamId assignment. */
+    public static final class RaceDataMapping {
+        private final RegistrationId registrationId;
+        private final TeamId teamId;
+
+        private RaceDataMapping(RegistrationId registrationId, TeamId teamId) {
+            this.registrationId = registrationId;
+            this.teamId = teamId;
+        }
+
+        /** Registration identity carrying this live Central assignment. */
+        public RegistrationId registrationId() {
+            return registrationId;
+        }
+
+        /** Live TeamId assigned by Central. */
+        public TeamId teamId() {
+            return teamId;
+        }
+    }
+
+    /** One current RegistrationId-scoped stage start materialized at the application boundary. */
+    public static final class RaceDataStageStart {
+        private final RegistrationId registrationId;
+        private final TimingTimestamp start;
+
+        private RaceDataStageStart(RegistrationId registrationId, TimingTimestamp start) {
+            this.registrationId = registrationId;
+            this.start = start;
+        }
+
+        /** Registration identity whose stage start is retained. */
+        public RegistrationId registrationId() {
+            return registrationId;
+        }
+
+        /** Absolute UTC stage-start timestamp materialized from retained epoch milliseconds. */
+        public TimingTimestamp start() {
+            return start;
+        }
+    }
+
+    /** One coherent current RaceData snapshot for technical Presentation inspection. */
+    public static final class RaceDataSnapshot {
+        private final List<RaceDataMapping> mappings;
+        private final List<RaceDataStageStart> stageStarts;
+
+        private RaceDataSnapshot(
+                List<RaceDataMapping> mappings,
+                List<RaceDataStageStart> stageStarts) {
+            this.mappings = Collections.unmodifiableList(mappings);
+            this.stageStarts = Collections.unmodifiableList(stageStarts);
+        }
+
+        /** Sorted immutable live Central assignment rows. */
+        public List<RaceDataMapping> mappings() {
+            return mappings;
+        }
+
+        /** Sorted immutable current stage-start rows. */
+        public List<RaceDataStageStart> stageStarts() {
+            return stageStarts;
+        }
     }
 
     /** Immutable metadata for the active NodeService registration projection. */
@@ -189,6 +258,36 @@ public final class TimingNodeProxy {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         nodeService.setStageStart(registrationId, startMillis);
+    }
+
+    /**
+     * Returns one coherent technical snapshot of current live RaceData.
+     *
+     * <p>Mappings contain only live Central assignments. Fixed EventData mappings are excluded.
+     * Stage starts are materialized from retained epoch-millisecond scalars only here.</p>
+     */
+    public RaceDataSnapshot raceDataSnapshot() {
+
+        List<RaceDataMapping> mappings = new ArrayList<RaceDataMapping>();
+        List<RaceDataStageStart> stageStarts = new ArrayList<RaceDataStageStart>();
+        nodeService.visitRaceData(
+                (registrationId, teamId) ->
+                        mappings.add(new RaceDataMapping(registrationId, teamId)),
+                (registrationId, startMillis) ->
+                        stageStarts.add(
+                                new RaceDataStageStart(
+                                        registrationId,
+                                        new TimingTimestamp(
+                                                Instant.ofEpochMilli(
+                                                        startMillis.longValue())))));
+
+        Comparator<RaceDataMapping> mappingOrder =
+                Comparator.comparing(value -> value.registrationId().value());
+        Comparator<RaceDataStageStart> startOrder =
+                Comparator.comparing(value -> value.registrationId().value());
+        Collections.sort(mappings, mappingOrder);
+        Collections.sort(stageStarts, startOrder);
+        return new RaceDataSnapshot(mappings, stageStarts);
     }
 
     /** Returns one stable metadata snapshot of the active registration projection. */

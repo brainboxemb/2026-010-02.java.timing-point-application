@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -51,6 +52,25 @@ public final class RaceDataState {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return stageStartTimes.startMillisFor(registrationId);
+    }
+
+    /**
+     * Visits the live RACE_DATA RegistrationId-to-TeamId assignments only.
+     *
+     * <p>Fixed EventData mappings are intentionally excluded so diagnostics can distinguish
+     * immutable reference data from Central's current live assignment state.</p>
+     */
+    public int visitLiveAssignments(BiConsumer<RegistrationId, TeamId> visitor) {
+
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+        return teamAssignments.visit(visitor);
+    }
+
+    /** Visits all current RegistrationId-scoped normalized stage starts. */
+    public int visitStageStarts(BiConsumer<RegistrationId, Long> visitor) {
+
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+        return stageStartTimes.visit(visitor);
     }
 
     /** Resolves TeamId from fixed EventData first, then live upstream assignment state. */

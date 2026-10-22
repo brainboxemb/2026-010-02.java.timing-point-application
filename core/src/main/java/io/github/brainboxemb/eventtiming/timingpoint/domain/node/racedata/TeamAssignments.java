@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -52,6 +53,15 @@ final class TeamAssignments {
     void remove(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         assignments.remove(registrationId);
+    }
+
+    /** Visits all live RACE_DATA assignments in retained order and returns their count. */
+    int visit(BiConsumer<RegistrationId, TeamId> visitor) {
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+        for (Map.Entry<RegistrationId, TeamId> entry : assignments.entrySet()) {
+            visitor.accept(entry.getKey(), entry.getValue());
+        }
+        return assignments.size();
     }
 
     /** Validates the invariant that one TeamId cannot be assigned to multiple registrations. */

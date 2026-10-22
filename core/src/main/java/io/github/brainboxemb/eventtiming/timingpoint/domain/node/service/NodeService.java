@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -363,6 +364,27 @@ public final class NodeService extends LifecycleComponent {
         return readActive(() -> registeredTeams.visit(visitor));
     }
 
+    /**
+     * Visits one coherent snapshot of current live RaceData on the NodeService Task Lane.
+     *
+     * <p>The assignment visitor sees only live Central assignments, not fixed EventData mappings.
+     * Stage-start values are normalized absolute UTC epoch milliseconds.</p>
+     */
+    public void visitRaceData(
+            BiConsumer<RegistrationId, TeamId> assignmentVisitor,
+            BiConsumer<RegistrationId, Long> stageStartVisitor) {
+
+        failIfInvalidArgument(assignmentVisitor != null, "assignmentVisitor must not be null");
+        failIfInvalidArgument(stageStartVisitor != null, "stageStartVisitor must not be null");
+
+        readOrdered(
+                () -> {
+                    raceData.visitLiveAssignments(assignmentVisitor);
+                    raceData.visitStageStarts(stageStartVisitor);
+                    return null;
+                });
+    }
+
     /** Passes LogBook availability changes to MainTask. */
     private void onLogBookStatus(LogBookStatus status) {
 
@@ -393,6 +415,16 @@ public final class NodeService extends LifecycleComponent {
                             return TaskStep.done();
                         }),
                 QUERY_TIMEOUT);
+    }
+
+    /** Runs one ordered current-state read without waiting for LogBook projection catch-up. */
+    private <T> T readOrdered(Supplier<T> operation) {
+
+        return NodeServiceQuery.execute(
+                taskRunner,
+                QUERY_TIMEOUT,
+                null,
+                operation);
     }
 
     /** Runs one ordered active-WP read after DataTask has reconstructed/caught up. */

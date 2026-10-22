@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add node-scoped technical terminal inspection alongside the display-ready `regs` projection: `lb` reuses the real LogBook query boundary for count/latest/range/all history and prints retained TimingRecord fields with absolute UTC effective/recorded timestamps; `data` reads one coherent current RaceData snapshot from the NodeService Task Lane and exposes live Central RegistrationId-to-TeamId mappings plus RegistrationId-scoped UTC stage starts without folding in fixed EventData mappings. Add focused `help lb` and `help data` pages.
+
 - Make terminal time entry operator-local by default: compact `HHMMSShh` for `reg` and `start` uses the host/operator system time zone and local current date, optional suffix `U` selects UTC, registration rows are displayed in the same local zone, and ambiguous/nonexistent DST wall times are rejected. Reorganize terminal help into a compact logically ordered command index (help/version/log first) plus `help <command>` detail pages so command syntax, node-target examples, time semantics, paging and config subcommands are explained without interleaving unrelated entries.
 
 - Restore ActiveRegistrations as the display-ready active-WP timing projection: retain RegistrationId-scoped stage-start scalars beside each compact registration row, derive runtime directly, maintain competition rank on live ADD/REV and stage-start changes, defer ranking until OPEN reconstruction catches up, expose runtime/rank through the terminal `regs` view, and remove the package-info policy file that incorrectly excluded calculated timing state from this projection.

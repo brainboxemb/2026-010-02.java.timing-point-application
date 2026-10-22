@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -47,6 +48,15 @@ final class StageStartTimes {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return starts.get(registrationId);
+    }
+
+    /** Visits all retained absolute stage starts in retained order and returns their count. */
+    int visit(BiConsumer<RegistrationId, Long> visitor) {
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+        for (Map.Entry<RegistrationId, Long> entry : starts.entrySet()) {
+            visitor.accept(entry.getKey(), entry.getValue());
+        }
+        return starts.size();
     }
 
     /** Removes any current stage start for the RegistrationId. */
