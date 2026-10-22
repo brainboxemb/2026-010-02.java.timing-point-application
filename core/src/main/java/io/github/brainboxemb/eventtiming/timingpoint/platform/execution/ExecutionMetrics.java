@@ -39,7 +39,7 @@ public final class ExecutionMetrics {
         updateMaximum(highWaterMark, queueDepth);
     }
 
-    /** Records one item rejected because the bounded bounded queue was full. */
+    /** Records one item rejected because the bounded queue was full. */
     public void recordFull() {
         fullCount.incrementAndGet();
     }
@@ -136,37 +136,37 @@ public final class ExecutionMetrics {
             this.maxExecutionNanos = maxExecutionNanos;
         }
 
-        /** Returns the current number of items waiting in the lane queue. */
+        /** Returns the current number of accepted execution units waiting to run. */
         public int queueDepth() {
             return queueDepth;
         }
 
-        /** Returns the largest observed lane queue depth. */
+        /** Returns the largest observed number of execution units waiting to run. */
         public int queueHighWaterMark() {
             return queueHighWaterMark;
         }
 
-        /** Returns how many items were successfully queued. */
+        /** Returns how many execution units were successfully queued. */
         public long queuedCount() {
             return queuedCount;
         }
 
-        /** Returns how many queue attempts were rejected because capacity was full. */
+        /** Returns how many admission attempts were rejected because capacity was full. */
         public long fullCount() {
             return fullCount;
         }
 
-        /** Returns how many queue attempts were rejected because the lane was not running. */
+        /** Returns how many admission attempts were rejected because the owner was not running. */
         public long notRunningCount() {
             return notRunningCount;
         }
 
-        /** Returns how many queued items completed execution. */
+        /** Returns how many queued execution units completed. */
         public long completedCount() {
             return completedCount;
         }
 
-        /** Returns cumulative time spent waiting in the lane queue. */
+        /** Returns cumulative time spent waiting for execution. */
         public long totalQueueWaitNanos() {
             return totalQueueWaitNanos;
         }

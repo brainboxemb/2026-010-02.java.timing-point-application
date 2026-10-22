@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ExecutionMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.Duration;
@@ -485,6 +486,74 @@ public class SerialTaskRunnerTest {
             runner.await(first);
             runner.await(second);
             assertTrue(secondDone.await(500, TimeUnit.MILLISECONDS));
+        } finally {
+            release.countDown();
+            runner.close();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void recordsTaskStepExecutionMetrics()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newScheduledThreadPool(1);
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
+                        1,
+                        "task-step-metrics",
+                        worker,
+                        Duration.ofSeconds(1));
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        try {
+            try {
+                runner.runTask(() -> TaskStep.done());
+                fail("expected not-running rejection");
+            } catch (RejectedExecutionException expected) {
+                // The rejected admission belongs to this runner's own metrics.
+            }
+
+            runner.start();
+            CompletableFuture<Void> first =
+                    runner.runTask(
+                            () -> {
+                                entered.countDown();
+                                try {
+                                    release.await();
+                                } catch (InterruptedException ex) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(ex);
+                                }
+                                return TaskStep.done();
+                            });
+
+            assertTrue(entered.await(500, TimeUnit.MILLISECONDS));
+            CompletableFuture<Void> second =
+                    runner.runTask(() -> TaskStep.done());
+
+            try {
+                runner.runTask(() -> TaskStep.done());
+                fail("expected full task-step queue");
+            } catch (RejectedExecutionException expected) {
+                // The single waiting task step consumes the configured capacity.
+            }
+
+            Thread.sleep(10L);
+            release.countDown();
+            runner.await(first);
+            runner.await(second);
+
+            ExecutionMetrics.Snapshot metrics =
+                    runner.metrics().snapshot();
+            assertEquals(2L, metrics.queuedCount());
+            assertEquals(1L, metrics.fullCount());
+            assertEquals(1L, metrics.notRunningCount());
+            assertEquals(2L, metrics.completedCount());
+            assertTrue(metrics.queueHighWaterMark() >= 1);
+            assertTrue(metrics.maxQueueWaitNanos() > 0L);
+            assertTrue(metrics.maxExecutionNanos() > 0L);
         } finally {
             release.countDown();
             runner.close();
