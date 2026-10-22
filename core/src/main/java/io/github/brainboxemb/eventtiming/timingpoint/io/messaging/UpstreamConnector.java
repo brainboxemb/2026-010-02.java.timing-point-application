@@ -14,14 +14,13 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * connectors retain only transport-specific session, framing and outbound-delivery state.</p>
  */
 public abstract class UpstreamConnector {
-    interface Input {
-        UpstreamGateway.ReceiveResult receive(NodeId nodeId, String encodedMessage);
-    }
-
     private final Event<UpstreamConnector> connectedEvent = new Event<UpstreamConnector>();
     private final Event<UpstreamConnector> disconnectedEvent = new Event<UpstreamConnector>();
 
+    /** Subscribers may send immediately when this event is delivered. */
     public final EventSource<UpstreamConnector> CONNECTED = connectedEvent;
+
+    /** Session state has already been cleared when this event is delivered. */
     public final EventSource<UpstreamConnector> DISCONNECTED = disconnectedEvent;
 
     private Input input;
@@ -68,4 +67,8 @@ public abstract class UpstreamConnector {
 
     /** NodeId stays separate because a transport may need it as destination-routing context. */
     public abstract void send(NodeId nodeId, String encodedMessage);
+
+    interface Input {
+        UpstreamGateway.ReceiveResult receive(NodeId nodeId, String encodedMessage);
+    }
 }
