@@ -3,7 +3,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
@@ -16,21 +19,26 @@ import static org.junit.Assert.assertTrue;
 public class UpstreamGatewayTest {
 
     @Test
-    public void routesInboundOnceAndThenUsesIndependentApplicationPortQueues() {
-        UpstreamGateway gateway = new UpstreamGateway();
+    public void routesInboundThroughFixedApplicationPorts() {
         TestConnector connector = new TestConnector();
+        NodeId nodeA = new NodeId("A");
+        NodeId nodeB = new NodeId("B");
+        UpstreamStream streamA = new UpstreamStream(nodeA, connector);
+        UpstreamStream streamB = new UpstreamStream(nodeB, connector);
         AtomicInteger dataA = new AtomicInteger();
         AtomicInteger dataB = new AtomicInteger();
 
-        UpstreamStream streamA = gateway.createApplicationPort(new NodeId("A"), connector);
-        UpstreamStream streamB = gateway.createApplicationPort(new NodeId("B"), connector);
+        Map<NodeId, UpstreamStream> streams = new LinkedHashMap<NodeId, UpstreamStream>();
+        streams.put(nodeA, streamA);
+        streams.put(nodeB, streamB);
+        new UpstreamGateway(connector, streams);
+
         streamA.DATA_AVAILABLE.subscribe(source -> dataA.incrementAndGet());
         streamB.DATA_AVAILABLE.subscribe(source -> dataB.incrementAndGet());
-
         connector.connect();
 
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("A"), "message-a"));
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("B"), "message-b"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(nodeA, "message-a"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(nodeB, "message-b"));
         assertEquals(1, dataA.get());
         assertEquals(1, dataB.get());
 
@@ -42,20 +50,22 @@ public class UpstreamGatewayTest {
         streamB.send("outbound-b");
 
         assertEquals(1, connector.sent.size());
-        assertEquals(new NodeId("B"), connector.sent.get(0).nodeId);
+        assertEquals(nodeB, connector.sent.get(0).nodeId);
         assertEquals("outbound-b", connector.sent.get(0).payload);
     }
 
     @Test
-    public void connectorConnectionEventReachesOnlyItsBoundApplicationPorts() {
-        UpstreamGateway gateway = new UpstreamGateway();
+    public void connectorConnectionEventReachesOnlyItsFixedStreams() {
         TestConnector first = new TestConnector();
         TestConnector second = new TestConnector();
+        UpstreamStream streamA = new UpstreamStream(new NodeId("A"), first);
+        UpstreamStream streamB = new UpstreamStream(new NodeId("B"), second);
         AtomicInteger connectedA = new AtomicInteger();
         AtomicInteger connectedB = new AtomicInteger();
 
-        UpstreamStream streamA = gateway.createApplicationPort(new NodeId("A"), first);
-        UpstreamStream streamB = gateway.createApplicationPort(new NodeId("B"), second);
+        new UpstreamGateway(first, Collections.singletonMap(new NodeId("A"), streamA));
+        new UpstreamGateway(second, Collections.singletonMap(new NodeId("B"), streamB));
+
         streamA.CONNECTED.subscribe(source -> {
             assertSame(streamA, source);
             connectedA.incrementAndGet();
@@ -77,13 +87,14 @@ public class UpstreamGatewayTest {
     }
 
     @Test
-    public void disconnectClearsUnreadInputForThatConnectorSession() {
-        UpstreamGateway gateway = new UpstreamGateway();
+    public void disconnectClearsUnreadSessionInput() {
         TestConnector connector = new TestConnector();
-        UpstreamStream stream = gateway.createApplicationPort(new NodeId("A"), connector);
+        NodeId nodeId = new NodeId("A");
+        UpstreamStream stream = new UpstreamStream(nodeId, connector);
+        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
         connector.connect();
 
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("A"), "queued"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(nodeId, "queued"));
         assertTrue(stream.hasMessage());
 
         connector.disconnect();
@@ -93,14 +104,15 @@ public class UpstreamGatewayTest {
     }
 
     @Test
-    public void fullApplicationPortRejectsOnlyAdditionalInput() {
-        UpstreamGateway gateway = new UpstreamGateway(1);
+    public void fullStreamRejectsOnlyAdditionalInput() {
         TestConnector connector = new TestConnector();
-        UpstreamStream stream = gateway.createApplicationPort(new NodeId("A"), connector);
+        NodeId nodeId = new NodeId("A");
+        UpstreamStream stream = new UpstreamStream(nodeId, connector, 1);
+        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
         connector.connect();
 
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(new NodeId("A"), "first"));
-        assertSame(UpstreamGateway.ReceiveResult.INPUT_FULL, connector.receiveInput(new NodeId("A"), "second"));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(nodeId, "first"));
+        assertSame(UpstreamGateway.ReceiveResult.INPUT_FULL, connector.receiveInput(nodeId, "second"));
 
         assertEquals("first", stream.read());
         assertFalse(stream.hasMessage());
@@ -116,7 +128,7 @@ public class UpstreamGatewayTest {
         }
     }
 
-    /** Transport double using the same shared connector base as production transports. */
+    /** The transport double inherits the same fixed gateway-input contract as production connectors. */
     private static final class TestConnector extends UpstreamConnector {
         private final List<SentMessage> sent = new ArrayList<SentMessage>();
         private boolean available;
