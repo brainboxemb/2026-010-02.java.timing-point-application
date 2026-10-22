@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "tool": "tool.git-project/moon-affected",
+  "moon_version": "moon 2.5.4",
+  "task": "core:java.canonical",
+  "base": "12186ce523cf0e3ac2c16bee2ca0c9f74644a5c9",
+  "head": "7b0cea4c492e0879fa997c2306ba0944f51fe3a6",
+  "affected": true,
+  "status": "success",
+  "reason": "target-or-upstream-affected"
+}

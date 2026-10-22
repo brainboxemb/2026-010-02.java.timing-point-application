@@ -1,0 +1,22 @@
+{
+  "files": [
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/runtime/measurement/RuntimeMeasurementReader.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/runtime/measurement/TimingNodeRuntimeSnapshot.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/tasks/SerialTaskRunner.java",
+    "core/src/test/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/lanes/SerialLaneTest.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/lanes/SerialLane.java",
+    "CHANGELOG.md",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/ExecutionMetrics.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/lanes/SerialLaneMetrics.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/domain/node/logbook/LogBook.java"
+  ],
+  "options": {
+    "base": "12186ce523cf0e3ac2c16bee2ca0c9f74644a5c9",
+    "defaultBranch": true,
+    "head": "7b0cea4c492e0879fa997c2306ba0944f51fe3a6",
+    "local": false,
+    "status": [],
+    "stdin": false
+  },
+  "shallow": false
+}
