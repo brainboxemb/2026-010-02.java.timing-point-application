@@ -231,6 +231,24 @@ public final class NodeService extends LifecycleComponent {
                 .toEpochMilli();
     }
 
+    /**
+     * Sets one engineering stage-start value without changing the upstream protocol sequence.
+     *
+     * <p>The caller supplies an absolute UTC epoch-millisecond value. The mutation is serialized
+     * on the same Task Lane that owns Central RACE_DATA state, so a later ordered Central update
+     * may deliberately replace it.</p>
+     */
+    public void setStageStart(
+            TeamId teamId,
+            long startMillis) {
+
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        runOrderedMutation(
+                () -> raceData.setStageStart(
+                        teamId,
+                        startMillis));
+    }
+
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */
     public void locationOpened(LocationId locationId) {
 
@@ -349,6 +367,24 @@ public final class NodeService extends LifecycleComponent {
 
         failIfInvalidArgument(record != null, "TimingRecord must not be null");
         dataTask.dataChanged();
+    }
+
+    /** Executes one short race-state mutation on the NodeService Task Lane. */
+    private void runOrderedMutation(Runnable operation) {
+
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        if (taskRunner.isExecutingOnCurrentThread()) {
+            operation.run();
+            return;
+        }
+
+        taskRunner.await(
+                taskRunner.runTask(
+                        () -> {
+                            operation.run();
+                            return TaskStep.done();
+                        }),
+                QUERY_TIMEOUT);
     }
 
     /** Runs one ordered active-WP read after DataTask has reconstructed/caught up. */

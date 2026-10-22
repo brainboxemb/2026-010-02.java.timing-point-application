@@ -204,6 +204,9 @@ public final class TerminalSession {
                 case "close":
                     close(arguments, nodeId, output);
                     return false;
+                case "start":
+                    stageStart(arguments, nodeId, output);
+                    return false;
                 case "reg":
                     registration(arguments, nodeId, output);
                     return false;
@@ -290,6 +293,44 @@ public final class TerminalSession {
                                 .name());
     }
 
+    private void stageStart(
+            String[] arguments,
+            NodeId nodeId,
+            PrintWriter output) {
+
+        if (arguments.length != 3) {
+            output.println("Usage: start <team> <HHMMSShh>");
+            return;
+        }
+        if (!isCompactOperatorTime(arguments[2])) {
+            throw new IllegalArgumentException(
+                    "stage start time must be HHMMSShh");
+        }
+
+        TimingNodeProxy timingNode = timingNode(nodeId);
+        TeamId teamId = teamId(arguments[1]);
+        final TimingTimestamp start;
+        try {
+            start =
+                    compactOperatorTime(
+                            arguments[2],
+                            timingNode.timeSource().now());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "stage start time must be HHMMSShh",
+                    ex);
+        }
+
+        timingNode.setStageStart(
+                teamId,
+                start.instant().toEpochMilli());
+        output.println(
+                "Stage start: SET team="
+                        + teamId.value()
+                        + " time="
+                        + arguments[2]);
+    }
+
     private void registration(
             String[] arguments,
             NodeId nodeId,
@@ -308,9 +349,9 @@ public final class TerminalSession {
         if (arguments.length == 2 || "now".equalsIgnoreCase(arguments[2])) {
             effectiveTime = new TimingTimestamp(timingNode.timeSource().now());
             timeSource = AutomaticTimeSource.NODE;
-        } else if (isCompactRegistrationTime(arguments[2])) {
+        } else if (isCompactOperatorTime(arguments[2])) {
             effectiveTime =
-                    compactRegistrationTime(
+                    compactOperatorTime(
                             arguments[2],
                             timingNode.timeSource().now());
             timeSource = AutomaticTimeSource.API;
@@ -453,6 +494,32 @@ public final class TerminalSession {
         }
     }
 
+    /** Resolves a numeric team number or accepts an explicit TeamId. */
+    private static TeamId teamId(String text) {
+
+        if (!isUnsignedNumber(text)) {
+            return new TeamId(text);
+        }
+
+        final int teamNumber;
+        try {
+            teamNumber = Integer.parseInt(text);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(
+                    "team number must be in range 1..9999",
+                    ex);
+        }
+        if (teamNumber < 1 || teamNumber > 9999) {
+            throw new IllegalArgumentException(
+                    "team number must be in range 1..9999");
+        }
+        return new TeamId(
+                String.format(
+                        Locale.ROOT,
+                        "%04d",
+                        teamNumber));
+    }
+
     /** Resolves a numeric team number or accepts an explicit RegistrationId. */
     private static RegistrationId registrationId(
             String text,
@@ -501,7 +568,7 @@ public final class TerminalSession {
     }
 
     /** Reports whether text is the compact operator time form HHMMSShh. */
-    private static boolean isCompactRegistrationTime(String text) {
+    private static boolean isCompactOperatorTime(String text) {
 
         if (text == null || text.length() != 8) {
             return false;
@@ -515,7 +582,7 @@ public final class TerminalSession {
     }
 
     /** Resolves compact HHMMSShh against the node clock's current UTC date. */
-    private static TimingTimestamp compactRegistrationTime(
+    private static TimingTimestamp compactOperatorTime(
             String text,
             Instant nodeNow) {
 
@@ -537,7 +604,7 @@ public final class TerminalSession {
                     date.atTime(time).toInstant(ZoneOffset.UTC));
         } catch (DateTimeException | NumberFormatException ex) {
             throw new IllegalArgumentException(
-                    "compact registration time must be HHMMSShh",
+                    "compact time must be HHMMSShh",
                     ex);
         }
     }
@@ -786,6 +853,7 @@ public final class TerminalSession {
     private static boolean isNodeCommand(String command) {
         return "open".equals(command)
                 || "close".equals(command)
+                || "start".equals(command)
                 || "status".equals(command)
                 || "reg".equals(command)
                 || "regs".equals(command)
@@ -798,6 +866,7 @@ public final class TerminalSession {
             String[] arguments) {
         if ("open".equals(command)
                 || "close".equals(command)
+                || "start".equals(command)
                 || "status".equals(command)
                 || "reg".equals(command)
                 || "regs".equals(command)
@@ -988,6 +1057,10 @@ public final class TerminalSession {
         output.println("  status:B                     Example: show node B status");
         output.println("  open <locationId>            Open selected TimingNode at location");
         output.println("  close                        Close selected TimingNode");
+        output.println(
+                "  start <team> <HHMMSShh>      Set team stage-start time");
+        output.println(
+                "                               Example: start 42 12345678");
         output.println(
                 "  reg <id|team> [time]         Register one ID/team; omitted/now uses node clock");
         output.println(

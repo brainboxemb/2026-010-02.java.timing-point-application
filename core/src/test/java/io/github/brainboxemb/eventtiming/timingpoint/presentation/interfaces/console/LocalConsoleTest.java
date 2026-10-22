@@ -60,6 +60,8 @@ public class LocalConsoleTest {
         assertTrue(text.contains("node [id]                    Show/select default TimingNode"));
         assertTrue(text.contains("open <locationId>            Open selected TimingNode at location"));
         assertTrue(text.contains("close                        Close selected TimingNode"));
+        assertTrue(text.contains("start <team> <HHMMSShh>"));
+        assertTrue(text.contains("Example: start 42 12345678"));
         assertTrue(text.contains("reg <id|team> [time]"));
         assertTrue(text.contains("time: now, HHMMSShh, or absolute UTC"));
         assertTrue(text.contains("Example: reg 7"));
@@ -167,6 +169,34 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Registration: COMMITTED seq=4"));
         assertTrue(text.contains("Registration: COMMITTED seq=5"));
         assertTrue(text.contains("Unknown command: auto-reg A0005 now"));
+    }
+
+    @Test
+    public void startAcceptsTeamNumberAndCompactHundredths() {
+        StringWriter output = new StringWriter();
+
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(
+                        identity(),
+                        new DefaultEventData(),
+                        "A")) {
+            LocalConsole console = new LocalConsole(
+                    fixture.handler(),
+                    () -> { },
+                    new StringReader(
+                            "start 42 12345678\n"
+                                    + "start 42 24600000\n"
+                                    + "quit\n"),
+                    output);
+
+            console.run();
+        }
+
+        String text = output.toString();
+        assertTrue(text.contains(
+                "Stage start: SET team=0042 time=12345678"));
+        assertTrue(text.contains(
+                "Invalid command value: stage start time must be HHMMSShh"));
     }
 
     @Test

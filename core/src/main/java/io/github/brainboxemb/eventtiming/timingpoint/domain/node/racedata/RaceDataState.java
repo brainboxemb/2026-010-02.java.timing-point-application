@@ -37,6 +37,22 @@ public final class RaceDataState {
         this.eventData = eventData;
     }
 
+    /** Sets one already-normalized stage-start value owned by the NodeService Task Lane. */
+    public void setStageStart(
+            TeamId teamId,
+            long startMillis) {
+
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        stageStartTimes.set(teamId, startMillis);
+    }
+
+    /** Package-local stage-start lookup used by focused state tests. */
+    Long stageStartMillisFor(TeamId teamId) {
+
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        return stageStartTimes.startMillisFor(teamId);
+    }
+
     /** Resolves TeamId from fixed EventData first, then live upstream assignment state. */
     public TeamId teamIdFor(RegistrationId registrationId) {
 
