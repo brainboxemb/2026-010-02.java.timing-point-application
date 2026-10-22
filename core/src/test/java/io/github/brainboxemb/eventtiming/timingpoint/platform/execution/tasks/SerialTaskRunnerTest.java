@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -612,7 +613,6 @@ public class SerialTaskRunnerTest {
         }
     }
 
-
     @Test
     public void executeOrWarnRunsRunnableAndReportsRejectedAdmission()
             throws Exception {
@@ -626,7 +626,7 @@ public class SerialTaskRunnerTest {
             assertTrue(executed.await(1, TimeUnit.SECONDS));
 
             runner.close();
-            assertTrue(!runner.executeOrWarn(() -> fail("must not run"), "after-close"));
+            assertFalse(runner.executeOrWarn(() -> fail("must not run"), "after-close"));
         } finally {
             runner.close();
             scheduler.shutdownNow();
