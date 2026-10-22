@@ -30,7 +30,7 @@ public class DefaultUpstreamDataCodecTest {
     @Test
     public void composesTimingDataJsonWithoutChangingIdentity() throws Exception {
         NodeId nodeId = new NodeId("A");
-        TimingRecord record = TimingRecord.automatic(
+        TimingRecord record = TimingRecord.createAutomaticRegistration(
                 'A',
                 42L,
                 1,
