@@ -138,7 +138,7 @@ public class NodeUpstreamTest {
                     DefaultUpstreamData.ack(
                             new NodeId("A"),
                             UpstreamData.Stream.RACE_DATA,
-                            0L));
+                            1L));
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
