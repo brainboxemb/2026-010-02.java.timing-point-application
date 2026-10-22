@@ -38,6 +38,7 @@ public class LocalConsoleTest {
                                     + "help reg\n"
                                     + "help regs\n"
                                     + "help lb\n"
+                                    + "help lbl\n"
                                     + "help data\n"
                                     + "help config\n"
                                     + "version\n"
@@ -73,6 +74,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("reg <id|team> [time]"));
         assertTrue(text.contains("regs [options]"));
         assertTrue(text.contains("lb [options]"));
+        assertTrue(text.contains("lbl <locationId> [options]"));
         assertTrue(text.contains("data [options]"));
         assertTrue(text.contains("config [options]"));
         assertTrue(text.contains("Use 'help <command>' for syntax"));
@@ -85,6 +87,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Usage: regs[:<NodeId>]"));
         assertTrue(text.contains("runtime is finish minus stage start"));
         assertTrue(text.contains("Usage: lb[:<NodeId>]"));
+        assertTrue(text.contains("Usage: lbl[:<NodeId>] <locationId>"));
         assertTrue(text.contains("Usage: data[:<NodeId>]"));
         assertTrue(text.contains("Usage: config[:<NodeId>]"));
         assertTrue(text.contains(
