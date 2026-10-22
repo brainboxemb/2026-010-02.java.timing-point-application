@@ -35,7 +35,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class SerialTaskRunner implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(SerialTaskRunner.class);
-    private final String name;
 
     public enum FailureReason {
         OVERLOADED,
@@ -243,6 +242,7 @@ public final class SerialTaskRunner implements AutoCloseable {
     }
 
     private final ScheduledExecutorService scheduler;
+    private final String name;
     private final int capacity;
     private final AtomicInteger pendingSteps = new AtomicInteger();
     private final ExecutionMetrics metrics =
