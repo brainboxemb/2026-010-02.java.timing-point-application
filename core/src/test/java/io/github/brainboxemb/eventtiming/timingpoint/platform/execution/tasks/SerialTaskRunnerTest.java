@@ -612,4 +612,25 @@ public class SerialTaskRunnerTest {
         }
     }
 
+
+    @Test
+    public void executeOrWarnRunsRunnableAndReportsRejectedAdmission()
+            throws Exception {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        SerialTaskRunner runner = new SerialTaskRunner(2, "short-operations", scheduler);
+        CountDownLatch executed = new CountDownLatch(1);
+
+        try {
+            runner.start();
+            assertTrue(runner.executeOrWarn(executed::countDown, "heartbeat"));
+            assertTrue(executed.await(1, TimeUnit.SECONDS));
+
+            runner.close();
+            assertTrue(!runner.executeOrWarn(() -> fail("must not run"), "after-close"));
+        } finally {
+            runner.close();
+            scheduler.shutdownNow();
+        }
+    }
+
 }
