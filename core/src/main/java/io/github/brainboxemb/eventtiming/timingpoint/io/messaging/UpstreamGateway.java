@@ -2,12 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
@@ -18,6 +17,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class UpstreamGateway {
 
+    /** INPUT_FULL refers to the selected stream's bounded queue, not connector capacity. */
     public enum ReceiveResult {
         ACCEPTED,
         UNKNOWN_NODE,
@@ -26,7 +26,6 @@ public final class UpstreamGateway {
 
     private final UpstreamConnector connector;
     private final Map<NodeId, UpstreamStream> streams;
-    private final List<UpstreamStream> streamList;
 
     /** All stream bindings must already be complete and must use the supplied connector. */
     public UpstreamGateway(UpstreamConnector connector, Map<NodeId, UpstreamStream> nodeStreams) {
@@ -49,7 +48,6 @@ public final class UpstreamGateway {
 
         this.connector = connector;
         this.streams = Collections.unmodifiableMap(copy);
-        this.streamList = Collections.unmodifiableList(new ArrayList<UpstreamStream>(copy.values()));
 
         connector.bindInput(this::receive);
         connector.CONNECTED.subscribe(this::onConnected);
@@ -73,8 +71,8 @@ public final class UpstreamGateway {
     /** The subscribed connector is fixed, so one connection fact applies to every composed stream. */
     private void onConnected(UpstreamConnector source) {
 
-        failIfInvalidArgument(source == connector, "Connection event came from an unexpected connector");
-        for (UpstreamStream stream : streamList) {
+        failIfIllegalState(source == connector, "Connection event came from an unexpected connector");
+        for (UpstreamStream stream : streams.values()) {
             stream.connected();
         }
     }
@@ -82,8 +80,8 @@ public final class UpstreamGateway {
     /** Session input is invalid after disconnect and is cleared from every composed stream. */
     private void onDisconnected(UpstreamConnector source) {
 
-        failIfInvalidArgument(source == connector, "Disconnect event came from an unexpected connector");
-        for (UpstreamStream stream : streamList) {
+        failIfIllegalState(source == connector, "Disconnect event came from an unexpected connector");
+        for (UpstreamStream stream : streams.values()) {
             stream.disconnected();
         }
     }
