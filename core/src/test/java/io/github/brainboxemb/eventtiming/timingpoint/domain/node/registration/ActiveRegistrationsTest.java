@@ -73,6 +73,102 @@ public class ActiveRegistrationsTest {
     }
 
     @Test
+    public void maintainsRuntimeAndCompetitionRankInTheRetainedRows() {
+        ActiveRegistrations registrations = activeAt(1);
+        long start = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
+
+        registrations.apply(
+                registrationAt(
+                        1L,
+                        1,
+                        "A0001",
+                        Instant.parse("2026-10-13T12:00:20Z"),
+                        TimingRecord.Action.ADD),
+                Long.valueOf(start));
+        registrations.apply(
+                registrationAt(
+                        2L,
+                        1,
+                        "A0002",
+                        Instant.parse("2026-10-13T12:00:10Z"),
+                        TimingRecord.Action.ADD),
+                Long.valueOf(start));
+        registrations.apply(
+                registrationAt(
+                        3L,
+                        1,
+                        "A0003",
+                        Instant.parse("2026-10-13T12:00:10Z"),
+                        TimingRecord.Action.ADD),
+                Long.valueOf(start));
+        registrations.completeRebuild();
+
+        List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+        registrations.visit(10, rows::add);
+
+        assertEquals(20000L, rows.get(0).elapsedMillis());
+        assertEquals(3, rows.get(0).rank());
+        assertEquals(10000L, rows.get(1).elapsedMillis());
+        assertEquals(1, rows.get(1).rank());
+        assertEquals(10000L, rows.get(2).elapsedMillis());
+        assertEquals(1, rows.get(2).rank());
+    }
+
+    @Test
+    public void stageStartAndRevokeChangesRecalculateExistingRanks() {
+        ActiveRegistrations registrations = activeAt(1);
+        long start = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
+
+        registrations.apply(
+                registrationAt(
+                        1L,
+                        1,
+                        "A0001",
+                        Instant.parse("2026-10-13T12:00:20Z"),
+                        TimingRecord.Action.ADD),
+                Long.valueOf(start));
+        registrations.apply(
+                registrationAt(
+                        2L,
+                        1,
+                        "A0002",
+                        Instant.parse("2026-10-13T12:00:10Z"),
+                        TimingRecord.Action.ADD),
+                Long.valueOf(start));
+        registrations.completeRebuild();
+
+        registrations.stageStartChanged(
+                new RegistrationId("A0001"),
+                Long.valueOf(
+                        Instant.parse("2026-10-13T12:00:15Z")
+                                .toEpochMilli()));
+
+        List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+        registrations.visit(10, rows::add);
+        assertEquals(5000L, rows.get(0).elapsedMillis());
+        assertEquals(1, rows.get(0).rank());
+        assertEquals(2, rows.get(1).rank());
+
+        registrations.apply(
+                registrationAt(
+                        3L,
+                        1,
+                        "A0001",
+                        Instant.parse("2026-10-13T12:00:20Z"),
+                        TimingRecord.Action.REV));
+
+        assertFalse(rows.get(0).isValid());
+        assertEquals(0, rows.get(0).rank());
+        assertEquals(1, rows.get(1).rank());
+
+        registrations.stageStartChanged(
+                new RegistrationId("A0002"),
+                null);
+        assertFalse(rows.get(1).hasStageStart());
+        assertEquals(0, rows.get(1).rank());
+    }
+
+    @Test
     public void retainedRegistrationUsesOnlyPrimitiveFields() {
         for (Field field : ActiveRegistrations.Registration.class.getDeclaredFields()) {
             assertTrue(
@@ -156,14 +252,30 @@ public class ActiveRegistrationsTest {
             long sequence,
             int location,
             TimingRecord.Action action) {
-        long time = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
+
+        return registrationAt(
+                sequence,
+                location,
+                "A0001",
+                Instant.parse("2026-10-13T12:00:00Z"),
+                action);
+    }
+
+    private static TimingRecord registrationAt(
+            long sequence,
+            int location,
+            String registrationId,
+            Instant effectiveTime,
+            TimingRecord.Action action) {
+
+        long time = effectiveTime.toEpochMilli();
         return TimingRecord.createAutomaticRegistration(
                 'A',
                 sequence,
                 location,
                 time,
                 time,
-                new RegistrationId("A0001").packedValue(),
+                new RegistrationId(registrationId).packedValue(),
                 action,
                 null,
                 null);

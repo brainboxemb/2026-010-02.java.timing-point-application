@@ -46,8 +46,8 @@ public final class RaceDataState {
         stageStartTimes.set(registrationId, startMillis);
     }
 
-    /** Package-local stage-start lookup used by focused state tests. */
-    Long stageStartMillisFor(RegistrationId registrationId) {
+    /** Returns the current normalized stage start for one RegistrationId, or null when unknown. */
+    public Long stageStartMillisFor(RegistrationId registrationId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return stageStartTimes.startMillisFor(registrationId);

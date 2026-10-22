@@ -220,6 +220,8 @@ public class LocalConsoleTest {
                                     + "reg 1 12000100\n"
                                     + "reg 2 12000200\n"
                                     + "reg 3 12000300\n"
+                                    + "start 1 12000050\n"
+                                    + "start 2 12000000\n"
                                     + "regs count\n"
                                     + "regs 2 1\n"
                                     + "regs all\n"
@@ -233,9 +235,11 @@ public class LocalConsoleTest {
         assertTrue(text.contains(
                 "Registrations: location=24 count=3 unique=3"));
         assertTrue(text.contains(
-                "seq=3 id=A0002 time=12000200 state=ACTIVE"));
+                "seq=2 id=A0001 time=12000100 runtime=00:00:00.50 rank=1 state=ACTIVE"));
         assertTrue(text.contains(
-                "seq=4 id=A0003 time=12000300 state=ACTIVE"));
+                "seq=3 id=A0002 time=12000200 runtime=00:00:02.00 rank=2 state=ACTIVE"));
+        assertTrue(text.contains(
+                "seq=4 id=A0003 time=12000300 runtime=- rank=- state=ACTIVE"));
     }
 
     @Test

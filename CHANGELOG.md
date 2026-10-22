@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore ActiveRegistrations as the display-ready active-WP timing projection: retain RegistrationId-scoped stage-start scalars beside each compact registration row, derive runtime directly, maintain competition rank on live ADD/REV and stage-start changes, defer ranking until OPEN reconstruction catches up, expose runtime/rank through the terminal `regs` view, and remove the package-info policy file that incorrectly excluded calculated timing state from this projection.
+
 - Correct draft IF-06 RACE_DATA stage-start identity: `stageStartTimes` now uses `regId` rather than `teamId`; retain stage starts by `RegistrationId` through NodeService/RaceDataState, reject legacy team-only stage-start items, and resolve terminal `start <id|team> <HHMMSShh>` input to a RegistrationId before applying the override.
 
 - Tighten the Presentation-to-Domain ownership boundary: compose each `TimingNodeProxy` with its `TimingNode`, `NodeService` and LogBook access explicitly; route stage-start and registration-projection operations directly to `NodeService` and remove those pure passthrough methods from `TimingNode`.

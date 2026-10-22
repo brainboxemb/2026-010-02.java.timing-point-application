@@ -492,9 +492,42 @@ public final class TerminalSession {
                             + " time="
                             + REGISTRATION_TIME_FORMAT.format(
                                     row.effectiveTime().instant())
+                            + " runtime="
+                            + (row.elapsedMillis() == null
+                                    ? "-"
+                                    : formatElapsedMillis(
+                                            row.elapsedMillis().longValue()))
+                            + " rank="
+                            + (row.rank() == null
+                                    ? "-"
+                                    : row.rank().toString())
                             + " state="
                             + (row.valid() ? "ACTIVE" : "REVOKED"));
         }
+    }
+
+    /** Formats one signed millisecond runtime with hundredth-second display precision. */
+    private static String formatElapsedMillis(long elapsedMillis) {
+
+        boolean negative = elapsedMillis < 0L;
+        long absoluteMillis =
+                negative
+                        ? -elapsedMillis
+                        : elapsedMillis;
+        long totalHundredths = absoluteMillis / 10L;
+        long hours = totalHundredths / 360000L;
+        long minutes = totalHundredths / 6000L % 60L;
+        long seconds = totalHundredths / 100L % 60L;
+        long hundredths = totalHundredths % 100L;
+
+        return (negative ? "-" : "")
+                + String.format(
+                        Locale.ROOT,
+                        "%02d:%02d:%02d.%02d",
+                        hours,
+                        minutes,
+                        seconds,
+                        hundredths);
     }
 
     /** Resolves a numeric team number or accepts an explicit RegistrationId. */
