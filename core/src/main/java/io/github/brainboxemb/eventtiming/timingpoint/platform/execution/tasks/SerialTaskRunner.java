@@ -3,8 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ExecutionMetrics;
 
 import java.time.Duration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -18,6 +16,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
