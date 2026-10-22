@@ -71,12 +71,9 @@ public final class UpstreamApiMessage {
     }
 
     /**
-     * Creates one outbound Engineering API value from already resolved routing context.
-     *
-     * <p>No second JSON parse is performed on the outbound path. NodeUpstream produced the encoded payload and the
-     * application port already knows which node owns it.</p>
+     * Outbound routing context is already known, so the encoded payload is not reparsed to recover NodeId.
      */
-    static UpstreamApiMessage outbound(NodeId nodeId, String payload) {
+    static UpstreamApiMessage createOutboundMessage(NodeId nodeId, String payload) {
         return new UpstreamApiMessage(nodeId, payload);
     }
 
