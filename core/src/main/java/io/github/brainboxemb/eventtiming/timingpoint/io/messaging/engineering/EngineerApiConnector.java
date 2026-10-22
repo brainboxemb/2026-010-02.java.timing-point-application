@@ -17,8 +17,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>This connector owns only the active IF-03 WebSocket session and its bounded outbound delivery queue.
  * UpstreamGateway owns NodeId routing; NodeUpstream owns IF-06 semantics and heartbeat protocol state.</p>
  *
- * <p>Session lifecycle is exposed as typed post-fact events. Inbound API data uses the gateway's explicit
- * {@link UpstreamGateway.ConnectorPort} because queue admission has a meaningful return value.</p>
+ * <p>Session lifecycle is exposed as typed post-fact events. Inbound API data uses the connector's fixed
+ * gateway input because queue admission has a meaningful return value.</p>
  */
 public final class EngineerApiConnector extends UpstreamConnector {
     static final int DEFAULT_OUTPUT_CAPACITY = 64;
@@ -114,7 +114,7 @@ public final class EngineerApiConnector extends UpstreamConnector {
             throw new RejectedExecutionException("Engineering upstream output queue is full");
         }
 
-        outputQueue.add(UpstreamApiMessage.outbound(nodeId, encodedMessage));
+        outputQueue.add(UpstreamApiMessage.createOutboundMessage(nodeId, encodedMessage));
         drainOutput();
     }
 
