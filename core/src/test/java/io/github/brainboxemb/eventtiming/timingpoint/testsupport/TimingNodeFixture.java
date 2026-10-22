@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.testsupport;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxyComponents;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
@@ -129,6 +130,14 @@ public final class TimingNodeFixture {
         public RaceDataState raceData() {
             return raceData;
         }
+
+        /** Returns explicit application-facing boundaries for presentation tests. */
+        public TimingNodeProxyComponents presentationComponents() {
+            return new TimingNodeProxyComponents(
+                    node,
+                    nodeService,
+                    logBook);
+        }
     }
 
     /** Creates one test TimingNode with empty EventData and shared test workers. */
@@ -149,10 +158,33 @@ public final class TimingNodeFixture {
             TimingDataPersistence persistence,
             TimeSource timeSource,
             EventData eventData) {
-        String suffix =
-                nodeId == null
-                        ? "missing"
-                        : nodeId.value();
+        return createComponents(
+                nodeId,
+                persistence,
+                timeSource,
+                eventData)
+                .node();
+    }
+
+    /** Creates one complete test node graph with empty EventData and shared workers. */
+    public static Components createComponents(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimeSource timeSource) {
+
+        return createComponents(
+                nodeId,
+                persistence,
+                timeSource,
+                EventData.empty());
+    }
+
+    /** Creates one complete test node graph with explicit EventData and shared workers. */
+    public static Components createComponents(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimeSource timeSource,
+            EventData eventData) {
 
         return compose(
                 nodeId,
@@ -166,8 +198,7 @@ public final class TimingNodeFixture {
                 DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
                 NODE_WORKER,
-                TAG_WORKER)
-                .node();
+                TAG_WORKER);
     }
 
     /** Creates one same-thread TimingNode for deterministic child execution tests. */

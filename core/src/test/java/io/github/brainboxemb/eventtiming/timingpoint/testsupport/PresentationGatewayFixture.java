@@ -7,10 +7,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxyComponents;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
@@ -57,22 +57,27 @@ public final class PresentationGatewayFixture implements AutoCloseable {
         }
 
         nodes = new ArrayList<TimingNode>();
+        List<TimingNodeProxyComponents> presentationNodes =
+                new ArrayList<TimingNodeProxyComponents>();
         NodeId[] ids = new NodeId[nodeIds.length];
         for (int index = 0; index < nodeIds.length; index++) {
             NodeId nodeId = new NodeId(nodeIds[index]);
             ids[index] = nodeId;
-            TimingNode node = TimingNodeFixture.create(
-                    nodeId,
-                    new MemoryPersistence(),
-                    () -> RECORDED_AT.instant(),
-                    eventData);
-            nodes.add(node);
+            TimingNodeFixture.Components components =
+                    TimingNodeFixture.createComponents(
+                            nodeId,
+                            new MemoryPersistence(),
+                            () -> RECORDED_AT.instant(),
+                            eventData);
+            nodes.add(components.node());
+            presentationNodes.add(
+                    components.presentationComponents());
         }
 
         configuration = configurationControl(ids);
         handler = new PresentationGateway(
                 identity,
-                new TimingNodeList(nodes),
+                presentationNodes,
                 configuration);
         for (TimingNode node : nodes) {
             LifecycleTestSupport.activate(node);

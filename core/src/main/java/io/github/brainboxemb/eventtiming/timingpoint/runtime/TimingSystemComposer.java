@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxyComponents;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
@@ -62,7 +63,7 @@ final class TimingSystemComposer {
     }
 
     /** Composes one complete TimingSystem from already resolved runtime inputs. */
-    TimingSystem compose(
+    TimingSystemComposition compose(
             TimingSystemResolvedData system,
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
@@ -90,12 +91,28 @@ final class TimingSystemComposer {
 
         Upstream upstream = createUpstream(system, nodeCompositions, upstreamConnector);
 
-        return new TimingSystem(
-                system.configuration().timingSystemId(),
-                nodes,
-                antennaManager,
-                timingSystemConductor,
-                upstream);
+        TimingSystem timingSystem =
+                new TimingSystem(
+                        system.configuration().timingSystemId(),
+                        nodes,
+                        antennaManager,
+                        timingSystemConductor,
+                        upstream);
+        return new TimingSystemComposition(
+                timingSystem,
+                presentationNodes(nodeCompositions));
+    }
+
+    /** Materializes the application-facing node seams before Runtime drops child references. */
+    private static List<TimingNodeProxyComponents> presentationNodes(
+            List<TimingNodeComposition> compositions) {
+
+        List<TimingNodeProxyComponents> nodes =
+                new ArrayList<TimingNodeProxyComponents>();
+        for (TimingNodeComposition composition : compositions) {
+            nodes.add(composition.presentationComponents());
+        }
+        return nodes;
     }
 
     /** Composes all TimingNodes and retains only the seams needed for system upstream. */
