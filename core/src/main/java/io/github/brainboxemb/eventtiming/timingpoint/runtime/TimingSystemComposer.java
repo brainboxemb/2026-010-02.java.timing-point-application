@@ -67,7 +67,6 @@ final class TimingSystemComposer {
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
             TimeSource timeSource,
-            UpstreamGateway upstreamGateway,
             UpstreamConnector upstreamConnector) {
 
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
@@ -89,12 +88,7 @@ final class TimingSystemComposer {
                 antennaManager,
                 executors.createTimingSystemConductorLane());
 
-        Upstream upstream =
-                createUpstream(
-                        system,
-                        nodeCompositions,
-                        upstreamGateway,
-                        upstreamConnector);
+        Upstream upstream = createUpstream(system, nodeCompositions, upstreamConnector);
 
         return new TimingSystem(
                 system.configuration().timingSystemId(),
@@ -140,31 +134,36 @@ final class TimingSystemComposer {
         return new TimingNodeList(nodes);
     }
 
-    /** Builds one independent protocol-state instance for every TimingNode. */
+    /**
+     * The node/stream routing table is fixed during composition; the gateway is complete before runtime use.
+     */
     private Upstream createUpstream(
             TimingSystemResolvedData system,
             List<TimingNodeComposition> compositions,
-            UpstreamGateway upstreamGateway,
             UpstreamConnector upstreamConnector) {
 
-        List<NodeUpstream> nodeUpstreams = new ArrayList<NodeUpstream>();
         Map<NodeId, UpstreamStream> streams = new LinkedHashMap<NodeId, UpstreamStream>();
         for (TimingNodeComposition composition : compositions) {
-            TimingNode node =
-                    composition.node();
-            UpstreamStream stream = upstreamGateway.createApplicationPort(node.nodeId(), upstreamConnector);
+            TimingNode node = composition.node();
+            streams.put(node.nodeId(), new UpstreamStream(node.nodeId(), upstreamConnector));
+        }
+
+        new UpstreamGateway(upstreamConnector, streams);
+
+        List<NodeUpstream> nodeUpstreams = new ArrayList<NodeUpstream>();
+        for (TimingNodeComposition composition : compositions) {
+            TimingNode node = composition.node();
+            UpstreamStream stream = streams.get(node.nodeId());
             NodeUpstream nodeUpstream =
                     new NodeUpstream(
                             node.nodeId(),
                             executors.timingNodeScheduler(),
                             stream,
-                            new DefaultUpstreamDataCodec(
-                                    system.timingDataCodec()),
+                            new DefaultUpstreamDataCodec(system.timingDataCodec()),
                             composition.logBook(),
                             composition.nodeService());
 
             nodeUpstreams.add(nodeUpstream);
-            streams.put(node.nodeId(), stream);
         }
         return new Upstream(nodeUpstreams, streams);
     }
