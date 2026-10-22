@@ -107,14 +107,22 @@ public class UpstreamGatewayTest {
     public void fullStreamRejectsOnlyAdditionalInput() {
         TestConnector connector = new TestConnector();
         NodeId nodeId = new NodeId("A");
-        UpstreamStream stream = new UpstreamStream(nodeId, connector, 1);
+        UpstreamStream stream = new UpstreamStream(nodeId, connector);
         new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
         connector.connect();
 
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receiveInput(nodeId, "first"));
-        assertSame(UpstreamGateway.ReceiveResult.INPUT_FULL, connector.receiveInput(nodeId, "second"));
+        for (int index = 0; index < 64; index++) {
+            assertSame(
+                    UpstreamGateway.ReceiveResult.ACCEPTED,
+                    connector.receiveInput(nodeId, "message-" + index));
+        }
+        assertSame(
+                UpstreamGateway.ReceiveResult.INPUT_FULL,
+                connector.receiveInput(nodeId, "overflow"));
 
-        assertEquals("first", stream.read());
+        for (int index = 0; index < 64; index++) {
+            assertEquals("message-" + index, stream.read());
+        }
         assertFalse(stream.hasMessage());
     }
 
