@@ -62,7 +62,7 @@ public class TimingDataReplayTaskTest {
                 Instant.parse("2026-10-13T12:00:00Z")
                         .plusMillis(sequence)
                         .toEpochMilli();
-        return TimingRecord.automatic(
+        return TimingRecord.createAutomaticRegistration(
                 'A',
                 sequence,
                 1,
