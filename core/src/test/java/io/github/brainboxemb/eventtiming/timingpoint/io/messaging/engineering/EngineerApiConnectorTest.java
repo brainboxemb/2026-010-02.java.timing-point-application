@@ -65,16 +65,16 @@ public class EngineerApiConnectorTest {
         assertTrue(connector.connect(peer));
 
         String payload =
-                "{"v":1,"type":"SYNC","nodeId":"A","
-                        + ""data":{"stream":"RACE_DATA","seq":0}}";
+                "{\"v\":1,\"type\":\"SYNC\",\"nodeId\":\"A\","
+                        + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":0}}";
         UpstreamApiMessage message = UpstreamApiMessage.parse(payload);
 
         assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(message));
         assertEquals(payload, stream.read());
 
         String unknownPayload =
-                "{"v":1,"type":"SYNC","nodeId":"B","
-                        + ""data":{"stream":"RACE_DATA","seq":0}}";
+                "{\"v\":1,\"type\":\"SYNC\",\"nodeId\":\"B\","
+                        + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":0}}";
         assertSame(
                 UpstreamGateway.ReceiveResult.UNKNOWN_NODE,
                 connector.receive(UpstreamApiMessage.parse(unknownPayload)));
