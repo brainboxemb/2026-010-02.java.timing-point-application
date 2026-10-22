@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify per-node upstream execution: `SerialTaskRunner.executeOrWarn(...)` now owns short Runnable admission/rejection diagnostics, while `UpstreamInputTask` owns ordered stream consumption and directly propagates each semantic `YieldingTask` continuation without `NodeUpstream` future bookkeeping or nested task runs.
+
 - Remove `TimingTimestamp` from the internal antenna-to-LogBook command path: carry absolute event times as epoch-millisecond `long` values through passage selection, `TagProcessor.NewRegistration`, `TimingNode`, `LogBookCommands` and `LogBookOperations`; keep IF-05 effective-time canonicalization at 10 ms, while preserving full 1 ms `recTime` precision.
 
 - Decouple cooperative task-step metrics from `SerialLane`: both `SerialLane` and `SerialTaskRunner` now own independent `ExecutionMetrics` instances for queued work, admission rejection, wait duration and execution time. One task-runner metric unit is a scheduled step rather than a complete yielding task; delayed/awaiting tasks consume no queue slot.

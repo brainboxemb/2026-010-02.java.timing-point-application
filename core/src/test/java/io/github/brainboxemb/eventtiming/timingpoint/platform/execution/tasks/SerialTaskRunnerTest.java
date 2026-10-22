@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -609,6 +610,26 @@ public class SerialTaskRunnerTest {
             release.countDown();
             runner.close();
             worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void executeOrWarnRunsRunnableAndReportsRejectedAdmission()
+            throws Exception {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        SerialTaskRunner runner = new SerialTaskRunner(2, "short-operations", scheduler);
+        CountDownLatch executed = new CountDownLatch(1);
+
+        try {
+            runner.start();
+            assertTrue(runner.executeOrWarn(executed::countDown, "heartbeat"));
+            assertTrue(executed.await(1, TimeUnit.SECONDS));
+
+            runner.close();
+            assertFalse(runner.executeOrWarn(() -> fail("must not run"), "after-close"));
+        } finally {
+            runner.close();
+            scheduler.shutdownNow();
         }
     }
 

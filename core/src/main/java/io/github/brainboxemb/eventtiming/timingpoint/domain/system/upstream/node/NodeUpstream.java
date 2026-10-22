@@ -5,8 +5,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
@@ -14,15 +12,9 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -39,7 +31,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * by this node's task runner. The transport connector only reports connection state; it does not know about PING.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
-    private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
     private static final long HEARTBEAT_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(30L);
 
@@ -52,9 +43,7 @@ public final class NodeUpstream extends LifecycleComponent {
     private final Heartbeat heartbeat;
     private final RaceDataSync raceDataSync;
     private final TimingDataSync timingDataSync;
-    private final InputTask inputTask = new InputTask();
-
-    private CompletableFuture<Void> activeMessageRun;
+    private final UpstreamInputTask inputTask;
     private ScheduledFuture<?> heartbeatSchedule;
 
     /** Creates one node's semantic upstream protocol state and independent logical task lane. */
@@ -82,6 +71,9 @@ public final class NodeUpstream extends LifecycleComponent {
         this.heartbeat = new Heartbeat(nodeId, this::isAvailable, this::send);
         this.raceDataSync = new RaceDataSync(nodeId, this::isAvailable, this::send);
         this.timingDataSync = new TimingDataSync(nodeId, this::isAvailable, this::send, logBook);
+        this.inputTask = new UpstreamInputTask(nodeId, stream, this::isAvailable,
+                this::readMessage, this::createMessageTask,
+                this::cancelMessageState);
     }
 
     /** Returns this node-specific protocol instance identity. */
@@ -112,7 +104,6 @@ public final class NodeUpstream extends LifecycleComponent {
     protected void onDeactivate() {
         cancelHeartbeatSchedule();
         inputTask.cancel();
-        cancelActiveMessageTask();
         timingDataSync.cancelReplay();
         raceDataSync.cancelApply();
         taskRunner.close();
@@ -198,61 +189,17 @@ public final class NodeUpstream extends LifecycleComponent {
         };
     }
 
-    /** Starts exactly one semantic message task; later input remains queued until it completes. */
-    private void startMessageTask(YieldingTask task) {
-        CompletableFuture<Void> run = taskRunner.runTask(task);
-        synchronized (this) {
-            if (activeMessageRun != null) {
-                run.cancel(true);
-                throw new IllegalStateException("NodeUpstream already has an active message task");
-            }
-            activeMessageRun = run;
-        }
-        run.whenComplete((ignored, failure) -> messageTaskCompleted(run, failure));
-    }
-
-    /** Clears one completed message task and then admits queued follow-up input. */
-    private void messageTaskCompleted(CompletableFuture<Void> run, Throwable failure) {
-        synchronized (this) {
-            if (activeMessageRun != run) {
-                return;
-            }
-            activeMessageRun = null;
-        }
-
-        if (failure != null) {
-            timingDataSync.cancelReplay();
-            raceDataSync.cancelApply();
-            LOG.warn("Upstream message task failed for node {}", nodeId.value(), failure);
-        }
-
-        wakeQueuedInput();
-    }
-
-    /** Reports whether one semantic stream message is still executing or awaiting completion. */
-    private synchronized boolean messageTaskActive() {
-        return activeMessageRun != null;
-    }
-
-    /**
-     * Wakes message admission without moving queue ownership out of UpstreamStream.
-     *
-     * <p>Repeated DATA_AVAILABLE events may coalesce because the authoritative condition
-     * is the stream queue itself.</p>
-     */
+    /** Wakes the task that owns stream consumption and message continuation. */
     private void wakeQueuedInput() {
-        if (taskRunner.isRunning() && isAvailable() && stream.hasMessage() && !messageTaskActive()) {
+        if (isAvailable() && stream.hasMessage()) {
             inputTask.wake(taskRunner);
         }
     }
 
-    /** Cancels the active semantic message continuation without consuming later queued stream input. */
-    private synchronized void cancelActiveMessageTask() {
-        CompletableFuture<Void> run = activeMessageRun;
-        activeMessageRun = null;
-        if (run != null) {
-            run.cancel(true);
-        }
+    /** Clears protocol continuation state after one failed inbound operation. */
+    private void cancelMessageState() {
+        timingDataSync.cancelReplay();
+        raceDataSync.cancelApply();
     }
 
     /**
@@ -263,10 +210,6 @@ public final class NodeUpstream extends LifecycleComponent {
      * connection became available.</p>
      */
     public void connectionAvailable() {
-        if (!taskRunner.isRunning()) {
-            return;
-        }
-
         queueTimingDataSync();
         queueHeartbeat();
         wakeQueuedInput();
@@ -306,61 +249,14 @@ public final class NodeUpstream extends LifecycleComponent {
 
     /** Queues one heartbeat protocol turn only while this component and transport are operational. */
     private void queueHeartbeat() {
-        if (taskRunner.isRunning() && isAvailable()) {
-            executeTaskOrWarn(heartbeat::tick, "heartbeat tick");
+        if (isAvailable()) {
+            taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick");
         }
     }
 
     /** Queues the current TIMING_DATA source-head advertisement on this node's task lane. */
     private void queueTimingDataSync() {
-        executeTaskOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC");
+        taskRunner.executeOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC");
     }
 
-    /**
-     * Executes one small protocol operation and contains task-lane rejection at the event/timer boundary.
-     *
-     * <p>The helper does not hide semantic work: callers name the concrete protocol operation they admit.</p>
-     */
-    private void executeTaskOrWarn(Runnable task, String operation) {
-        Runnable queueTask = () -> taskRunner.runTask(() -> {
-            task.run();
-            return TaskStep.done();
-        });
-        Consumer<RejectedExecutionException> onRejected = ex ->
-                LOG.warn("Dropped upstream {} for node {} because the Task Lane rejected execution",
-                        operation, nodeId.value(), ex);
-
-        SafeExecute.runOrHandleRejection(queueTask, onRejected);
-    }
-
-    /**
-     * Admits one queued encoded message as one focused semantic task.
-     *
-     * <p>This task never owns protocol state itself; it only bridges the stream queue to the single active semantic
-     * message continuation.</p>
-     */
-    private final class InputTask extends AbstractTask {
-        @Override
-        protected void resetForRun() {
-            // No operation state: this task only admits one message.
-        }
-
-        @Override
-        public TaskStep runStep() {
-            if (!isAvailable() || messageTaskActive() || !stream.hasMessage()) {
-                return TaskStep.done();
-            }
-
-            startMessageTask(createMessageTask(readMessage()));
-            return TaskStep.done();
-        }
-
-        @Override
-        protected void onRunCompleted(Throwable failure) {
-            if (failure != null) {
-                LOG.warn("Upstream input admission failed for node {}", nodeId.value(), failure);
-                wakeQueuedInput();
-            }
-        }
-    }
 }

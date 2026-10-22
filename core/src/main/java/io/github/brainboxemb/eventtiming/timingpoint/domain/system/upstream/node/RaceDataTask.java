@@ -15,8 +15,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>The task has exactly one asynchronous wait: NodeService.applyRaceData().
  * While that future is incomplete, SerialTaskRunner releases the shared worker.
- * NodeUpstream does not admit the next queued upstream message until this task
- * has completed, preserving semantic message order.</p>
+ * UpstreamInputTask keeps this semantic task active and does not consume the next
+ * queued upstream message until this task completes.</p>
  */
 final class RaceDataTask implements YieldingTask {
     private final BooleanSupplier available;

@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
@@ -31,6 +34,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Runtime-owned and may also back other logical lanes.</p>
  */
 public final class SerialTaskRunner implements AutoCloseable {
+    private static final Logger LOG = LoggerFactory.getLogger(SerialTaskRunner.class);
 
     public enum FailureReason {
         OVERLOADED,
@@ -238,6 +242,7 @@ public final class SerialTaskRunner implements AutoCloseable {
     }
 
     private final ScheduledExecutorService scheduler;
+    private final String name;
     private final int capacity;
     private final AtomicInteger pendingSteps = new AtomicInteger();
     private final ExecutionMetrics metrics =
@@ -287,6 +292,7 @@ public final class SerialTaskRunner implements AutoCloseable {
         failIfInvalidArgument(name != null && !name.trim().isEmpty(),
                 "name must not be blank");
         this.capacity = capacity;
+        this.name = name;
         this.timeoutNanos = timeoutNanos;
     }
 
@@ -317,6 +323,32 @@ public final class SerialTaskRunner implements AutoCloseable {
     public CompletableFuture<Void> runTask(YieldingTask task) {
         failIfInvalidArgument(task != null, "task must not be null");
         return new TaskRun(task).start();
+    }
+
+    /**
+     * Queues a short Runnable with operation-specific diagnostics.
+     * This is fire-and-forget; a failed admitted operation is logged on completion.
+     *
+     * @return false if admission was rejected
+     */
+    public boolean executeOrWarn(Runnable operation, String operationId) {
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(operationId != null && !operationId.trim().isEmpty(),
+                "operationId must not be blank");
+        try {
+            runTask(() -> {
+                operation.run();
+                return TaskStep.done();
+            }).whenComplete((ignored, failure) -> {
+                if (failure != null) {
+                    LOG.error("SerialTaskRunner {} operation {} failed", name, operationId, failure);
+                }
+            });
+            return true;
+        } catch (RejectedExecutionException ex) {
+            LOG.warn("SerialTaskRunner {} rejected operation {}", name, operationId, ex);
+            return false;
+        }
     }
 
     /**
