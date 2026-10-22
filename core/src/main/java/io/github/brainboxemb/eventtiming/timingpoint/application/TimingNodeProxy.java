@@ -16,12 +16,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
+import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -171,12 +173,21 @@ public final class TimingNodeProxy {
                         afterSequence,
                         limit,
                         registration -> visitor.accept(
-                                new RegistrationEntry(
-                                        registration.sequenceNumber(),
-                                        registration.registrationId(),
-                                        registration.effectiveTime(),
-                                        registration.isValid())));
+                                registrationEntry(registration)));
         return registrationProjectionInfo(info);
+    }
+
+    /** Materializes one compact domain row at the presentation-facing application boundary. */
+    private static RegistrationEntry registrationEntry(
+            ActiveRegistrations.Registration registration) {
+
+        return new RegistrationEntry(
+                registration.sequenceNumber(),
+                registration.registrationId(),
+                new TimingTimestamp(
+                        Instant.ofEpochMilli(
+                                registration.effectiveTimeMillis())),
+                registration.isValid());
     }
 
     private static RegistrationProjectionInfo registrationProjectionInfo(
@@ -204,11 +215,7 @@ public final class TimingNodeProxy {
                 afterSequence,
                 limit,
                 registration -> visitor.accept(
-                        new RegistrationEntry(
-                                registration.sequenceNumber(),
-                                registration.registrationId(),
-                                registration.effectiveTime(),
-                                registration.isValid())));
+                        registrationEntry(registration)));
     }
 
     public TimingNodeStatus status() {

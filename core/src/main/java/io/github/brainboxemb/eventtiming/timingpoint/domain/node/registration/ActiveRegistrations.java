@@ -3,9 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -195,8 +193,9 @@ public final class ActiveRegistrations {
      * One retained chronological registration row for the active WP.
      *
      * <p>LocationId is not stored per row because every row belongs to the same active projection.
-     * Semantic RegistrationId and TimingTimestamp values are reconstructed only at the read/output
-     * boundary. Validity is the only mutable field.</p>
+     * RegistrationId is reconstructed at the read boundary; absolute effective time remains an
+     * epoch-millisecond scalar until an application/presentation boundary needs another form.
+     * Validity is the only mutable field.</p>
      */
     public static final class Registration {
         private final long sequenceNumber;
@@ -220,10 +219,10 @@ public final class ActiveRegistrations {
             return sequenceNumber;
         }
 
-        /** Returns the absolute effective registration time reconstructed at the read boundary. */
-        public TimingTimestamp effectiveTime() {
+        /** Returns the absolute effective registration time as UTC epoch milliseconds. */
+        public long effectiveTimeMillis() {
 
-            return new TimingTimestamp(Instant.ofEpochMilli(effectiveTimeMillis));
+            return effectiveTimeMillis;
         }
 
         /** Returns the registration identity reconstructed from its compact packed value. */

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep internal absolute timing state scalar: normalize IF-06 stage-start civil time at NodeService ingress before RaceDataState, keep active-registration and antenna-observation reads in UTC epoch milliseconds, and materialize `TimingTimestamp` only at protocol/presentation boundaries that need it.
+
 - Simplify per-node upstream execution: `SerialTaskRunner.executeOrWarn(...)` now owns short Runnable admission/rejection diagnostics, while `UpstreamInputTask` owns ordered stream consumption and directly propagates each semantic `YieldingTask` continuation without `NodeUpstream` future bookkeeping or nested task runs.
 
 - Remove `TimingTimestamp` from the internal antenna-to-LogBook command path: carry absolute event times as epoch-millisecond `long` values through passage selection, `TagProcessor.NewRegistration`, `TimingNode`, `LogBookCommands` and `LogBookOperations`; keep IF-05 effective-time canonicalization at 10 ms, while preserving full 1 ms `recTime` precision.

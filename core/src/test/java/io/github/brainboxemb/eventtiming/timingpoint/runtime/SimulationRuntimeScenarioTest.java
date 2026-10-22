@@ -146,7 +146,7 @@ public class SimulationRuntimeScenarioTest {
                     -42,
                     strongest.rssi());
             Instant strongestInstant =
-                    strongest.observedAt().instant();
+                    Instant.ofEpochMilli(strongest.observedAtEpochMillis());
             long expectedNanos =
                     (strongestInstant.getNano()
                             / 10_000_000L)

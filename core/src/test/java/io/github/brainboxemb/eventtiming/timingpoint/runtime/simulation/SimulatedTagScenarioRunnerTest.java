@@ -94,15 +94,11 @@ public class SimulatedTagScenarioRunnerTest {
                     observations.get(3)
                             .tagId());
             assertEquals(
-                    BASE_TIME,
-                    observations.get(0)
-                            .observedAt()
-                            .instant());
+                    BASE_TIME.toEpochMilli(),
+                    observations.get(0).observedAtEpochMillis());
             assertEquals(
-                    BASE_TIME.plusMillis(80L),
-                    observations.get(2)
-                            .observedAt()
-                            .instant());
+                    BASE_TIME.plusMillis(80L).toEpochMilli(),
+                    observations.get(2).observedAtEpochMillis());
             assertEquals(
                     BASE_MONOTONIC_NANOS + TimeUnit.MILLISECONDS.toNanos(80L),
                     observations.get(2)
@@ -157,9 +153,8 @@ public class SimulatedTagScenarioRunnerTest {
                     TAG_A,
                     single.value.tagId());
             assertEquals(
-                    BASE_TIME,
-                    single.value.observedAt()
-                            .instant());
+                    BASE_TIME.toEpochMilli(),
+                    single.value.observedAtEpochMillis());
         } finally {
             runner.deactivate();
             antenna.shutdown();
@@ -257,10 +252,8 @@ public class SimulatedTagScenarioRunnerTest {
                     5,
                     longObservations.size());
             assertEquals(
-                    BASE_TIME.plusMillis(800L),
-                    longObservations.get(4)
-                            .observedAt()
-                            .instant());
+                    BASE_TIME.plusMillis(800L).toEpochMilli(),
+                    longObservations.get(4).observedAtEpochMillis());
             assertEquals(
                     longA,
                     longObservations.get(0)
