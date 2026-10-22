@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ExecutionMetrics;
+
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -41,7 +43,7 @@ public final class SerialLane<T> implements AutoCloseable {
     private final int maxItemsPerRun;
     private final Consumer<T> itemProcessor;
     private final Runnable queueWorker = this::runQueueWorker;
-    private final SerialLaneMetrics metrics;
+    private final ExecutionMetrics metrics;
 
     /** Java thread currently running this lane's worker, or null while idle. */
     private volatile Thread executingThread;
@@ -78,7 +80,7 @@ public final class SerialLane<T> implements AutoCloseable {
         queue = new ArrayBlockingQueue<QueuedItem<T>>(capacity);
         this.maxItemsPerRun = maxItemsPerRun;
         this.itemProcessor = itemProcessor;
-        metrics = new SerialLaneMetrics(queue::size);
+        metrics = new ExecutionMetrics(queue::size);
     }
 
     /** Starts accepting items. A drained lane may be started again. */
@@ -209,7 +211,7 @@ public final class SerialLane<T> implements AutoCloseable {
     }
 
     /** Returns item-queue metrics for this lane. */
-    public SerialLaneMetrics metrics() {
+    public ExecutionMetrics metrics() {
         return metrics;
     }
 

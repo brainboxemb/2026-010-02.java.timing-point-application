@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Decouple cooperative task-step metrics from `SerialLane`: both `SerialLane` and `SerialTaskRunner` now own independent `ExecutionMetrics` instances for queued work, admission rejection, wait duration and execution time. One task-runner metric unit is a scheduled step rather than a complete yielding task; delayed/awaiting tasks consume no queue slot.
+
 - Rename `TimingRecord` creation factories to explicit `create...` names: `createAutomaticRegistration(...)`, `createManualRegistration(...)`, `createNodeOpened(...)` and `createNodeClosed(...)`; update production, codec and test call sites consistently.
 
 - Keep `AGENTS.md` as repository-routing/local-exception guidance: route durable Java coding rules to `44-01-GPD-java-design-rules.md` and Engineering Client UI rules to `44-02-GPD-engineering-client-design-rules.md` instead of duplicating those standards locally.

@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ExecutionMetrics;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -263,7 +265,7 @@ public class SerialLaneTest {
             lane.close();
         }
 
-        SerialLaneMetrics.Snapshot metrics = lane.metrics().snapshot();
+        ExecutionMetrics.Snapshot metrics = lane.metrics().snapshot();
         assertEquals(2L, metrics.queuedCount());
         assertEquals(1L, metrics.fullCount());
         assertEquals(1L, metrics.notRunningCount());
