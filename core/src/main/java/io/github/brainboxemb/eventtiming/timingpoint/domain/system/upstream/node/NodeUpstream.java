@@ -250,13 +250,13 @@ public final class NodeUpstream extends LifecycleComponent {
     /** Queues one heartbeat protocol turn only while this component and transport are operational. */
     private void queueHeartbeat() {
         if (isAvailable()) {
-            taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick for node " + nodeId.value());
+            taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick");
         }
     }
 
     /** Queues the current TIMING_DATA source-head advertisement on this node's task lane. */
     private void queueTimingDataSync() {
-        taskRunner.executeOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC for node " + nodeId.value());
+        taskRunner.executeOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC");
     }
 
 }
