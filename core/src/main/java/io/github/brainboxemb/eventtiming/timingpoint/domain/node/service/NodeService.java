@@ -178,20 +178,20 @@ public final class NodeService extends LifecycleComponent {
             }
         }
 
-        Map<TeamId, Long> stageStartsToSet =
-                new LinkedHashMap<TeamId, Long>();
-        List<TeamId> stageStartsToDelete =
-                new ArrayList<TeamId>();
+        Map<RegistrationId, Long> stageStartsToSet =
+                new LinkedHashMap<RegistrationId, Long>();
+        List<RegistrationId> stageStartsToDelete =
+                new ArrayList<RegistrationId>();
         for (UpstreamData.StageStartTimeChange change : changes.stageStartTimeChanges()) {
             failIfInvalidArgument(change != null, "stage start change must not be null");
             switch (change.operation()) {
                 case SET:
                     stageStartsToSet.put(
-                            change.teamId(),
+                            change.registrationId(),
                             absoluteStartMillis(change.start(), receivedAt));
                     break;
                 case DEL:
-                    stageStartsToDelete.add(change.teamId());
+                    stageStartsToDelete.add(change.registrationId());
                     break;
                 default:
                     throw new IllegalArgumentException(
@@ -239,13 +239,13 @@ public final class NodeService extends LifecycleComponent {
      * may deliberately replace it.</p>
      */
     public void setStageStart(
-            TeamId teamId,
+            RegistrationId registrationId,
             long startMillis) {
 
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         runOrderedMutation(
                 () -> raceData.setStageStart(
-                        teamId,
+                        registrationId,
                         startMillis));
     }
 

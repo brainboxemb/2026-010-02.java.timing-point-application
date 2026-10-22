@@ -309,22 +309,22 @@ public abstract class UpstreamData {
         }
     }
 
-    /** One incremental TeamId-to-stage-start change. */
+    /** One incremental RegistrationId-to-stage-start change. */
     public static final class StageStartTimeChange {
         private final ChangeOperation operation;
-        private final TeamId teamId;
+        private final RegistrationId registrationId;
         private final TimingTimestamp start;
 
         public StageStartTimeChange(
                 ChangeOperation operation,
-                TeamId teamId,
+                RegistrationId registrationId,
                 TimingTimestamp start) {
 
             if (operation == null) {
                 throw new IllegalArgumentException("operation must not be null");
             }
-            if (teamId == null) {
-                throw new IllegalArgumentException("teamId must not be null");
+            if (registrationId == null) {
+                throw new IllegalArgumentException("registrationId must not be null");
             }
             if (operation == ChangeOperation.SET && start == null) {
                 throw new IllegalArgumentException("SET requires start timestamp");
@@ -334,7 +334,7 @@ public abstract class UpstreamData {
             }
 
             this.operation = operation;
-            this.teamId = teamId;
+            this.registrationId = registrationId;
             this.start = start;
         }
 
@@ -342,8 +342,8 @@ public abstract class UpstreamData {
             return operation;
         }
 
-        public TeamId teamId() {
-            return teamId;
+        public RegistrationId registrationId() {
+            return registrationId;
         }
 
         public TimingTimestamp start() {
@@ -360,13 +360,13 @@ public abstract class UpstreamData {
             }
             StageStartTimeChange that = (StageStartTimeChange) other;
             return operation == that.operation
-                    && teamId.equals(that.teamId)
+                    && registrationId.equals(that.registrationId)
                     && Objects.equals(start, that.start);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(operation, teamId, start);
+            return Objects.hash(operation, registrationId, start);
         }
     }
 
@@ -442,14 +442,14 @@ public abstract class UpstreamData {
         }
 
         List<StageStartTimeChange> copy = new ArrayList<StageStartTimeChange>(changes.size());
-        Set<TeamId> keys = new LinkedHashSet<TeamId>();
+        Set<RegistrationId> keys = new LinkedHashSet<RegistrationId>();
         for (StageStartTimeChange change : changes) {
             if (change == null) {
                 throw new IllegalArgumentException("stageStartTimeChanges must not contain null");
             }
-            if (!keys.add(change.teamId())) {
+            if (!keys.add(change.registrationId())) {
                 throw new IllegalArgumentException(
-                        "duplicate stageStartTimes teamId " + change.teamId());
+                        "duplicate stageStartTimes regId " + change.registrationId());
             }
             copy.add(change);
         }

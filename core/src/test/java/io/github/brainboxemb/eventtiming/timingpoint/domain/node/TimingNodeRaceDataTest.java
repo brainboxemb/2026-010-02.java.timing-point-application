@@ -167,7 +167,7 @@ public class TimingNodeRaceDataTest {
                                             "9999")),
                             Collections.singletonList(
                                     DefaultUpstreamData.stageStartSet(
-                                            "0042",
+                                            "R0001",
                                             LocalTime.of(12, 0)))));
 
             assertEquals(0, fixture.stream.sentCount());

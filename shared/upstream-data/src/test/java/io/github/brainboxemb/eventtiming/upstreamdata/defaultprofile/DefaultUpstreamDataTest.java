@@ -39,8 +39,8 @@ public class DefaultUpstreamDataTest {
                     1L,
                     Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                     Arrays.asList(
-                            DefaultUpstreamData.stageStartDelete("0042"),
-                            DefaultUpstreamData.stageStartDelete("0042")));
+                            DefaultUpstreamData.stageStartDelete("R0001"),
+                            DefaultUpstreamData.stageStartDelete("R0001")));
             fail("expected invalid RaceData");
         } catch (IllegalArgumentException expected) {
             // expected

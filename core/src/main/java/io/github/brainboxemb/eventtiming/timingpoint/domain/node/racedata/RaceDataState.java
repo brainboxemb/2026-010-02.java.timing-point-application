@@ -39,18 +39,18 @@ public final class RaceDataState {
 
     /** Sets one already-normalized stage-start value owned by the NodeService Task Lane. */
     public void setStageStart(
-            TeamId teamId,
+            RegistrationId registrationId,
             long startMillis) {
 
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
-        stageStartTimes.set(teamId, startMillis);
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        stageStartTimes.set(registrationId, startMillis);
     }
 
     /** Package-local stage-start lookup used by focused state tests. */
-    Long stageStartMillisFor(TeamId teamId) {
+    Long stageStartMillisFor(RegistrationId registrationId) {
 
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
-        return stageStartTimes.startMillisFor(teamId);
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        return stageStartTimes.startMillisFor(registrationId);
     }
 
     /** Resolves TeamId from fixed EventData first, then live upstream assignment state. */
@@ -72,8 +72,8 @@ public final class RaceDataState {
     public void applyChanges(
             Map<RegistrationId, TeamId> assignmentsToSet,
             List<RegistrationId> assignmentsToDelete,
-            Map<TeamId, Long> stageStartsToSet,
-            List<TeamId> stageStartsToDelete) {
+            Map<RegistrationId, Long> stageStartsToSet,
+            List<RegistrationId> stageStartsToDelete) {
 
         failIfInvalidArgument(assignmentsToSet != null, "assignmentsToSet must not be null");
         failIfInvalidArgument(assignmentsToDelete != null, "assignmentsToDelete must not be null");
@@ -116,20 +116,20 @@ public final class RaceDataState {
     /** Applies already-normalized stage-start changes to the uncommitted transactional copy. */
     private static void applyStageStartChanges(
             StageStartTimes updatedStarts,
-            Map<TeamId, Long> stageStartsToSet,
-            List<TeamId> stageStartsToDelete) {
+            Map<RegistrationId, Long> stageStartsToSet,
+            List<RegistrationId> stageStartsToDelete) {
 
-        for (Map.Entry<TeamId, Long> change : stageStartsToSet.entrySet()) {
-            TeamId teamId = change.getKey();
+        for (Map.Entry<RegistrationId, Long> change : stageStartsToSet.entrySet()) {
+            RegistrationId registrationId = change.getKey();
             Long startMillis = change.getValue();
-            failIfInvalidArgument(teamId != null, "teamId must not be null");
+            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
             failIfInvalidArgument(startMillis != null, "stage start must not be null");
-            updatedStarts.set(teamId, startMillis.longValue());
+            updatedStarts.set(registrationId, startMillis.longValue());
         }
 
-        for (TeamId teamId : stageStartsToDelete) {
-            failIfInvalidArgument(teamId != null, "teamId must not be null");
-            updatedStarts.remove(teamId);
+        for (RegistrationId registrationId : stageStartsToDelete) {
+            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+            updatedStarts.remove(registrationId);
         }
     }
 }

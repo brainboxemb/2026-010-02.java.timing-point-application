@@ -78,11 +78,11 @@ public class DefaultUpstreamDataCodecTest {
                                         "R0002")),
                         Arrays.asList(
                                 DefaultUpstreamData.stageStartSet(
-                                        "0042",
+                                        "R0001",
                                         TimingTimestamp.parse(
                                                 "23:59:50.12")),
                                 DefaultUpstreamData.stageStartSet(
-                                        "0043",
+                                        "R0002",
                                         TimingTimestamp.parse(
                                                 "2026-10-14T00:02:00"))));
 
@@ -91,6 +91,8 @@ public class DefaultUpstreamDataCodecTest {
         assertTrue(json.contains("\"seq\":123"));
         assertTrue(json.contains("\"teamAssignments\""));
         assertTrue(json.contains("\"stageStartTimes\""));
+        assertTrue(json.contains(
+                "{\"op\":\"SET\",\"regId\":\"R0001\",\"start\":\"23:59:50.12\"}"));
         assertTrue(json.contains("\"op\":\"SET\""));
         assertTrue(json.contains("\"op\":\"DEL\""));
         assertTrue(json.contains(
@@ -126,7 +128,16 @@ public class DefaultUpstreamDataCodecTest {
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
                         + "\"seq\":2,\"data\":{\"stageStartTimes\":["
-                        + "{\"op\":\"DEL\",\"teamId\":\"0042\","
+                        + "{\"op\":\"DEL\",\"regId\":\"R0001\","
+                        + "\"start\":\"12:00:00\"}]}}");
+    }
+
+    @Test
+    public void raceDataRejectsLegacyTeamIdOnlyStageStartKey() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"seq\":3,\"data\":{\"stageStartTimes\":["
+                        + "{\"op\":\"SET\",\"teamId\":\"0042\","
                         + "\"start\":\"12:00:00\"}]}}");
     }
 
@@ -139,7 +150,7 @@ public class DefaultUpstreamDataCodecTest {
                         Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                         Collections.singletonList(
                                 DefaultUpstreamData.stageStartSet(
-                                        "0042",
+                                        "R0001",
                                         TimingTimestamp.parse(
                                                 "12:00:00.123"))));
 
