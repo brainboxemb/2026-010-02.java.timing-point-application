@@ -121,8 +121,8 @@ public final class TimingRecord {
         this.source2 = source2;
     }
 
-    /** Creates an automatic ADD or REV, with optional paired provenance for older records. */
-    public static TimingRecord automatic(
+    /** Automatic provenance is either fully present or fully absent for legacy records. */
+    public static TimingRecord createAutomaticRegistration(
             char nodeId,
             long sequenceNumber,
             int locationId,
@@ -142,8 +142,8 @@ public final class TimingRecord {
                 nullableOrdinal(tagSource), nullableOrdinal(timeSource));
     }
 
-    /** Creates a manual ADD or REV with its mandatory time-source code. */
-    public static TimingRecord manual(
+    /** Manual registrations always retain the time-source code that explains their effective time. */
+    public static TimingRecord createManualRegistration(
             char nodeId,
             long sequenceNumber,
             int locationId,
@@ -162,8 +162,8 @@ public final class TimingRecord {
                 (byte) timeSource.ordinal(), (byte) -1);
     }
 
-    /** Creates an OPEN transition without registration fields. */
-    public static TimingRecord opened(
+    /** NODE_OPEN carries lifecycle timing only and therefore has no registration fields. */
+    public static TimingRecord createNodeOpened(
             char nodeId, long sequenceNumber, int locationId,
             long effectiveTimeMillis, long recordedAtMillis) {
         return new TimingRecord(
@@ -171,8 +171,8 @@ public final class TimingRecord {
                 0, Kind.NODE_OPEN, (byte) -1, (byte) -1, (byte) -1);
     }
 
-    /** Creates a CLOSE transition without registration fields. */
-    public static TimingRecord closed(
+    /** NODE_CLOSE carries lifecycle timing only and therefore has no registration fields. */
+    public static TimingRecord createNodeClosed(
             char nodeId, long sequenceNumber, int locationId,
             long effectiveTimeMillis, long recordedAtMillis) {
         return new TimingRecord(

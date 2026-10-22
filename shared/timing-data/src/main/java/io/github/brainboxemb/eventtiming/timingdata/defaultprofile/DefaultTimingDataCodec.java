@@ -299,12 +299,12 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             }
             require(fields.codesSeen, "code");
             if (exact(fields.codes, OPEN)) {
-                return TimingRecord.opened(
+                return TimingRecord.createNodeOpened(
                         common.nodeId, common.sequence, common.locationId,
                         common.effectiveTimeMillis, common.recordedAtMillis);
             }
             if (exact(fields.codes, CLOSE)) {
-                return TimingRecord.closed(
+                return TimingRecord.createNodeClosed(
                         common.nodeId, common.sequence, common.locationId,
                         common.effectiveTimeMillis, common.recordedAtMillis);
             }
@@ -351,7 +351,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                 throw invalid("AUTO_REG code must be exactly ADD or REV");
             }
 
-            return TimingRecord.automatic(
+            return TimingRecord.createAutomaticRegistration(
                     common.nodeId, common.sequence, common.locationId,
                     common.effectiveTimeMillis, common.recordedAtMillis,
                     registrationId, action, tagSource, timeSource);
@@ -363,7 +363,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         }
         TimingRecord.Action action = oneOfAction(fields.codes);
         TimingRecord.ManualTimeSource timeSource = oneOfManualTimeSource(fields.codes);
-        return TimingRecord.manual(
+        return TimingRecord.createManualRegistration(
                 common.nodeId, common.sequence, common.locationId,
                 common.effectiveTimeMillis, common.recordedAtMillis,
                 registrationId, action, timeSource);

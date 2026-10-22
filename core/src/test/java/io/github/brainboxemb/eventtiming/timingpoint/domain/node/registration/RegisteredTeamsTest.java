@@ -127,7 +127,7 @@ public class RegisteredTeamsTest {
             String id,
             TimingRecord.Action action) {
         long time = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
-        return TimingRecord.automatic(
+        return TimingRecord.createAutomaticRegistration(
                 'A',
                 sequence,
                 1,

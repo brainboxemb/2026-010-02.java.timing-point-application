@@ -15,7 +15,7 @@ public class TimingRecordTest {
     public void automaticRecordRetainsCompactScalarContract() {
         RegistrationId registrationId = new RegistrationId("A0042");
 
-        TimingRecord record = TimingRecord.automatic(
+        TimingRecord record = TimingRecord.createAutomaticRegistration(
                 'A',
                 7L,
                 12,
@@ -41,7 +41,7 @@ public class TimingRecordTest {
 
     @Test
     public void manualRecordRetainsActionAndTimeSource() {
-        TimingRecord record = TimingRecord.manual(
+        TimingRecord record = TimingRecord.createManualRegistration(
                 'A',
                 8L,
                 12,
@@ -60,9 +60,9 @@ public class TimingRecordTest {
 
     @Test
     public void lifecycleRecordsCarryNoRegistrationFields() {
-        TimingRecord opened = TimingRecord.opened(
+        TimingRecord opened = TimingRecord.createNodeOpened(
                 'A', 1L, 12, 1790798499120L, 1790798500000L);
-        TimingRecord closed = TimingRecord.closed(
+        TimingRecord closed = TimingRecord.createNodeClosed(
                 'A', 2L, 12, 1790798499130L, 1790798500010L);
 
         assertSame(TimingRecord.Kind.NODE_OPEN, opened.kind());
@@ -76,12 +76,12 @@ public class TimingRecordTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsReservedZeroSequence() {
-        TimingRecord.opened('A', 0L, 12, 1L, 1L);
+        TimingRecord.createNodeOpened('A', 0L, 12, 1L, 1L);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsSequenceAboveJsonSafeRange() {
-        TimingRecord.opened(
+        TimingRecord.createNodeOpened(
                 'A',
                 TimingRecord.MAX_SEQUENCE_NUMBER + 1L,
                 12,
@@ -91,17 +91,17 @@ public class TimingRecordTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsInvalidNodeId() {
-        TimingRecord.opened('0', 1L, 12, 1L, 1L);
+        TimingRecord.createNodeOpened('0', 1L, 12, 1L, 1L);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsNonPositiveLocation() {
-        TimingRecord.opened('A', 1L, 0, 1L, 1L);
+        TimingRecord.createNodeOpened('A', 1L, 0, 1L, 1L);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void automaticProvenanceMustBePaired() {
-        TimingRecord.automatic(
+        TimingRecord.createAutomaticRegistration(
                 'A',
                 1L,
                 12,

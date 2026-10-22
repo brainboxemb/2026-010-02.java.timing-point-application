@@ -225,7 +225,7 @@ public class ActiveRegistrationsIntegrationTest {
             String registrationId,
             Instant effectiveTime) {
         long millis = effectiveTime.toEpochMilli();
-        return TimingRecord.automatic(
+        return TimingRecord.createAutomaticRegistration(
                 'A',
                 sequence,
                 location,
@@ -242,7 +242,7 @@ public class ActiveRegistrationsIntegrationTest {
                 Instant.parse("2026-10-13T12:00:00Z")
                         .plusMillis(sequence)
                         .toEpochMilli();
-        return TimingRecord.opened('A', sequence, location, millis, millis);
+        return TimingRecord.createNodeOpened('A', sequence, location, millis, millis);
     }
 
     private static TimingRecord closed(long sequence, int location) {
@@ -250,7 +250,7 @@ public class ActiveRegistrationsIntegrationTest {
                 Instant.parse("2026-10-13T12:00:00Z")
                         .plusMillis(sequence)
                         .toEpochMilli();
-        return TimingRecord.closed('A', sequence, location, millis, millis);
+        return TimingRecord.createNodeClosed('A', sequence, location, millis, millis);
     }
 
     private static final class StaticPersistence implements TimingDataPersistence {

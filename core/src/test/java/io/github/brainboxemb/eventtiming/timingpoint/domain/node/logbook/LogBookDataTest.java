@@ -92,7 +92,7 @@ public class LogBookDataTest {
     private static TimingRecord record(String nodeId, long sequence, String registrationId) {
         long effective = Instant.parse("2026-10-01T12:00:00Z").toEpochMilli();
         long recorded = Instant.parse("2026-10-01T12:00:01Z").toEpochMilli();
-        return TimingRecord.manual(
+        return TimingRecord.createManualRegistration(
                 nodeId.charAt(0),
                 sequence,
                 24,

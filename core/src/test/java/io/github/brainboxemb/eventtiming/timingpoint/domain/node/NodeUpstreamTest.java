@@ -783,7 +783,7 @@ public class NodeUpstreamTest {
                     base.plusMillis(index * 10L)
                             .toEpochMilli();
             records.add(
-                    TimingRecord.automatic(
+                    TimingRecord.createAutomaticRegistration(
                             nodeId.charAt(0),
                             index,
                             1,

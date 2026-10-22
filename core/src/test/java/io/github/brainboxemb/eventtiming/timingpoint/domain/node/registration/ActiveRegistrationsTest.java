@@ -128,7 +128,7 @@ public class ActiveRegistrationsTest {
         registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
 
         long different = Instant.parse("2026-10-13T12:05:00Z").toEpochMilli();
-        TimingRecord unmatched = TimingRecord.automatic(
+        TimingRecord unmatched = TimingRecord.createAutomaticRegistration(
                 'A',
                 2L,
                 1,
@@ -157,7 +157,7 @@ public class ActiveRegistrationsTest {
             int location,
             TimingRecord.Action action) {
         long time = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
-        return TimingRecord.automatic(
+        return TimingRecord.createAutomaticRegistration(
                 'A',
                 sequence,
                 location,

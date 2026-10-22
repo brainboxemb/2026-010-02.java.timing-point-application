@@ -47,7 +47,7 @@ public class DefaultTimingDataCodecTest {
 
     @Test
     public void preservesAutomaticProvenanceInRecordAndRecovery() throws Exception {
-        TimingRecord record = TimingRecord.automatic(
+        TimingRecord record = TimingRecord.createAutomaticRegistration(
                 'A',
                 1L,
                 7,
@@ -173,7 +173,7 @@ public class DefaultTimingDataCodecTest {
 
     @Test
     public void automaticRevocationUsesRevCodeAndRoundTrips() throws Exception {
-        TimingRecord original = TimingRecord.automatic(
+        TimingRecord original = TimingRecord.createAutomaticRegistration(
                 'A',
                 5L,
                 7,
@@ -257,7 +257,7 @@ public class DefaultTimingDataCodecTest {
 
     @Test
     public void writerRetainsRequiredFractionalZeroes() throws Exception {
-        TimingRecord record = TimingRecord.automatic(
+        TimingRecord record = TimingRecord.createAutomaticRegistration(
                 'A',
                 8L,
                 7,
@@ -278,7 +278,7 @@ public class DefaultTimingDataCodecTest {
     public void recordStoresFinerInputAtMillisecondPrecisionWithoutChangingV1TextShape()
             throws Exception {
         long effective = Instant.parse("2026-09-30T20:01:39.129Z").toEpochMilli();
-        TimingRecord record = TimingRecord.automatic(
+        TimingRecord record = TimingRecord.createAutomaticRegistration(
                 'A',
                 8L,
                 7,
@@ -425,7 +425,7 @@ public class DefaultTimingDataCodecTest {
     }
 
     private static TimingRecord automatic(long sequence, String registrationId) {
-        return TimingRecord.automatic(
+        return TimingRecord.createAutomaticRegistration(
                 'A',
                 sequence,
                 7,
@@ -442,7 +442,7 @@ public class DefaultTimingDataCodecTest {
             String registrationId,
             TimingRecord.Action action,
             TimingRecord.ManualTimeSource timeSource) {
-        return TimingRecord.manual(
+        return TimingRecord.createManualRegistration(
                 'A',
                 sequence,
                 7,
@@ -454,7 +454,7 @@ public class DefaultTimingDataCodecTest {
     }
 
     private static TimingRecord opened(long sequence) {
-        return TimingRecord.opened(
+        return TimingRecord.createNodeOpened(
                 'A',
                 sequence,
                 7,
@@ -463,7 +463,7 @@ public class DefaultTimingDataCodecTest {
     }
 
     private static TimingRecord closed(long sequence) {
-        return TimingRecord.closed(
+        return TimingRecord.createNodeClosed(
                 'A',
                 sequence,
                 7,
