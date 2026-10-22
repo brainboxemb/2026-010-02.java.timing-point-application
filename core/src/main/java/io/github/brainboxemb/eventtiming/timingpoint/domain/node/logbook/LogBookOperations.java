@@ -66,7 +66,7 @@ final class LogBookOperations {
 
         long now = currentCentisecondMillis();
         commitRecord(
-                TimingRecord.opened(
+                TimingRecord.createNodeOpened(
                         nodeId(),
                         state.nextTimingDataSequence(),
                         locationId.value(),
@@ -83,7 +83,7 @@ final class LogBookOperations {
 
         long now = currentCentisecondMillis();
         commitRecord(
-                TimingRecord.closed(
+                TimingRecord.createNodeClosed(
                         nodeId(),
                         state.nextTimingDataSequence(),
                         locationId.value(),
@@ -107,7 +107,7 @@ final class LogBookOperations {
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
-        TimingRecord record = TimingRecord.automatic(
+        TimingRecord record = TimingRecord.createAutomaticRegistration(
                 nodeId(),
                 state.nextTimingDataSequence(),
                 locationId.value(),
@@ -135,7 +135,7 @@ final class LogBookOperations {
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
-        TimingRecord record = TimingRecord.manual(
+        TimingRecord record = TimingRecord.createManualRegistration(
                 nodeId(),
                 state.nextTimingDataSequence(),
                 locationId.value(),
@@ -160,7 +160,7 @@ final class LogBookOperations {
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
-        TimingRecord record = TimingRecord.automatic(
+        TimingRecord record = TimingRecord.createAutomaticRegistration(
                 nodeId(),
                 state.nextTimingDataSequence(),
                 originalLocationId.value(),
@@ -188,7 +188,7 @@ final class LogBookOperations {
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
-        TimingRecord record = TimingRecord.manual(
+        TimingRecord record = TimingRecord.createManualRegistration(
                 nodeId(),
                 state.nextTimingDataSequence(),
                 originalLocationId.value(),
