@@ -182,6 +182,15 @@ public final class TimingNode extends LifecycleComponent {
         return nodeService.registrationIdFor(locationId, teamId);
     }
 
+    /** Sets one engineering stage-start value through the node-owned service lane. */
+    public void setStageStart(
+            TeamId teamId,
+            long startMillis) {
+
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        nodeService.setStageStart(teamId, startMillis);
+    }
+
     /** Returns synchronization metadata for the currently open registration projection. */
     public NodeService.RegistrationProjectionInfo registrationProjectionInfo() {
 

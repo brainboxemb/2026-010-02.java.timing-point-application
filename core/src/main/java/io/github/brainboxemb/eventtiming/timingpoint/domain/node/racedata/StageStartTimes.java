@@ -42,6 +42,13 @@ final class StageStartTimes {
         starts.put(teamId, startMillis);
     }
 
+    /** Returns the current normalized start value, or null when none is known. */
+    Long startMillisFor(TeamId teamId) {
+
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        return starts.get(teamId);
+    }
+
     /** Removes any current stage start for the TeamId. */
     void remove(TeamId teamId) {
 
