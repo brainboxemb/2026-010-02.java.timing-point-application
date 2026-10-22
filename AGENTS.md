@@ -22,10 +22,13 @@ Use these local/project-family authorities:
 - [project.yml](project.yml) / [project.java.yml](project.java.yml) — declared repository/Java tooling configuration;
 - [companion meta repository](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software) — project-wide requirements, architecture, interface design, planning and verification coordination;
 - [SI-01 SAD](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/31-01-SAD-timing-application-architecture.md) — headless timing application architecture;
-- [Java component SDD](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/31-01-SDD-02-java-component-design.md) — Java package/component/artifact design.
+- [Java component SDD](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/31-01-SDD-02-java-component-design.md) — Java package/component/artifact design;
+- [Java design rules](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/44-01-GPD-java-design-rules.md) — durable Java coding/design conventions for ownership, events, comments, naming, composition, layout and tests;
+- [Engineering Client design rules](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/44-02-GPD-engineering-client-design-rules.md) — SI-02 JavaFX/BentoFX layout, interaction, presentation-state and asynchronous UI conventions.
 
 Use source/tests and live CI/generated evidence for exact current implementation
-state.
+state. Durable Java and Engineering Client design rules belong in the GPD documents
+above; do not duplicate them in this repository-routing file.
 
 ## Repository boundaries
 
@@ -45,21 +48,10 @@ Application composition/startup/shutdown belongs in the executable application.
 Reusable timing/domain rules and application-core contracts belong in the core module
 according to the current README and owning SAD/SDD.
 
-## Java code documentation
-
-- Let names describe **what** code does; use comments/Javadoc to explain the domain rule, rationale, ownership or non-obvious boundary condition that a maintainer cannot read directly from the statements.
-- Do not narrate Java syntax or merely repeat a method/field name. For non-trivial logic, document the rule that determines the result and why that rule exists.
-- Document important thresholds explicitly, including whether equality crosses the boundary and which earlier value is the reference (for example first observation versus previous observation).
-- Keep time semantics explicit in names and documentation. Absolute event time and monotonic elapsed time are different concepts; always state the time base and unit when misuse would change behavior.
-- Document non-trivial private helpers as well as public contracts. Trivial accessors may stay concise when their name and type fully express the contract.
-- Comments should remain close to the rule they explain and should survive implementation refactoring; avoid comments whose only purpose is to paraphrase the next line.
-
 ## Local constraints
 
 - keep Java 8 compatibility until the project architecture/tooling baseline explicitly changes;
 - use the repository Maven Wrapper;
-- keep public surfaces deliberately small and do not add speculative future capability merely to make the structure look complete;
-- prefer composition and explicit ports/contracts over subclass-driven extension;
 - keep real/proprietary deployment identities, protocol mappings, credentials and secrets out of this public repository;
 - treat legacy/reference software, production behaviour and user-provided operational examples as reference input rather than automatically as public contract data; publish concrete categories, ranges, encodings or mappings only when an explicit public project authority owns them;
 - Docker is not a prerequisite for normal compile/unit-test work.
