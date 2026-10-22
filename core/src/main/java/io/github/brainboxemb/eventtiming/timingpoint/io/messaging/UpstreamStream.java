@@ -17,11 +17,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * writes therefore never perform another gateway lookup.</p>
  */
 public final class UpstreamStream {
-    static final int DEFAULT_INPUT_CAPACITY = 64;
+    private static final int INPUT_CAPACITY = 64;
 
     private final NodeId routingNodeId;
     private final UpstreamConnector connector;
-    private final int inputCapacity;
     private final Deque<String> input = new ArrayDeque<String>();
     private final Event<UpstreamStream> connectedEvent = new Event<UpstreamStream>();
     private final Event<UpstreamStream> dataAvailableEvent = new Event<UpstreamStream>();
@@ -32,21 +31,14 @@ public final class UpstreamStream {
     /** This is a wake signal; the bounded input queue remains the authoritative pending-data state. */
     public final EventSource<UpstreamStream> DATA_AVAILABLE = dataAvailableEvent;
 
-    /** The default queue bound applies independently to every node-scoped stream. */
+    /** Each node receives an independent bounded input queue. */
     public UpstreamStream(NodeId routingNodeId, UpstreamConnector connector) {
-        this(routingNodeId, connector, DEFAULT_INPUT_CAPACITY);
-    }
-
-    /** Package-local capacity selection exists for bounded-queue verification. */
-    UpstreamStream(NodeId routingNodeId, UpstreamConnector connector, int inputCapacity) {
 
         failIfInvalidArgument(routingNodeId != null, "routingNodeId must not be null");
         failIfInvalidArgument(connector != null, "connector must not be null");
-        failIfInvalidArgument(inputCapacity > 0, "inputCapacity must be positive");
 
         this.routingNodeId = routingNodeId;
         this.connector = connector;
-        this.inputCapacity = inputCapacity;
     }
 
     /** Availability follows the bound connector; the stream has no independent session state. */
@@ -84,7 +76,7 @@ public final class UpstreamStream {
         failIfInvalidArgument(encodedMessage != null, "encodedMessage must not be null");
 
         synchronized (this) {
-            if (input.size() >= inputCapacity) {
+            if (input.size() >= INPUT_CAPACITY) {
                 return false;
             }
             input.addLast(encodedMessage);
