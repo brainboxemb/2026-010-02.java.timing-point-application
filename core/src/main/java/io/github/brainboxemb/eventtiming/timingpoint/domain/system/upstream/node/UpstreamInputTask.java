@@ -3,15 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.nod
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -21,11 +17,11 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Owns ordered stream-message admission and the active message continuation.
+ * Owns ordered stream-message admission and the active semantic task.
  *
- * <p>One task run drains queued input, suspending on each semantic task's completion.
- * While awaiting LogBook or NodeService the shared scheduler worker remains free.
- * Subsequent messages are read only after the previous task completes.</p>
+ * <p>One task run drains queued input. The active semantic task's TaskStep is
+ * returned directly to SerialTaskRunner, so AWAIT/AFTER release the shared
+ * worker without a nested task run or a second completion future.</p>
  */
 final class UpstreamInputTask extends AbstractTask {
     private static final Logger LOG = LoggerFactory.getLogger(UpstreamInputTask.class);
@@ -35,9 +31,8 @@ final class UpstreamInputTask extends AbstractTask {
     private final BooleanSupplier available;
     private final Supplier<UpstreamData> decoder;
     private final Function<UpstreamData, YieldingTask> taskFactory;
-    private final SerialTaskRunner runner;
-    private final Consumer<Throwable> onMessageFailure;
-    private CompletableFuture<Void> currentMessage;
+    private final Runnable failureCleanup;
+    private YieldingTask currentMessageTask;
 
     UpstreamInputTask(
             NodeId nodeId,
@@ -45,63 +40,88 @@ final class UpstreamInputTask extends AbstractTask {
             BooleanSupplier available,
             Supplier<UpstreamData> decoder,
             Function<UpstreamData, YieldingTask> taskFactory,
-            SerialTaskRunner runner,
-            Consumer<Throwable> onMessageFailure) {
+            Runnable failureCleanup) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(decoder != null, "decoder must not be null");
         failIfInvalidArgument(taskFactory != null, "taskFactory must not be null");
-        failIfInvalidArgument(runner != null, "runner must not be null");
-        failIfInvalidArgument(onMessageFailure != null, "onMessageFailure must not be null");
+        failIfInvalidArgument(failureCleanup != null, "failureCleanup must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
         this.available = available;
         this.decoder = decoder;
         this.taskFactory = taskFactory;
-        this.runner = runner;
-        this.onMessageFailure = onMessageFailure;
+        this.failureCleanup = failureCleanup;
     }
 
     @Override
     protected void resetForRun() {
-        currentMessage = null;
+        currentMessageTask = null;
     }
 
     @Override
     public TaskStep runStep() {
-        if (currentMessage != null) {
-            try {
-                currentMessage.join();
-            } catch (CompletionException ex) {
-                reportFailure(ex.getCause() == null ? ex : ex.getCause());
+        if (currentMessageTask == null) {
+            if (!available.getAsBoolean() || !stream.hasMessage()) {
+                return TaskStep.done();
             }
-            currentMessage = null;
+
+            try {
+                currentMessageTask = taskFactory.apply(decoder.get());
+            } catch (RuntimeException ex) {
+                reportMessageFailure(ex);
+                return nextMessageStep();
+            }
         }
 
-        if (!available.getAsBoolean() || !stream.hasMessage()) {
-            return TaskStep.done();
-        }
-
+        final TaskStep step;
         try {
-            currentMessage = runner.runTask(taskFactory.apply(decoder.get()));
+            step = currentMessageTask.runStep();
         } catch (RuntimeException ex) {
-            reportFailure(ex);
-            return TaskStep.again();
+            currentMessageTask = null;
+            reportMessageFailure(ex);
+            return nextMessageStep();
         }
-        return TaskStep.await(currentMessage);
+
+        if (step == null) {
+            currentMessageTask = null;
+            reportMessageFailure(new IllegalStateException(
+                    "Upstream semantic task returned no TaskStep"));
+            return nextMessageStep();
+        }
+
+        if (step.type() != TaskStep.Type.DONE) {
+            return step;
+        }
+
+        currentMessageTask = null;
+        return nextMessageStep();
     }
 
-    /** Reports a consumed message failure and resets its semantic continuation. */
-    private void reportFailure(Throwable failure) {
-        onMessageFailure.accept(failure);
+    /** Yields before consuming a following queued message. */
+    private TaskStep nextMessageStep() {
+        return available.getAsBoolean() && stream.hasMessage()
+                ? TaskStep.again()
+                : TaskStep.done();
+    }
+
+    /** Resets message-specific protocol state after a consumed message fails. */
+    private void reportMessageFailure(Throwable failure) {
+        failureCleanup.run();
         LOG.warn("Upstream message task failed for node {}", nodeId.value(), failure);
     }
 
     @Override
     protected void onRunCompleted(Throwable failure) {
-        if (failure != null) {
-            reportFailure(failure);
+        if (failure == null) {
+            return;
         }
+
+        if (currentMessageTask != null) {
+            currentMessageTask = null;
+            failureCleanup.run();
+        }
+        LOG.warn("Upstream input task failed for node {}", nodeId.value(), failure);
     }
 }
