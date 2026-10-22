@@ -164,6 +164,80 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
     @Test
+    public void raceDataStageStartsUpdateRecoveredRuntimeAndRanking() {
+        InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
+                        new NodeId("A"),
+                        new StaticPersistence(
+                                registrationAt(
+                                        1L,
+                                        1,
+                                        "A0001",
+                                        Instant.parse("2026-10-13T12:00:20Z")),
+                                registrationAt(
+                                        2L,
+                                        1,
+                                        "A0002",
+                                        Instant.parse("2026-10-13T12:00:10Z"))),
+                        () -> Instant.parse("2026-10-13T12:05:00Z"),
+                        new DefaultEventData(),
+                        stream.bind(
+                                new NodeId("A")));
+
+        activate(components.node());
+        activate(components.nodeUpstream());
+        try {
+            awaitOperational(components.node());
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    components.node().open(new LocationId(1)));
+
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Arrays.asList(
+                                    DefaultUpstreamData.stageStartSet(
+                                            "A0001",
+                                            java.time.LocalTime.NOON),
+                                    DefaultUpstreamData.stageStartSet(
+                                            "A0002",
+                                            java.time.LocalTime.NOON))));
+            stream.takeSent();
+
+            List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+            components.nodeService().visitRegistrations(10, rows::add);
+            assertEquals(20000L, rows.get(0).elapsedMillis());
+            assertEquals(2, rows.get(0).rank());
+            assertEquals(10000L, rows.get(1).elapsedMillis());
+            assertEquals(1, rows.get(1).rank());
+
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            2L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartSet(
+                                            "A0001",
+                                            java.time.LocalTime.of(
+                                                    12,
+                                                    0,
+                                                    15)))));
+            stream.takeSent();
+
+            assertEquals(5000L, rows.get(0).elapsedMillis());
+            assertEquals(1, rows.get(0).rank());
+            assertEquals(2, rows.get(1).rank());
+        } finally {
+            deactivate(components.nodeUpstream());
+            deactivate(components.node());
+        }
+    }
+
+    @Test
     public void recoveredTimingDataLargerThanOneBatchIsReadCompletely() {
         TimingRecord[] records = new TimingRecord[1000];
         for (int index = 0; index < records.length - 1; index++) {

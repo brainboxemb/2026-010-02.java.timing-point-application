@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
@@ -140,6 +141,33 @@ final class DataTask extends AbstractTask {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         if (isCurrentProjection()) {
             registeredTeams.teamAssignmentChanged(registrationId, teamId);
+        }
+    }
+
+    /** Applies one normalized RaceData stage-start change set to the active display projection. */
+    void stageStartChangesApplied(
+            Map<RegistrationId, Long> startsToSet,
+            List<RegistrationId> startsToDelete) {
+
+        failIfInvalidArgument(startsToSet != null, "startsToSet must not be null");
+        failIfInvalidArgument(startsToDelete != null, "startsToDelete must not be null");
+        if (isCurrentProjection()) {
+            activeRegistrations.applyStageStartChanges(
+                    startsToSet,
+                    startsToDelete);
+        }
+    }
+
+    /** Applies one engineering stage-start override to the active display projection. */
+    void stageStartChanged(
+            RegistrationId registrationId,
+            Long startMillis) {
+
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        if (isCurrentProjection()) {
+            activeRegistrations.stageStartChanged(
+                    registrationId,
+                    startMillis);
         }
     }
 
@@ -304,12 +332,29 @@ final class DataTask extends AbstractTask {
             long sequence = record.sequenceNumber();
             failIfIllegalState(sequence == nextSequence, "Expected sequence %s, got %s", nextSequence, sequence);
 
-            ActiveRegistrations.Change change = activeRegistrations.apply(record);
+            Long stageStartMillis = stageStartMillis(record);
+            ActiveRegistrations.Change change =
+                    activeRegistrations.apply(
+                            record,
+                            stageStartMillis);
             if (change != null) {
                 registeredTeams.apply(change, raceData.teamIdFor(change.registrationId()));
             }
             nextSequence++;
         }
+    }
+
+    /** Resolves the current RaceData start for a registration ADD before retaining its row. */
+    private Long stageStartMillis(TimingRecord record) {
+
+        if ((record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION
+                        || record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION)
+                && record.action() == TimingRecord.Action.ADD) {
+            return raceData.stageStartMillisFor(
+                    RegistrationId.fromPackedValue(
+                            record.registrationId()));
+        }
+        return null;
     }
 
     /** Returns whether the active Task Lane projection still matches the newest OPEN request. */
@@ -345,6 +390,7 @@ final class DataTask extends AbstractTask {
         }
 
         if (activeLocationId != 0 && rebuilding) {
+            activeRegistrations.completeRebuild();
             registeredTeams.completeRebuild();
             rebuilding = false;
             rebuildCompletedHandler.completed(

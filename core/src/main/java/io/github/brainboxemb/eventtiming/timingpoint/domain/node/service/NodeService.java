@@ -204,6 +204,9 @@ public final class NodeService extends LifecycleComponent {
                 assignmentsToDelete,
                 stageStartsToSet,
                 stageStartsToDelete);
+        dataTask.stageStartChangesApplied(
+                stageStartsToSet,
+                stageStartsToDelete);
 
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
             RegistrationId registrationId = change.registrationId();
@@ -244,9 +247,14 @@ public final class NodeService extends LifecycleComponent {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         runOrderedMutation(
-                () -> raceData.setStageStart(
-                        registrationId,
-                        startMillis));
+                () -> {
+                    raceData.setStageStart(
+                            registrationId,
+                            startMillis);
+                    dataTask.stageStartChanged(
+                            registrationId,
+                            Long.valueOf(startMillis));
+                });
     }
 
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */

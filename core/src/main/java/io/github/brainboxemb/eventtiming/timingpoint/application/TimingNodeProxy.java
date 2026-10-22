@@ -84,16 +84,25 @@ public final class TimingNodeProxy {
         private final long sequenceNumber;
         private final RegistrationId registrationId;
         private final TimingTimestamp effectiveTime;
+        private final TimingTimestamp stageStart;
+        private final Long elapsedMillis;
+        private final Integer rank;
         private final boolean valid;
 
         private RegistrationEntry(
                 long sequenceNumber,
                 RegistrationId registrationId,
                 TimingTimestamp effectiveTime,
+                TimingTimestamp stageStart,
+                Long elapsedMillis,
+                Integer rank,
                 boolean valid) {
             this.sequenceNumber = sequenceNumber;
             this.registrationId = registrationId;
             this.effectiveTime = effectiveTime;
+            this.stageStart = stageStart;
+            this.elapsedMillis = elapsedMillis;
+            this.rank = rank;
             this.valid = valid;
         }
 
@@ -107,6 +116,21 @@ public final class TimingNodeProxy {
 
         public TimingTimestamp effectiveTime() {
             return effectiveTime;
+        }
+
+        /** Returns the maintained stage start, or null while RaceData has none. */
+        public TimingTimestamp stageStart() {
+            return stageStart;
+        }
+
+        /** Returns the maintained passage runtime in milliseconds, or null without a start. */
+        public Long elapsedMillis() {
+            return elapsedMillis;
+        }
+
+        /** Returns the maintained competition rank, or null when the row is not rankable. */
+        public Integer rank() {
+            return rank;
         }
 
         public boolean valid() {
@@ -197,12 +221,30 @@ public final class TimingNodeProxy {
     private static RegistrationEntry registrationEntry(
             ActiveRegistrations.Registration registration) {
 
+        TimingTimestamp stageStart =
+                registration.hasStageStart()
+                        ? new TimingTimestamp(
+                                Instant.ofEpochMilli(
+                                        registration.stageStartMillis()))
+                        : null;
+        Long elapsedMillis =
+                registration.hasStageStart()
+                        ? Long.valueOf(registration.elapsedMillis())
+                        : null;
+        Integer rank =
+                registration.rank() > 0
+                        ? Integer.valueOf(registration.rank())
+                        : null;
+
         return new RegistrationEntry(
                 registration.sequenceNumber(),
                 registration.registrationId(),
                 new TimingTimestamp(
                         Instant.ofEpochMilli(
                                 registration.effectiveTimeMillis())),
+                stageStart,
+                elapsedMillis,
+                rank,
                 registration.isValid());
     }
 
