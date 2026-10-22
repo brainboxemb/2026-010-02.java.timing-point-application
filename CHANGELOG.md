@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Decouple cooperative task-step metrics from `SerialLane`: both `SerialLane` and `SerialTaskRunner` now own independent `ExecutionMetrics` instances for queued work, admission rejection, wait duration and execution time. One task-runner metric unit is a scheduled step rather than a complete yielding task; delayed/awaiting tasks consume no queue slot.
+
 - Keep `AGENTS.md` as repository-routing/local-exception guidance: route durable Java coding rules to `44-01-GPD-java-design-rules.md` and Engineering Client UI rules to `44-02-GPD-engineering-client-design-rules.md` instead of duplicating those standards locally.
 
 - Complete upstream Messaging composition before runtime use: construct fixed node-scoped `UpstreamStream` ports first, construct `UpstreamGateway` once from the connector plus complete routing map, remove runtime `createApplicationPort(...)`, `NodeBinding` and the redundant connector/stream registry, keep connector input plumbing package-internal, and align Engineering factories/comments with the Java design rules.

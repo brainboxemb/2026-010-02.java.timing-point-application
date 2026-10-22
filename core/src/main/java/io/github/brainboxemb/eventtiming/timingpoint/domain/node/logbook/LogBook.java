@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ExecutionMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.concurrent.CancellationException;
@@ -133,7 +133,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     }
 
     /** Returns engineering metrics for the owned LogBook Data Lane. */
-    public SerialLaneMetrics dataLaneMetrics() {
+    public ExecutionMetrics dataLaneMetrics() {
 
         return dataLane.metrics();
     }

@@ -1,17 +1,17 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
 /**
- * Lane-local measurements for {@link SerialLane}.
+ * Queue-admission and execution measurements shared by independent execution primitives.
  *
  * <p>The execution primitive records facts here but does not own the diagnostic
  * model itself. Snapshot creation is pull-based and may allocate; hot-path
  * recording keeps only primitive state.</p>
  */
-public final class SerialLaneMetrics {
+public final class ExecutionMetrics {
     private final IntSupplier queueDepthSupplier;
     private final AtomicInteger highWaterMark = new AtomicInteger();
     private final AtomicLong queuedCount = new AtomicLong();
@@ -23,8 +23,8 @@ public final class SerialLaneMetrics {
     private final AtomicLong totalExecutionNanos = new AtomicLong();
     private final AtomicLong maxExecutionNanos = new AtomicLong();
 
-    /** Creates lane-local metrics backed by the supplied current queue-depth reader. */
-    public SerialLaneMetrics(
+    /** Creates execution metrics backed by the supplied current queue-depth reader. */
+    public ExecutionMetrics(
             IntSupplier queueDepthSupplier) {
         if (queueDepthSupplier == null) {
             throw new IllegalArgumentException(
@@ -39,12 +39,12 @@ public final class SerialLaneMetrics {
         updateMaximum(highWaterMark, queueDepth);
     }
 
-    /** Records one item rejected because the bounded lane queue was full. */
+    /** Records one item rejected because the bounded bounded queue was full. */
     public void recordFull() {
         fullCount.incrementAndGet();
     }
 
-    /** Records one item rejected because the lane was not accepting work. */
+    /** Records one item rejected because the owner was not accepting work. */
     public void recordNotRunning() {
         notRunningCount.incrementAndGet();
     }
@@ -61,7 +61,7 @@ public final class SerialLaneMetrics {
     }
 
     /**
-     * Returns an immutable pull-based view of the current lane metrics.
+     * Returns an immutable pull-based view of the current execution metrics.
      */
     public Snapshot snapshot() {
         return new Snapshot(
@@ -112,7 +112,7 @@ public final class SerialLaneMetrics {
         private final long totalExecutionNanos;
         private final long maxExecutionNanos;
 
-        /** Creates one immutable copy of all current SerialLane metric values. */
+        /** Creates one immutable copy of all current execution metric values. */
         private Snapshot(
                 int queueDepth,
                 int queueHighWaterMark,
