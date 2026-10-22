@@ -47,7 +47,7 @@ final class TimingSystemComposer {
     private final RuntimeExecutors executors;
     private final TimingNodeComposer nodeComposer;
 
-    /** Creates a stateless composer over shared runtime infrastructure. */
+    /** The composer retains shared runtime infrastructure but owns no lifecycle. */
     TimingSystemComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
@@ -198,7 +198,7 @@ final class TimingSystemComposer {
                         + " requires antennaId because multiple antennas are configured");
     }
 
-    /** Creates the system antenna set from explicit binding or implicit composition input. */
+    /** Explicit manager binding overrides the implicit antenna composition input. */
     private static AntennaSet createAntennas(
             AntennaManagerConfig binding,
             AntennaSet implicitAntennas) {
