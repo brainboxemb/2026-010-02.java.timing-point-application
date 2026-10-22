@@ -671,7 +671,7 @@ public class TimingNodeRegistrationTest {
     }
 
     private static TimingRecord loadedData(long sequence, int locationId) {
-        return TimingRecord.manual(
+        return TimingRecord.createManualRegistration(
                 'A',
                 sequence,
                 locationId,
