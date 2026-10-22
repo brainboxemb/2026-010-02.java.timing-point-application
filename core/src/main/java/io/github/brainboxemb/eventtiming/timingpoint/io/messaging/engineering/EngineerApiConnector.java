@@ -12,18 +12,15 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Engineering-API transport/session implementation of {@link UpstreamConnector}.
+ * Engineering IF-03 transport/session implementation of UpstreamConnector.
  *
- * <p>This connector owns only the active IF-03 WebSocket session and its bounded outbound delivery queue.
- * UpstreamGateway owns NodeId routing; NodeUpstream owns IF-06 semantics and heartbeat protocol state.</p>
- *
- * <p>Session lifecycle is exposed as typed post-fact events. Inbound API data uses the connector's fixed
- * gateway input because queue admission has a meaningful return value.</p>
+ * <p>This connector owns the active WebSocket peer and bounded outbound delivery. NodeId
+ * routing stays in UpstreamGateway; IF-06 semantics and heartbeat state stay in NodeUpstream.</p>
  */
 public final class EngineerApiConnector extends UpstreamConnector {
     static final int DEFAULT_OUTPUT_CAPACITY = 64;
 
-    /** Non-blocking delivery boundary implemented by the IF-03 WebSocket adapter. */
+    /** The WebSocket adapter may reject a write without blocking the connector. */
     public interface Output {
         boolean send(UpstreamApiMessage message);
     }
@@ -33,22 +30,24 @@ public final class EngineerApiConnector extends UpstreamConnector {
 
     private Output output;
 
+    /** The default bound protects the connector from unbounded retained outbound traffic. */
     public EngineerApiConnector() {
         this(DEFAULT_OUTPUT_CAPACITY);
     }
 
+    /** Package-local capacity selection keeps queue-bound verification deterministic. */
     EngineerApiConnector(int outputCapacity) {
+
         failIfInvalidArgument(outputCapacity > 0, "outputCapacity must be positive");
         this.outputCapacity = outputCapacity;
     }
 
     /**
-     * Activates one engineering WebSocket peer after its status snapshot has been delivered.
-     *
-     * <p>The connection event is emitted only after the peer becomes the authoritative connector output, so
-     * application-port observers can immediately send reconciliation traffic.</p>
+     * The peer becomes authoritative before CONNECTED is published, so subscribers may send
+     * reconciliation traffic immediately from the connection event.
      */
     public boolean connect(Output newOutput) {
+
         failIfInvalidArgument(newOutput != null, "output must not be null");
 
         requireBound();
@@ -64,8 +63,9 @@ public final class EngineerApiConnector extends UpstreamConnector {
         return true;
     }
 
-    /** Ends the active engineering session and publishes one post-fact disconnect notification. */
+    /** A stale peer callback cannot disconnect a newer active Engineering session. */
     public void disconnect(Output currentOutput) {
+
         boolean disconnected;
         synchronized (this) {
             disconnected = currentOutput != null && output == currentOutput;
@@ -79,12 +79,9 @@ public final class EngineerApiConnector extends UpstreamConnector {
         }
     }
 
-    /**
-     * Admits one inbound Engineering API message to the gateway.
-     *
-     * <p>Only NodeId extraction has happened at this point. The encoded IF-06 payload is still untouched.</p>
-     */
+    /** Inbound payload remains encoded; only the already extracted NodeId is used for routing. */
     public UpstreamGateway.ReceiveResult receive(UpstreamApiMessage message) {
+
         failIfInvalidArgument(message != null, "message must not be null");
 
         synchronized (this) {
@@ -98,14 +95,10 @@ public final class EngineerApiConnector extends UpstreamConnector {
         return output != null;
     }
 
-    /**
-     * Queues one outbound message for the active WebSocket peer.
-     *
-     * <p>The routing NodeId is already resolved by the application port. The Engineering wrapper keeps that routing
-     * context beside the encoded payload without introducing a generic messaging envelope.</p>
-     */
+    /** The bounded queue preserves connector order and rejects overload instead of growing indefinitely. */
     @Override
     public synchronized void send(NodeId nodeId, String encodedMessage) {
+
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(encodedMessage != null, "encodedMessage must not be null");
         failIfIllegalState(output != null, "Engineering upstream peer is not connected");
@@ -118,13 +111,9 @@ public final class EngineerApiConnector extends UpstreamConnector {
         drainOutput();
     }
 
-    /**
-     * Delivers queued API values in connector order.
-     *
-     * <p>WebSocket socket-drain behavior remains below Output. A rejected or failing peer terminates this connector
-     * session before the failure is propagated to the caller.</p>
-     */
+    /** Delivery failure invalidates the current session before the failure escapes to its caller. */
     private void drainOutput() {
+
         while (!outputQueue.isEmpty()) {
             UpstreamApiMessage message = outputQueue.peek();
             final boolean accepted;
@@ -143,13 +132,13 @@ public final class EngineerApiConnector extends UpstreamConnector {
         }
     }
 
-    /** Clears the failed session and notifies gateway/application observers exactly once. */
+    /** Disconnect observers see the failed session only after connector-owned state is cleared. */
     private void disconnectAfterDeliveryFailure() {
         clearSession();
         publishDisconnected();
     }
 
-    /** Clears connector-owned state; callers publish the corresponding disconnect event after this mutation. */
+    /** Session state is cleared before any DISCONNECTED event is published. */
     private void clearSession() {
         output = null;
         outputQueue.clear();
