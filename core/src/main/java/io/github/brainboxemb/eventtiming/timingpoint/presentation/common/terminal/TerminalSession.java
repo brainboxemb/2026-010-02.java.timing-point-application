@@ -299,7 +299,7 @@ public final class TerminalSession {
             PrintWriter output) {
 
         if (arguments.length != 3) {
-            output.println("Usage: start <team> <HHMMSShh>");
+            output.println("Usage: start <id|team> <HHMMSShh>");
             return;
         }
         if (!isCompactOperatorTime(arguments[2])) {
@@ -308,7 +308,10 @@ public final class TerminalSession {
         }
 
         TimingNodeProxy timingNode = timingNode(nodeId);
-        TeamId teamId = teamId(arguments[1]);
+        RegistrationId registrationId =
+                registrationId(
+                        arguments[1],
+                        timingNode);
         final TimingTimestamp start;
         try {
             start =
@@ -322,11 +325,11 @@ public final class TerminalSession {
         }
 
         timingNode.setStageStart(
-                teamId,
+                registrationId,
                 start.instant().toEpochMilli());
         output.println(
-                "Stage start: SET team="
-                        + teamId.value()
+                "Stage start: SET id="
+                        + registrationId.value()
                         + " time="
                         + arguments[2]);
     }
@@ -492,32 +495,6 @@ public final class TerminalSession {
                             + " state="
                             + (row.valid() ? "ACTIVE" : "REVOKED"));
         }
-    }
-
-    /** Resolves a numeric team number or accepts an explicit TeamId. */
-    private static TeamId teamId(String text) {
-
-        if (!isUnsignedNumber(text)) {
-            return new TeamId(text);
-        }
-
-        final int teamNumber;
-        try {
-            teamNumber = Integer.parseInt(text);
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException(
-                    "team number must be in range 1..9999",
-                    ex);
-        }
-        if (teamNumber < 1 || teamNumber > 9999) {
-            throw new IllegalArgumentException(
-                    "team number must be in range 1..9999");
-        }
-        return new TeamId(
-                String.format(
-                        Locale.ROOT,
-                        "%04d",
-                        teamNumber));
     }
 
     /** Resolves a numeric team number or accepts an explicit RegistrationId. */
@@ -1058,7 +1035,7 @@ public final class TerminalSession {
         output.println("  open <locationId>            Open selected TimingNode at location");
         output.println("  close                        Close selected TimingNode");
         output.println(
-                "  start <team> <HHMMSShh>      Set team stage-start time");
+                "  start <id|team> <HHMMSShh>   Set registration stage-start time");
         output.println(
                 "                               Example: start 42 12345678");
         output.println(

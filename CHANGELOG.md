@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+- Correct draft IF-06 RACE_DATA stage-start identity: `stageStartTimes` now uses `regId` rather than `teamId`; retain stage starts by `RegistrationId` through NodeService/RaceDataState, reject legacy team-only stage-start items, and resolve terminal `start <id|team> <HHMMSShh>` input to a RegistrationId before applying the override.
+
 - Tighten the Presentation-to-Domain ownership boundary: compose each `TimingNodeProxy` with its `TimingNode`, `NodeService` and LogBook access explicitly; route stage-start and registration-projection operations directly to `NodeService` and remove those pure passthrough methods from `TimingNode`.
 
-- Add the node-scoped terminal command `start <team> <HHMMSShh>` for engineering stage-start input; resolve compact hundredths against the selected node clock's current UTC date and serialize the normalized epoch-millisecond value through NodeService race-data ownership without advancing IF-06 protocol sequence state.
+- Add the node-scoped terminal command `start <id|team> <HHMMSShh>` for engineering stage-start input; resolve compact hundredths against the selected node clock's current UTC date and serialize the normalized epoch-millisecond value through NodeService race-data ownership without advancing IF-06 protocol sequence state.
 
 - Keep internal absolute timing state scalar: normalize IF-06 stage-start civil time at NodeService ingress before RaceDataState, keep active-registration and antenna-observation reads in UTC epoch milliseconds, and materialize `TimingTimestamp` only at protocol/presentation boundaries that need it.
 

@@ -158,13 +158,13 @@ public final class TimingNodeProxy {
         return timingNode.registrationIdFor(teamId);
     }
 
-    /** Sets one engineering stage-start value in normalized UTC milliseconds. */
+    /** Sets one RegistrationId's engineering stage-start value in normalized UTC milliseconds. */
     public void setStageStart(
-            TeamId teamId,
+            RegistrationId registrationId,
             long startMillis) {
 
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
-        nodeService.setStageStart(teamId, startMillis);
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        nodeService.setStageStart(registrationId, startMillis);
     }
 
     /** Returns one stable metadata snapshot of the active registration projection. */

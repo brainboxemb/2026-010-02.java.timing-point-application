@@ -193,7 +193,7 @@ public final class DefaultUpstreamDataCodec
                     : raceData.stageStartTimeChanges()) {
                 generator.writeStartObject();
                 generator.writeStringField("op", change.operation().name());
-                generator.writeStringField("teamId", change.teamId().value());
+                generator.writeStringField("regId", change.registrationId().value());
                 if (change.operation() == UpstreamData.ChangeOperation.SET) {
                     TimingTimestamp start = change.start();
                     if (start == null) {
@@ -610,7 +610,7 @@ public final class DefaultUpstreamDataCodec
             }
 
             String op = null;
-            String teamId = null;
+            String registrationId = null;
             String start = null;
             boolean startSeen = false;
 
@@ -622,11 +622,11 @@ public final class DefaultUpstreamDataCodec
                         throw invalid("Duplicate stageStartTimes op", null);
                     }
                     op = readString(parser, value, "op");
-                } else if ("teamId".equals(field)) {
-                    if (teamId != null) {
-                        throw invalid("Duplicate stageStartTimes teamId", null);
+                } else if ("regId".equals(field)) {
+                    if (registrationId != null) {
+                        throw invalid("Duplicate stageStartTimes regId", null);
                     }
-                    teamId = readString(parser, value, "teamId");
+                    registrationId = readString(parser, value, "regId");
                 } else if ("start".equals(field)) {
                     if (startSeen) {
                         throw invalid("Duplicate stageStartTimes start", null);
@@ -638,9 +638,9 @@ public final class DefaultUpstreamDataCodec
                 }
             }
 
-            if (op == null || teamId == null) {
+            if (op == null || registrationId == null) {
                 throw invalid(
-                        "stageStartTimes item requires op and teamId",
+                        "stageStartTimes item requires op and regId",
                         null);
             }
 
@@ -661,7 +661,7 @@ public final class DefaultUpstreamDataCodec
             result.add(
                     new UpstreamData.StageStartTimeChange(
                             operation,
-                            new TeamId(teamId),
+                            new RegistrationId(registrationId),
                             parsedStart));
         }
         return result;

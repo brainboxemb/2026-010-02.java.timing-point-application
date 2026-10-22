@@ -105,20 +105,20 @@ public final class DefaultUpstreamData {
 
     /** Creates one time-only stage-start SET change. */
     public static UpstreamData.StageStartTimeChange stageStartSet(
-            String teamId,
+            String registrationId,
             LocalTime startTime) {
 
-        return stageStartSet(teamId, TimingTimestamp.localTime(startTime));
+        return stageStartSet(registrationId, TimingTimestamp.localTime(startTime));
     }
 
     /** Creates one date+time or time-only stage-start SET change. */
     public static UpstreamData.StageStartTimeChange stageStartSet(
-            String teamId,
+            String registrationId,
             LocalTime startTime,
             LocalDate startDate) {
 
         return stageStartSet(
-                teamId,
+                registrationId,
                 startDate == null
                         ? TimingTimestamp.localTime(startTime)
                         : TimingTimestamp.localDateTime(startDate, startTime));
@@ -126,7 +126,7 @@ public final class DefaultUpstreamData {
 
     /** Creates one stage-start SET change from an already parsed IF-06 timestamp. */
     public static UpstreamData.StageStartTimeChange stageStartSet(
-            String teamId,
+            String registrationId,
             TimingTimestamp start) {
 
         if (start == null) {
@@ -134,15 +134,15 @@ public final class DefaultUpstreamData {
         }
         return new UpstreamData.StageStartTimeChange(
                 UpstreamData.ChangeOperation.SET,
-                new TeamId(teamId),
+                new RegistrationId(registrationId),
                 start);
     }
 
     /** Creates one stage-start DEL change. */
-    public static UpstreamData.StageStartTimeChange stageStartDelete(String teamId) {
+    public static UpstreamData.StageStartTimeChange stageStartDelete(String registrationId) {
         return new UpstreamData.StageStartTimeChange(
                 UpstreamData.ChangeOperation.DEL,
-                new TeamId(teamId),
+                new RegistrationId(registrationId),
                 null);
     }
 }
