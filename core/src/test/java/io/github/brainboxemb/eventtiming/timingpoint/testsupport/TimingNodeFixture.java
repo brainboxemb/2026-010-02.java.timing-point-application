@@ -23,6 +23,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
+import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -338,10 +339,13 @@ public final class TimingNodeFixture {
                 nodeUpstream,
                 raceData);
     }
-    /** Creates a real application port over a permanently unavailable transport double. */
+
+    /** The unavailable transport still uses the normal fixed stream/gateway composition. */
     private static UpstreamStream unavailableStream(NodeId nodeId) {
-        UpstreamGateway gateway = new UpstreamGateway();
-        return gateway.createApplicationPort(nodeId, new UnavailableConnector());
+        UnavailableConnector connector = new UnavailableConnector();
+        UpstreamStream stream = new UpstreamStream(nodeId, connector);
+        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
+        return stream;
     }
 
     /** Minimal unavailable connector used when a test does not exercise upstream transport. */
