@@ -117,6 +117,7 @@ public final class TimingNodeProxy {
 
     private final NodeId timingNodeId;
     private final TimingNode timingNode;
+    private final NodeService nodeService;
     private final LogBookAccessor logBook;
     private final LogBookTestControl logBookTestControl;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<TimingNodeStatus>();
@@ -124,11 +125,17 @@ public final class TimingNodeProxy {
     public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChangedEvent;
     public final EventSource<TimingRecord> NEW_DATA_ENTRY;
 
-    TimingNodeProxy(TimingNode timingNode) {
+    TimingNodeProxy(
+            TimingNode timingNode,
+            NodeService nodeService,
+            LogBookAccessor logBook) {
         failIfInvalidArgument(timingNode != null, "timingNode must not be null");
+        failIfInvalidArgument(nodeService != null, "nodeService must not be null");
+        failIfInvalidArgument(logBook != null, "logBook must not be null");
         this.timingNodeId = timingNode.nodeId();
         this.timingNode = timingNode;
-        this.logBook = timingNode.logBook();
+        this.nodeService = nodeService;
+        this.logBook = logBook;
         if (!(logBook instanceof LogBookTestControl)) {
             throw new IllegalStateException(
                     "TimingNode LogBook does not expose engineering test control");
@@ -157,14 +164,14 @@ public final class TimingNodeProxy {
             long startMillis) {
 
         failIfInvalidArgument(teamId != null, "teamId must not be null");
-        timingNode.setStageStart(teamId, startMillis);
+        nodeService.setStageStart(teamId, startMillis);
     }
 
     /** Returns one stable metadata snapshot of the active registration projection. */
     public RegistrationProjectionInfo registrationProjectionInfo() {
 
         return registrationProjectionInfo(
-                timingNode.registrationProjectionInfo());
+                nodeService.registrationProjectionInfo());
     }
 
     /** Visits one bounded page and returns metadata from the same ordered read turn. */
@@ -178,7 +185,7 @@ public final class TimingNodeProxy {
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
         NodeService.RegistrationProjectionInfo info =
-                timingNode.visitRegistrationPage(
+                nodeService.visitRegistrationPage(
                         afterSequence,
                         limit,
                         registration -> visitor.accept(
@@ -220,7 +227,7 @@ public final class TimingNodeProxy {
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        return timingNode.visitRegistrationsAfter(
+        return nodeService.visitRegistrationsAfter(
                 afterSequence,
                 limit,
                 registration -> visitor.accept(

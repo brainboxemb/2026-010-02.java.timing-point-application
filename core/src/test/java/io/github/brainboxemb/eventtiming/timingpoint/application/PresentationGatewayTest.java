@@ -5,8 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -14,7 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGat
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -37,7 +34,7 @@ public class PresentationGatewayTest {
     @Test
     public void versionReturnsAuthoritativeBuildIdentity() {
         BuildIdentity identity = identity();
-        TimingNode node = node(new RecordingStore());
+        TimingNodeFixture.Components node = node(new RecordingStore());
         PresentationGateway gateway = new PresentationGateway(identity, nodes(node), configuration());
 
         assertSame(identity, gateway.version());
@@ -45,10 +42,10 @@ public class PresentationGatewayTest {
 
     @Test
     public void statusComesFromTimingNode() {
-        TimingNode node = node(new RecordingStore());
+        TimingNodeFixture.Components node = node(new RecordingStore());
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
 
-        activate(node);
+        activate(node.node());
         try {
             TimingNodeStatus status = gateway.timingNode(new NodeId("A")).status();
             assertEquals(new NodeId("A"), status.timingNodeId());
@@ -56,20 +53,20 @@ public class PresentationGatewayTest {
                     TimingNodeTypes.FunctionalState.CLOSED,
                     status.state());
         } finally {
-            deactivate(node);
+            deactivate(node.node());
         }
     }
 
     @Test
     public void timingNodeProxyOwnsNodeScopedPresentationBoundary() throws Exception {
         RecordingStore store = new RecordingStore();
-        TimingNode node = node(store);
+        TimingNodeFixture.Components node = node(store);
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
         TimingNodeProxy proxy = gateway.timingNode(new NodeId("A"));
         List<TimingNodeStatus> statusChanges = new ArrayList<>();
         List<TimingRecord> committed = new ArrayList<>();
 
-        activate(node);
+        activate(node.node());
         try {
             proxy.STATUS_CHANGED.subscribe(statusChanges::add);
             proxy.NEW_DATA_ENTRY.subscribe(committed::add);
@@ -140,19 +137,19 @@ public class PresentationGatewayTest {
                     TimingNodeTypes.FunctionalState.CLOSED,
                     statusChanges.get(1).state());
         } finally {
-            deactivate(node);
+            deactivate(node.node());
         }
     }
 
     @Test
     public void exposesOneProxyPerComposedTimingNode() throws Exception {
-        TimingNode first =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components first =
+                TimingNodeFixture.createComponents(
                         new NodeId("A"),
                         new RecordingStore(),
                         () -> RECORDED_AT.instant());
-        TimingNode second =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components second =
+                TimingNodeFixture.createComponents(
                         new NodeId("B"),
                         new RecordingStore(),
                         () -> RECORDED_AT.instant());
@@ -165,8 +162,8 @@ public class PresentationGatewayTest {
                                 new NodeId("A"),
                                 new NodeId("B")));
 
-        activate(first);
-        activate(second);
+        activate(first.node());
+        activate(second.node());
         try {
             assertEquals(2, gateway.timingNodes().size());
             assertEquals(
@@ -181,20 +178,20 @@ public class PresentationGatewayTest {
                     2,
                     gateway.timingNodeStatuses().size());
         } finally {
-            deactivate(second);
-            deactivate(first);
+            deactivate(second.node());
+            deactivate(first.node());
         }
     }
 
     @Test
     public void rejectsDuplicateApplicationWideTimingNodeId() {
-        TimingNode first =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components first =
+                TimingNodeFixture.createComponents(
                         new NodeId("A"),
                         new RecordingStore(),
                         () -> RECORDED_AT.instant());
-        TimingNode second =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components second =
+                TimingNodeFixture.createComponents(
                         new NodeId("A"),
                         new RecordingStore(),
                         () -> RECORDED_AT.instant());
@@ -214,7 +211,7 @@ public class PresentationGatewayTest {
 
     @Test
     public void exposesOptionalSimulatedTagControlWhenComposed() {
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node(
                         new RecordingStore());
         SimulationControl simulation =
@@ -274,10 +271,15 @@ public class PresentationGatewayTest {
                 null);
     }
 
-    private static TimingNodeList nodes(
-            TimingNode... timingNodes) {
+    private static List<TimingNodeProxyComponents> nodes(
+            TimingNodeFixture.Components... timingNodes) {
 
-        return new TimingNodeList(Arrays.asList(timingNodes));
+        List<TimingNodeProxyComponents> result =
+                new ArrayList<TimingNodeProxyComponents>();
+        for (TimingNodeFixture.Components timingNode : timingNodes) {
+            result.add(timingNode.presentationComponents());
+        }
+        return result;
     }
 
     private static ConfigurationControl configuration() {
@@ -285,8 +287,8 @@ public class PresentationGatewayTest {
                 new NodeId("A"));
     }
 
-    private static TimingNode node(RecordingStore store) {
-        return TimingNodeFixture.create(
+    private static TimingNodeFixture.Components node(RecordingStore store) {
+        return TimingNodeFixture.createComponents(
                 new NodeId("A"),
                 store,
                 () -> RECORDED_AT.instant());

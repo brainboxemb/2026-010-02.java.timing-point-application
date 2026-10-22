@@ -7,9 +7,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxyComponents;
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
@@ -23,7 +22,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,13 +68,13 @@ public class HttpEndpointTest {
     @Test
     public void routesNodeCommandsAndStatusAcrossMultipleTimingNodes()
             throws Exception {
-        TimingNode first =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components first =
+                TimingNodeFixture.createComponents(
                         new NodeId("A"),
                         new MemoryStore(),
                         () -> RECORDED_AT.instant());
-        TimingNode second =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components second =
+                TimingNodeFixture.createComponents(
                         new NodeId("B"),
                         new MemoryStore(),
                         () -> RECORDED_AT.instant());
@@ -88,8 +86,8 @@ public class HttpEndpointTest {
                                 new NodeId("A"),
                                 new NodeId("B")));
 
-        LifecycleTestSupport.activate(first);
-        LifecycleTestSupport.activate(second);
+        LifecycleTestSupport.activate(first.node());
+        LifecycleTestSupport.activate(second.node());
         HttpEndpoint server =
                 new HttpEndpoint(
                         "127.0.0.1",
@@ -122,8 +120,8 @@ public class HttpEndpointTest {
                     "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\"}"));
         } finally {
             server.close();
-            LifecycleTestSupport.deactivate(second);
-            LifecycleTestSupport.deactivate(first);
+            LifecycleTestSupport.deactivate(second.node());
+            LifecycleTestSupport.deactivate(first.node());
         }
     }
 
@@ -701,7 +699,7 @@ public class HttpEndpointTest {
     @Test
     public void recoveryFailureLeavesFunctionalStatusAvailable()
             throws Exception {
-        TimingNode node = TimingNodeFixture.create(
+        TimingNodeFixture.Components node = TimingNodeFixture.createComponents(
                 new NodeId("A"),
                 new FailingLoadStore(),
                 () -> RECORDED_AT.instant());
@@ -711,7 +709,7 @@ public class HttpEndpointTest {
                         nodes(node),
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
-        LifecycleTestSupport.activate(node);
+        LifecycleTestSupport.activate(node.node());
         HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, handler);
         server.start();
 
@@ -737,7 +735,7 @@ public class HttpEndpointTest {
             assertTrue(afterOpen.body.contains("\"state\":\"OPEN\""));
         } finally {
             server.close();
-            LifecycleTestSupport.deactivate(node);
+            LifecycleTestSupport.deactivate(node.node());
         }
     }
 
@@ -838,14 +836,19 @@ public class HttpEndpointTest {
         return result.toString();
     }
 
-    private static TimingNodeList nodes(
-            TimingNode... timingNodes) {
+    private static List<TimingNodeProxyComponents> nodes(
+            TimingNodeFixture.Components... timingNodes) {
 
-        return new TimingNodeList(Arrays.asList(timingNodes));
+        List<TimingNodeProxyComponents> result =
+                new ArrayList<TimingNodeProxyComponents>();
+        for (TimingNodeFixture.Components timingNode : timingNodes) {
+            result.add(timingNode.presentationComponents());
+        }
+        return result;
     }
 
     private static final class Fixture implements AutoCloseable {
-        private final TimingNode node;
+        private final TimingNodeFixture.Components node;
         private final PresentationGateway handler;
 
         private Fixture() {
@@ -855,7 +858,7 @@ public class HttpEndpointTest {
 
         private Fixture(
                 SimulationControl simulation) {
-            node = TimingNodeFixture.create(
+            node = TimingNodeFixture.createComponents(
                     new NodeId("A"),
                     new MemoryStore(),
                     () -> RECORDED_AT.instant());
@@ -869,12 +872,12 @@ public class HttpEndpointTest {
         }
 
         private void start() {
-            LifecycleTestSupport.activate(node);
+            LifecycleTestSupport.activate(node.node());
         }
 
         @Override
         public void close() {
-            LifecycleTestSupport.deactivate(node);
+            LifecycleTestSupport.deactivate(node.node());
         }
     }
 

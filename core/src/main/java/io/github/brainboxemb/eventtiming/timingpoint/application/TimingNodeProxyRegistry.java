@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,13 +23,18 @@ final class TimingNodeProxyRegistry
             new LinkedHashMap<NodeId, TimingNodeProxy>();
 
     TimingNodeProxyRegistry(
-            TimingNodeList timingNodes) {
+            List<TimingNodeProxyComponents> timingNodes) {
         if (timingNodes == null || timingNodes.isEmpty()) {
             throw new IllegalArgumentException(
                     "timingNodes must not be empty");
         }
 
-        for (TimingNode timingNode : timingNodes) {
+        for (TimingNodeProxyComponents components : timingNodes) {
+            if (components == null) {
+                throw new IllegalArgumentException(
+                        "timingNodes must not contain null");
+            }
+            TimingNode timingNode = components.timingNode();
             NodeId nodeId = timingNode.nodeId();
             if (proxies.containsKey(nodeId)) {
                 throw new IllegalArgumentException(
@@ -39,7 +43,10 @@ final class TimingNodeProxyRegistry
             }
             proxies.put(
                     nodeId,
-                    new TimingNodeProxy(timingNode));
+                    new TimingNodeProxy(
+                            timingNode,
+                            components.nodeService(),
+                            components.logBook()));
         }
     }
 

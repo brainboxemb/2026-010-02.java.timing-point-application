@@ -11,9 +11,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxyComponents;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering.EngineerApiConnector;
@@ -32,7 +31,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -118,7 +116,7 @@ public class WebSocketEndpointTest {
         PresentationGateway presentation =
                 new PresentationGateway(
                         identity(),
-                        nodes(components.node()),
+                        nodes(components),
                         PresentationGatewayFixture.configurationControl(
                                 nodeId));
 
@@ -433,13 +431,13 @@ public class WebSocketEndpointTest {
     @Test
     public void snapshotContainsEveryComposedTimingNode()
             throws Exception {
-        TimingNode first =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components first =
+                TimingNodeFixture.createComponents(
                         new NodeId("A"),
                         new MemoryStore(),
                         () -> RECORDED_AT.instant());
-        TimingNode second =
-                TimingNodeFixture.create(
+        TimingNodeFixture.Components second =
+                TimingNodeFixture.createComponents(
                         new NodeId("B"),
                         new MemoryStore(),
                         () -> RECORDED_AT.instant());
@@ -451,8 +449,8 @@ public class WebSocketEndpointTest {
                                 new NodeId("A"),
                                 new NodeId("B")));
 
-        LifecycleTestSupport.activate(first);
-        LifecycleTestSupport.activate(second);
+        LifecycleTestSupport.activate(first.node());
+        LifecycleTestSupport.activate(second.node());
         gateway.timingNode(new NodeId("B"))
                 .open(new LocationId(24));
 
@@ -478,15 +476,15 @@ public class WebSocketEndpointTest {
         } finally {
             client.closeBlocking();
             server.close();
-            LifecycleTestSupport.deactivate(second);
-            LifecycleTestSupport.deactivate(first);
+            LifecycleTestSupport.deactivate(second.node());
+            LifecycleTestSupport.deactivate(first.node());
         }
     }
 
     @Test
     public void snapshotRemainsAvailableAfterTimingDataLoadFailure()
             throws Exception {
-        TimingNode node = TimingNodeFixture.create(
+        TimingNodeFixture.Components node = TimingNodeFixture.createComponents(
                 new NodeId("A"),
                 new FailingLoadStore(),
                 () -> RECORDED_AT.instant());
@@ -496,7 +494,7 @@ public class WebSocketEndpointTest {
                         nodes(node),
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
-        LifecycleTestSupport.activate(node);
+        LifecycleTestSupport.activate(node.node());
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
                 0,
@@ -518,7 +516,7 @@ public class WebSocketEndpointTest {
             }
         } finally {
             server.close();
-            LifecycleTestSupport.deactivate(node);
+            LifecycleTestSupport.deactivate(node.node());
         }
     }
 
@@ -584,18 +582,23 @@ public class WebSocketEndpointTest {
                 false);
     }
 
-    private static TimingNodeList nodes(
-            TimingNode... timingNodes) {
+    private static List<TimingNodeProxyComponents> nodes(
+            TimingNodeFixture.Components... timingNodes) {
 
-        return new TimingNodeList(Arrays.asList(timingNodes));
+        List<TimingNodeProxyComponents> result =
+                new ArrayList<TimingNodeProxyComponents>();
+        for (TimingNodeFixture.Components timingNode : timingNodes) {
+            result.add(timingNode.presentationComponents());
+        }
+        return result;
     }
 
     private static final class Fixture implements AutoCloseable {
-        private final TimingNode node;
+        private final TimingNodeFixture.Components node;
         private final PresentationGateway handler;
 
         private Fixture() {
-            node = TimingNodeFixture.create(
+            node = TimingNodeFixture.createComponents(
                     new NodeId("A"),
                     new MemoryStore(),
                     () -> RECORDED_AT.instant());
@@ -608,12 +611,12 @@ public class WebSocketEndpointTest {
         }
 
         private void start() throws Exception {
-            LifecycleTestSupport.activate(node);
+            LifecycleTestSupport.activate(node.node());
         }
 
         @Override
         public void close() {
-            LifecycleTestSupport.deactivate(node);
+            LifecycleTestSupport.deactivate(node.node());
         }
     }
 
