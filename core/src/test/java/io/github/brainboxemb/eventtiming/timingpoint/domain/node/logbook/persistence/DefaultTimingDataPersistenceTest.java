@@ -151,7 +151,7 @@ public class DefaultTimingDataPersistenceTest {
     }
 
     private static TimingRecord data(NodeId nodeId, long sequence) {
-        return TimingRecord.manual(
+        return TimingRecord.createManualRegistration(
                 nodeId.value().charAt(0),
                 sequence,
                 24,
