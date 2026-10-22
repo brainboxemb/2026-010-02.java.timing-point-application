@@ -1,10 +1,11 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.messaging.engineering;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamConnector;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,6 +21,10 @@ public class EngineerApiConnectorTest {
     @Test
     public void connectionLifecycleUsesTypedConnectorEvents() {
         EngineerApiConnector connector = new EngineerApiConnector();
+        NodeId nodeId = new NodeId("A");
+        UpstreamStream stream = new UpstreamStream(nodeId, connector);
+        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
+
         AtomicInteger connected = new AtomicInteger();
         AtomicInteger disconnected = new AtomicInteger();
 
@@ -31,7 +36,6 @@ public class EngineerApiConnectorTest {
             assertSame(connector, source);
             disconnected.incrementAndGet();
         });
-        connector.bindInput((nodeId, payload) -> UpstreamGateway.ReceiveResult.ACCEPTED);
 
         EngineerApiConnector.Output firstPeer = message -> true;
         assertTrue(connector.connect(firstPeer));
@@ -51,26 +55,29 @@ public class EngineerApiConnectorTest {
     }
 
     @Test
-    public void receivePassesRoutingIdentitySeparatelyFromEncodedPayload() {
+    public void receiveRoutesEncodedPayloadThroughFixedGateway() {
         EngineerApiConnector connector = new EngineerApiConnector();
-        RecordingInput input = new RecordingInput();
-        connector.bindInput(input);
-
-        String payload =
-                "{\"v\":1,\"type\":\"SYNC\",\"nodeId\":\"A\","
-                        + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":0}}";
-        UpstreamApiMessage message = UpstreamApiMessage.parse(payload);
+        NodeId nodeId = new NodeId("A");
+        UpstreamStream stream = new UpstreamStream(nodeId, connector);
+        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
 
         EngineerApiConnector.Output peer = output -> true;
         assertTrue(connector.connect(peer));
 
-        input.result = UpstreamGateway.ReceiveResult.ACCEPTED;
-        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(message));
-        assertEquals(new NodeId("A"), input.nodeId);
-        assertEquals(payload, input.payload);
+        String payload =
+                "{"v":1,"type":"SYNC","nodeId":"A","
+                        + ""data":{"stream":"RACE_DATA","seq":0}}";
+        UpstreamApiMessage message = UpstreamApiMessage.parse(payload);
 
-        input.result = UpstreamGateway.ReceiveResult.UNKNOWN_NODE;
-        assertSame(UpstreamGateway.ReceiveResult.UNKNOWN_NODE, connector.receive(message));
+        assertSame(UpstreamGateway.ReceiveResult.ACCEPTED, connector.receive(message));
+        assertEquals(payload, stream.read());
+
+        String unknownPayload =
+                "{"v":1,"type":"SYNC","nodeId":"B","
+                        + ""data":{"stream":"RACE_DATA","seq":0}}";
+        assertSame(
+                UpstreamGateway.ReceiveResult.UNKNOWN_NODE,
+                connector.receive(UpstreamApiMessage.parse(unknownPayload)));
 
         connector.disconnect(peer);
     }
@@ -78,35 +85,24 @@ public class EngineerApiConnectorTest {
     @Test
     public void outboundMessagesKeepConnectorOrderWithoutGenericEnvelope() {
         EngineerApiConnector connector = new EngineerApiConnector();
-        connector.bindInput((nodeId, payload) -> UpstreamGateway.ReceiveResult.ACCEPTED);
+        NodeId nodeId = new NodeId("A");
+        UpstreamStream stream = new UpstreamStream(nodeId, connector);
+        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
 
         List<UpstreamApiMessage> output = new ArrayList<UpstreamApiMessage>();
-        EngineerApiConnector.Output peer = message -> output.add(message);
+        EngineerApiConnector.Output peer = output::add;
         assertTrue(connector.connect(peer));
 
-        connector.send(new NodeId("A"), "first");
-        connector.send(new NodeId("A"), "second");
+        stream.send("first");
+        stream.send("second");
 
         assertEquals(2, output.size());
-        assertEquals(new NodeId("A"), output.get(0).nodeId());
+        assertEquals(nodeId, output.get(0).nodeId());
         assertEquals("first", output.get(0).payload());
-        assertEquals(new NodeId("A"), output.get(1).nodeId());
+        assertEquals(nodeId, output.get(1).nodeId());
         assertEquals("second", output.get(1).payload());
 
         connector.disconnect(peer);
         assertFalse(connector.isAvailable());
-    }
-
-    private static final class RecordingInput implements UpstreamGateway.ConnectorPort {
-        private UpstreamGateway.ReceiveResult result = UpstreamGateway.ReceiveResult.ACCEPTED;
-        private NodeId nodeId;
-        private String payload;
-
-        @Override
-        public UpstreamGateway.ReceiveResult receive(NodeId newNodeId, String encodedMessage) {
-            nodeId = newNodeId;
-            payload = encodedMessage;
-            return result;
-        }
     }
 }
