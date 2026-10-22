@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
@@ -21,6 +22,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
@@ -128,9 +137,10 @@ public final class NodeService extends LifecycleComponent {
     /**
      * Applies one ordered Central RACE_DATA change set.
      *
-     * <p>NodeUpstream dispatches this to the independent NodeService task lane. The shared
-     * TimeSource is sampled once so stage-start boundary values are normalized to UTC
-     * before entering RaceDataState. Team assignment changes are reflected in RegisteredTeams.</p>
+     * <p>NodeUpstream dispatches this to the independent NodeService task lane. This ingress
+     * boundary samples the shared TimeSource once, resolves all protocol civil-time values to UTC
+     * epoch milliseconds and passes only normalized domain values into RaceDataState. Team
+     * assignment changes are then reflected in RegisteredTeams.</p>
      */
     public CompletableFuture<Void> applyRaceData(UpstreamData.RaceData changes) {
 
@@ -138,19 +148,87 @@ public final class NodeService extends LifecycleComponent {
 
         return taskRunner.runTask(
                 () -> {
-                    raceData.applyChanges(changes, timeSource.now());
-                    for (UpstreamData.TeamAssignmentChange change
-                            : changes.teamAssignmentChanges()) {
-                        RegistrationId registrationId =
-                                change.registrationId();
-                        TeamId teamId =
-                                raceData.teamIdFor(registrationId);
-                        dataTask.teamAssignmentChanged(
-                                registrationId,
-                                teamId);
-                    }
+                    applyNormalizedRaceData(changes);
                     return TaskStep.done();
                 });
+    }
+
+    /** Converts one protocol change set to domain values before mutating retained race state. */
+    private void applyNormalizedRaceData(UpstreamData.RaceData changes) {
+
+        Instant receivedAt = timeSource.now();
+        failIfInvalidArgument(receivedAt != null, "timeSource.now must not return null");
+
+        Map<RegistrationId, TeamId> assignmentsToSet =
+                new LinkedHashMap<RegistrationId, TeamId>();
+        List<RegistrationId> assignmentsToDelete =
+                new ArrayList<RegistrationId>();
+        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
+            failIfInvalidArgument(change != null, "team assignment change must not be null");
+            switch (change.operation()) {
+                case SET:
+                    assignmentsToSet.put(change.registrationId(), change.teamId());
+                    break;
+                case DEL:
+                    assignmentsToDelete.add(change.registrationId());
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                            "unsupported team assignment operation " + change.operation());
+            }
+        }
+
+        Map<TeamId, Long> stageStartsToSet =
+                new LinkedHashMap<TeamId, Long>();
+        List<TeamId> stageStartsToDelete =
+                new ArrayList<TeamId>();
+        for (UpstreamData.StageStartTimeChange change : changes.stageStartTimeChanges()) {
+            failIfInvalidArgument(change != null, "stage start change must not be null");
+            switch (change.operation()) {
+                case SET:
+                    stageStartsToSet.put(
+                            change.teamId(),
+                            absoluteStartMillis(change.start(), receivedAt));
+                    break;
+                case DEL:
+                    stageStartsToDelete.add(change.teamId());
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                            "unsupported stage start operation " + change.operation());
+            }
+        }
+
+        raceData.applyChanges(
+                assignmentsToSet,
+                assignmentsToDelete,
+                stageStartsToSet,
+                stageStartsToDelete);
+
+        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
+            RegistrationId registrationId = change.registrationId();
+            dataTask.teamAssignmentChanged(
+                    registrationId,
+                    raceData.teamIdFor(registrationId));
+        }
+    }
+
+    /** Resolves one IF-06 stage-start value to the node's internal UTC millisecond basis. */
+    private static long absoluteStartMillis(TimingTimestamp start, Instant receivedAt) {
+
+        failIfInvalidArgument(start != null, "stage start must not be null");
+
+        if (start.isAbsolute()) {
+            return start.instant().toEpochMilli();
+        }
+
+        LocalDate date =
+                start.hasDate()
+                        ? start.date()
+                        : receivedAt.atOffset(ZoneOffset.UTC).toLocalDate();
+        return LocalDateTime.of(date, start.time())
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli();
     }
 
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */

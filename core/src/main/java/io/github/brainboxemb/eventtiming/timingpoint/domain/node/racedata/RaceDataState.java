@@ -3,31 +3,27 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Retains the current Central-owned race data for one TimingNode.
  *
- * <p>This passive state object is owned exclusively by the Task Lane. NodeService passes each
- * ordered RACE_DATA change set here after protocol sequence handling. The message is applied to
- * independent copies of team assignments and stage starts; live state is replaced only after the
- * complete change set validates, so an invalid message cannot leave a partially applied update.</p>
+ * <p>This passive state object is owned exclusively by the Task Lane. NodeService normalizes each
+ * ordered RACE_DATA change set at ingress and passes only domain values and absolute UTC epoch
+ * milliseconds here. The changes are applied to independent copies of team assignments and stage
+ * starts; live state is replaced only after the complete change set validates, so an invalid
+ * message cannot leave a partially applied update.</p>
  *
  * <p>Fixed EventData remains authoritative for configured RegistrationId-to-TeamId mappings.
  * Live RACE_DATA assignments may resolve only registrations that EventData does not already own,
  * and one TeamId may not be assigned to multiple live RegistrationIds.</p>
  *
- * <p>Stage-start protocol values are normalized to absolute UTC epoch milliseconds while the
- * message enters this state. Partial civil time is therefore never retained. RaceDataState owns
- * no executor, protocol sequence, ACK behavior, registration list or presentation query model.</p>
+ * <p>RaceDataState owns no protocol timestamp interpretation, executor, protocol sequence,
+ * ACK behavior, registration list or presentation query model.</p>
  */
 public final class RaceDataState {
     private final EventData eventData;
@@ -52,21 +48,26 @@ public final class RaceDataState {
     }
 
     /**
-     * Validates and atomically applies one complete Central RACE_DATA change set.
+     * Validates and atomically applies one normalized Central RACE_DATA change set.
      *
-     * <p>The supplied receive time comes from the node's shared TimeSource. A time-only
-     * upstream start uses its current UTC calendar date. A date+time upstream start is
-     * interpreted directly as UTC. Absolute upstream timestamps keep their Instant.</p>
+     * <p>All stage-start values are already absolute UTC epoch milliseconds. Protocol civil-time
+     * interpretation therefore remains at NodeService ingress and cannot leak into retained state.</p>
      */
-    public void applyChanges(UpstreamData.RaceData changes, Instant receivedAt) {
+    public void applyChanges(
+            Map<RegistrationId, TeamId> assignmentsToSet,
+            List<RegistrationId> assignmentsToDelete,
+            Map<TeamId, Long> stageStartsToSet,
+            List<TeamId> stageStartsToDelete) {
 
-        failIfInvalidArgument(changes != null, "raceData must not be null");
-        failIfInvalidArgument(receivedAt != null, "receivedAt must not be null");
+        failIfInvalidArgument(assignmentsToSet != null, "assignmentsToSet must not be null");
+        failIfInvalidArgument(assignmentsToDelete != null, "assignmentsToDelete must not be null");
+        failIfInvalidArgument(stageStartsToSet != null, "stageStartsToSet must not be null");
+        failIfInvalidArgument(stageStartsToDelete != null, "stageStartsToDelete must not be null");
 
         TeamAssignments updatedAssignments = teamAssignments.copy();
         StageStartTimes updatedStarts = stageStartTimes.copy();
-        applyTeamAssignmentChanges(updatedAssignments, changes);
-        applyStageStartChanges(updatedStarts, changes, receivedAt);
+        applyTeamAssignmentChanges(updatedAssignments, assignmentsToSet, assignmentsToDelete);
+        applyStageStartChanges(updatedStarts, stageStartsToSet, stageStartsToDelete);
         updatedAssignments.validate();
 
         teamAssignments.replaceWith(updatedAssignments);
@@ -75,72 +76,44 @@ public final class RaceDataState {
 
     /** Applies team-assignment changes to the uncommitted transactional copy. */
     private void applyTeamAssignmentChanges(
-            TeamAssignments updatedAssignments, UpstreamData.RaceData changes) {
+            TeamAssignments updatedAssignments,
+            Map<RegistrationId, TeamId> assignmentsToSet,
+            List<RegistrationId> assignmentsToDelete) {
 
-        failIfInvalidArgument(changes.teamAssignmentChanges() != null,
-                "team assignment changes must not be null");
+        for (Map.Entry<RegistrationId, TeamId> change : assignmentsToSet.entrySet()) {
+            RegistrationId registrationId = change.getKey();
+            TeamId teamId = change.getValue();
+            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+            failIfInvalidArgument(teamId != null, "teamId must not be null");
+            failIfInvalidArgument(eventData.teamIdFor(registrationId) == null,
+                    "active assignment cannot override fixed EventData TeamId for %s",
+                    registrationId);
+            updatedAssignments.assign(registrationId, teamId);
+        }
 
-        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
-            failIfInvalidArgument(change != null, "team assignment change must not be null");
-            switch (change.operation()) {
-                case SET:
-                    failIfInvalidArgument(eventData.teamIdFor(change.registrationId()) == null,
-                            "active assignment cannot override fixed EventData TeamId for %s",
-                            change.registrationId());
-                    updatedAssignments.assign(change.registrationId(), change.teamId());
-                    break;
-                case DEL:
-                    updatedAssignments.remove(change.registrationId());
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                            "unsupported team assignment operation " + change.operation());
-            }
+        for (RegistrationId registrationId : assignmentsToDelete) {
+            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+            updatedAssignments.remove(registrationId);
         }
     }
 
-    /** Applies and normalizes stage-start changes to the uncommitted transactional copy. */
+    /** Applies already-normalized stage-start changes to the uncommitted transactional copy. */
     private static void applyStageStartChanges(
             StageStartTimes updatedStarts,
-            UpstreamData.RaceData changes,
-            Instant receivedAt) {
+            Map<TeamId, Long> stageStartsToSet,
+            List<TeamId> stageStartsToDelete) {
 
-        failIfInvalidArgument(changes.stageStartTimeChanges() != null,
-                "stage start changes must not be null");
-
-        for (UpstreamData.StageStartTimeChange change : changes.stageStartTimeChanges()) {
-            failIfInvalidArgument(change != null, "stage start change must not be null");
-            switch (change.operation()) {
-                case SET:
-                    updatedStarts.set(
-                            change.teamId(),
-                            absoluteStartMillis(change.start(), receivedAt));
-                    break;
-                case DEL:
-                    updatedStarts.remove(change.teamId());
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                            "unsupported stage start operation " + change.operation());
-            }
-        }
-    }
-
-    /** Converts one IF-06 stage-start boundary value to the internal UTC millisecond basis. */
-    private static long absoluteStartMillis(TimingTimestamp start, Instant receivedAt) {
-
-        failIfInvalidArgument(start != null, "stage start must not be null");
-
-        if (start.isAbsolute()) {
-            return start.instant().toEpochMilli();
+        for (Map.Entry<TeamId, Long> change : stageStartsToSet.entrySet()) {
+            TeamId teamId = change.getKey();
+            Long startMillis = change.getValue();
+            failIfInvalidArgument(teamId != null, "teamId must not be null");
+            failIfInvalidArgument(startMillis != null, "stage start must not be null");
+            updatedStarts.set(teamId, startMillis.longValue());
         }
 
-        LocalDate date =
-                start.hasDate()
-                        ? start.date()
-                        : receivedAt.atOffset(ZoneOffset.UTC).toLocalDate();
-        return LocalDateTime.of(date, start.time())
-                .toInstant(ZoneOffset.UTC)
-                .toEpochMilli();
+        for (TeamId teamId : stageStartsToDelete) {
+            failIfInvalidArgument(teamId != null, "teamId must not be null");
+            updatedStarts.remove(teamId);
+        }
     }
 }

@@ -1,9 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-
-import java.time.Instant;
 
 /**
  * One immutable decoded antenna observation.
@@ -54,9 +51,4 @@ public final class TagObservation {
         return observedAtMonotonicNanos;
     }
 
-    /** Reconstructs the absolute observation timestamp only at an API/logging boundary. */
-    public TimingTimestamp observedAt() {
-        return new TimingTimestamp(
-                Instant.ofEpochMilli(observedAtEpochMillis));
-    }
 }

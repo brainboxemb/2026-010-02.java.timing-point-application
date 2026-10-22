@@ -11,8 +11,8 @@ import java.time.Instant;
  * the same corrected absolute-time basis.</p>
  *
  * <p>This lower-level contract returns a Java absolute instant rather than a
- * TimingData/domain value type. The consuming semantic boundary decides whether
- * that instant becomes a TimingTimestamp or another representation.</p>
+ * protocol or domain value type. A consuming ingress/commit boundary converts
+ * it once to the absolute scalar or external representation that it owns.</p>
  *
  * <p>Elapsed-time measurement does not use this contract; monotonic time is a
  * separate platform capability.</p>

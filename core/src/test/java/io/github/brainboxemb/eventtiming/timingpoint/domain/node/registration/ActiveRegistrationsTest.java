@@ -82,7 +82,7 @@ public class ActiveRegistrationsTest {
     }
 
     @Test
-    public void semanticValuesAreReconstructedAtReadBoundary() {
+    public void readBoundaryKeepsAbsoluteTimeAsEpochMillis() {
         ActiveRegistrations registrations = activeAt(1);
         registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
 
@@ -93,8 +93,8 @@ public class ActiveRegistrationsTest {
         assertEquals(1L, row.sequenceNumber());
         assertEquals(new RegistrationId("A0001"), row.registrationId());
         assertEquals(
-                Instant.parse("2026-10-13T12:00:00Z"),
-                row.effectiveTime().instant());
+                Instant.parse("2026-10-13T12:00:00Z").toEpochMilli(),
+                row.effectiveTimeMillis());
         assertTrue(row.isValid());
     }
 
