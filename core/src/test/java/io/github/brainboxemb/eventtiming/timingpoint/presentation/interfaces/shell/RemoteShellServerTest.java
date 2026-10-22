@@ -39,6 +39,10 @@ public class RemoteShellServerTest {
             assertTrue(response.contains("Commands:"));
             assertTrue(response.contains(
                     "help [command]               Show commands or details for one command"));
+            assertTrue(response.contains(
+                    "lb [options]                 Inspect raw LogBook history"));
+            assertTrue(response.contains(
+                    "data [options]               Inspect current live RaceData"));
             assertFalse(response.contains("Unknown command"));
         } finally {
             server.close();

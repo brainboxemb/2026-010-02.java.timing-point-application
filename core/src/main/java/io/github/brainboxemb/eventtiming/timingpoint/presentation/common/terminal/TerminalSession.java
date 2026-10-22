@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord.AutomaticTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -34,6 +35,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -44,6 +46,13 @@ import java.util.Set;
 public final class TerminalSession {
     private static final int REGISTRATION_PAGE_SIZE = 100;
     private static final int MAX_REGISTRATION_PAGE_SIZE = 1000;
+    private static final int LOGBOOK_DEFAULT_LATEST = 20;
+    private static final int LOGBOOK_PAGE_SIZE = 100;
+    private static final int MAX_LOGBOOK_PAGE_SIZE = 1000;
+    private static final DateTimeFormatter UTC_MILLIS_FORMAT =
+            new DateTimeFormatterBuilder()
+                    .appendInstant(3)
+                    .toFormatter();
 
     private final PresentationGateway presentationGateway;
     private final LoggingLevelControl loggingLevelControl;
@@ -235,6 +244,12 @@ public final class TerminalSession {
                     return false;
                 case "regs":
                     registrations(arguments, nodeId, output);
+                    return false;
+                case "lb":
+                    logBook(arguments, nodeId, output);
+                    return false;
+                case "data":
+                    raceData(arguments, nodeId, output);
                     return false;
                 case "test":
                     test(arguments, nodeId, output);
@@ -528,6 +543,308 @@ public final class TerminalSession {
                                     : row.rank().toString())
                             + " state="
                             + (row.valid() ? "ACTIVE" : "REVOKED"));
+        }
+    }
+
+    /** Reads technical LogBook history through the existing ordered LogBook query boundary. */
+    private void logBook(
+            String[] arguments,
+            NodeId nodeId,
+            PrintWriter output) {
+
+        TimingNodeProxy timingNode = timingNode(nodeId);
+        int count = timingNode.logBookCount();
+
+        if (arguments.length == 2
+                && "count".equalsIgnoreCase(arguments[1])) {
+            output.println("LogBook: count=" + count);
+            return;
+        }
+
+        if (arguments.length == 1) {
+            printLogBookHeader(count, output);
+            if (count > 0) {
+                printLogBookRecords(
+                        latestLogBook(
+                                timingNode,
+                                Math.min(LOGBOOK_DEFAULT_LATEST, count)),
+                        output);
+            }
+            return;
+        }
+
+        if ("latest".equalsIgnoreCase(arguments[1])) {
+            if (arguments.length > 3) {
+                output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+                return;
+            }
+            int limit = LOGBOOK_DEFAULT_LATEST;
+            if (arguments.length == 3) {
+                try {
+                    limit = Integer.parseInt(arguments[2]);
+                } catch (NumberFormatException ex) {
+                    output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+                    return;
+                }
+            }
+            if (limit < 1 || limit > MAX_LOGBOOK_PAGE_SIZE) {
+                output.println("lb latest limit must be 1.." + MAX_LOGBOOK_PAGE_SIZE);
+                return;
+            }
+            printLogBookHeader(count, output);
+            if (count > 0) {
+                printLogBookRecords(
+                        latestLogBook(
+                                timingNode,
+                                Math.min(limit, count)),
+                        output);
+            }
+            return;
+        }
+
+        if (arguments.length == 2
+                && "all".equalsIgnoreCase(arguments[1])) {
+            printLogBookHeader(count, output);
+            long from = 1L;
+            while (from <= count) {
+                List<TimingRecord> page =
+                        logBookPage(
+                                timingNode,
+                                from,
+                                Math.min(
+                                        LOGBOOK_PAGE_SIZE,
+                                        count - (int) from + 1));
+                if (page.isEmpty()) {
+                    break;
+                }
+                printLogBookRecords(page, output);
+                from = page.get(page.size() - 1).sequenceNumber() + 1L;
+            }
+            return;
+        }
+
+        if (arguments.length < 2 || arguments.length > 3) {
+            output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+            return;
+        }
+
+        long from;
+        int limit = LOGBOOK_PAGE_SIZE;
+        try {
+            from = Long.parseLong(arguments[1]);
+            if (arguments.length == 3) {
+                limit = Integer.parseInt(arguments[2]);
+            }
+        } catch (NumberFormatException ex) {
+            output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+            return;
+        }
+        if (from < 1L || limit < 1 || limit > MAX_LOGBOOK_PAGE_SIZE) {
+            output.println(
+                    "lb requires fromSeq >= 1 and limit 1.."
+                            + MAX_LOGBOOK_PAGE_SIZE);
+            return;
+        }
+
+        printLogBookHeader(count, output);
+        printLogBookRecords(
+                logBookPage(timingNode, from, limit),
+                output);
+    }
+
+    /** Returns a bounded LogBook range without doing terminal I/O on the LogBook Data Lane. */
+    private static List<TimingRecord> logBookPage(
+            TimingNodeProxy timingNode,
+            long fromSequence,
+            int limit) {
+
+        List<TimingRecord> records = new ArrayList<TimingRecord>();
+        timingNode.visitLogBookFrom(
+                fromSequence,
+                limit,
+                records::add);
+        return records;
+    }
+
+    /** Returns the newest bounded LogBook rows without doing terminal I/O on its Data Lane. */
+    private static List<TimingRecord> latestLogBook(
+            TimingNodeProxy timingNode,
+            int limit) {
+
+        List<TimingRecord> records = new ArrayList<TimingRecord>();
+        timingNode.visitLatestLogBook(
+                limit,
+                records::add);
+        return records;
+    }
+
+    private static void printLogBookHeader(
+            int count,
+            PrintWriter output) {
+
+        output.println("LogBook: count=" + count + " timeBasis=UTC");
+    }
+
+    /** Prints exact retained TimingRecord scalar values; both absolute times are UTC. */
+    private static void printLogBookRecords(
+            List<TimingRecord> records,
+            PrintWriter output) {
+
+        for (TimingRecord record : records) {
+            StringBuilder line = new StringBuilder();
+            line.append("  seq=")
+                    .append(record.sequenceNumber())
+                    .append(" node=")
+                    .append(record.nodeId())
+                    .append(" kind=")
+                    .append(record.kind().name())
+                    .append(" loc=")
+                    .append(record.locationId());
+
+            if (record.registrationId() != 0) {
+                line.append(" id=")
+                        .append(
+                                RegistrationId.fromPackedValue(
+                                        record.registrationId()).value())
+                        .append(" action=")
+                        .append(record.action().name());
+            }
+
+            line.append(" effectiveTime=")
+                    .append(
+                            UTC_MILLIS_FORMAT.format(
+                                    Instant.ofEpochMilli(
+                                            record.effectiveTimeMillis())))
+                    .append(" recordedAt=")
+                    .append(
+                            UTC_MILLIS_FORMAT.format(
+                                    Instant.ofEpochMilli(
+                                            record.recordedAtMillis())));
+
+            if (record.tagSource() != null) {
+                line.append(" tagSrc=")
+                        .append(record.tagSource().name());
+            }
+            if (record.automaticTimeSource() != null) {
+                line.append(" timeSrc=")
+                        .append(record.automaticTimeSource().name());
+            }
+            if (record.manualTimeSource() != null) {
+                line.append(" timeSrc=")
+                        .append(record.manualTimeSource().name());
+            }
+            output.println(line.toString());
+        }
+    }
+
+    /** Shows current raw live RaceData without mixing in fixed EventData mappings. */
+    private void raceData(
+            String[] arguments,
+            NodeId nodeId,
+            PrintWriter output) {
+
+        TimingNodeProxy.RaceDataSnapshot snapshot =
+                timingNode(nodeId).raceDataSnapshot();
+
+        if (arguments.length == 1) {
+            printRaceDataHeader(snapshot, output);
+            printRaceDataMappings(snapshot, output);
+            printRaceDataStarts(snapshot, output);
+            return;
+        }
+        if (arguments.length != 2) {
+            output.println("Usage: data [count|all|starts|mappings|<RegistrationId>]");
+            return;
+        }
+
+        String selector = arguments[1];
+        if ("count".equalsIgnoreCase(selector)) {
+            printRaceDataHeader(snapshot, output);
+            return;
+        }
+        if ("all".equalsIgnoreCase(selector)) {
+            printRaceDataHeader(snapshot, output);
+            printRaceDataMappings(snapshot, output);
+            printRaceDataStarts(snapshot, output);
+            return;
+        }
+        if ("mappings".equalsIgnoreCase(selector)) {
+            printRaceDataHeader(snapshot, output);
+            printRaceDataMappings(snapshot, output);
+            return;
+        }
+        if ("starts".equalsIgnoreCase(selector)) {
+            printRaceDataHeader(snapshot, output);
+            printRaceDataStarts(snapshot, output);
+            return;
+        }
+
+        RegistrationId registrationId = new RegistrationId(selector);
+        TimingNodeProxy.RaceDataMapping mapping = null;
+        TimingNodeProxy.RaceDataStageStart start = null;
+        for (TimingNodeProxy.RaceDataMapping candidate : snapshot.mappings()) {
+            if (candidate.registrationId().equals(registrationId)) {
+                mapping = candidate;
+                break;
+            }
+        }
+        for (TimingNodeProxy.RaceDataStageStart candidate : snapshot.stageStarts()) {
+            if (candidate.registrationId().equals(registrationId)) {
+                start = candidate;
+                break;
+            }
+        }
+
+        output.println(
+                "RaceData: id="
+                        + registrationId.value()
+                        + " liveTeam="
+                        + (mapping == null ? "-" : mapping.teamId().value())
+                        + " start="
+                        + (start == null
+                                ? "-"
+                                : UTC_MILLIS_FORMAT.format(
+                                        start.start().instant())));
+    }
+
+    private static void printRaceDataHeader(
+            TimingNodeProxy.RaceDataSnapshot snapshot,
+            PrintWriter output) {
+
+        output.println(
+                "RaceData: mappings="
+                        + snapshot.mappings().size()
+                        + " starts="
+                        + snapshot.stageStarts().size()
+                        + " timeBasis=UTC");
+    }
+
+    private static void printRaceDataMappings(
+            TimingNodeProxy.RaceDataSnapshot snapshot,
+            PrintWriter output) {
+
+        output.println("  mappings:");
+        for (TimingNodeProxy.RaceDataMapping mapping : snapshot.mappings()) {
+            output.println(
+                    "    id="
+                            + mapping.registrationId().value()
+                            + " team="
+                            + mapping.teamId().value());
+        }
+    }
+
+    private static void printRaceDataStarts(
+            TimingNodeProxy.RaceDataSnapshot snapshot,
+            PrintWriter output) {
+
+        output.println("  starts:");
+        for (TimingNodeProxy.RaceDataStageStart start : snapshot.stageStarts()) {
+            output.println(
+                    "    id="
+                            + start.registrationId().value()
+                            + " start="
+                            + UTC_MILLIS_FORMAT.format(
+                                    start.start().instant()));
         }
     }
 
@@ -925,6 +1242,8 @@ public final class TerminalSession {
                 || "status".equals(command)
                 || "reg".equals(command)
                 || "regs".equals(command)
+                || "lb".equals(command)
+                || "data".equals(command)
                 || "test".equals(command)
                 || "config".equals(command);
     }
@@ -938,6 +1257,8 @@ public final class TerminalSession {
                 || "status".equals(command)
                 || "reg".equals(command)
                 || "regs".equals(command)
+                || "lb".equals(command)
+                || "data".equals(command)
                 || "test".equals(command)) {
             return true;
         }
@@ -1213,6 +1534,34 @@ public final class TerminalSession {
                 output.println("  Example: regs count");
                 output.println("  Example: regs 100 50");
                 break;
+            case "lb":
+                output.println(
+                        "Usage: lb[:<NodeId>] "
+                                + "[count|latest [n]|all|<fromSeq> [limit]]");
+                output.println("  Read the real retained LogBook TimingRecord history.");
+                output.println("  With no option, shows the latest " + LOGBOOK_DEFAULT_LATEST + " rows.");
+                output.println("  count shows only the retained record count.");
+                output.println("  latest [n] shows the newest bounded rows in sequence order.");
+                output.println("  <fromSeq> [limit] reads an inclusive bounded sequence range.");
+                output.println("  all pages through the complete LogBook.");
+                output.println("  effectiveTime and recordedAt are absolute UTC timestamps with Z.");
+                output.println("  Example: lb count");
+                output.println("  Example: lb latest 10");
+                output.println("  Example: lb 100 25");
+                break;
+            case "data":
+                output.println(
+                        "Usage: data[:<NodeId>] "
+                                + "[count|all|starts|mappings|<RegistrationId>]");
+                output.println("  Inspect current live RaceData state.");
+                output.println("  data alone shows both live sections; count shows only counts.");
+                output.println("  starts lists RegistrationId-scoped absolute UTC stage starts.");
+                output.println("  mappings lists only live Central RegistrationId->TeamId assignments.");
+                output.println("  Fixed EventData mappings are intentionally not included.");
+                output.println("  A RegistrationId shows its live mapping/start in one line.");
+                output.println("  Example: data starts");
+                output.println("  Example: data A0042");
+                break;
             case "config":
                 output.println("Usage: config[:<NodeId>]");
                 output.println("       config[:<NodeId>] tag-processing");
@@ -1258,6 +1607,8 @@ public final class TerminalSession {
         output.println("  start <id|team> <time>       Set registration stage-start time");
         output.println("  reg <id|team> [time]         Register one ID/team");
         output.println("  regs [options]               Show active-WP registration projection");
+        output.println("  lb [options]                 Inspect raw LogBook history");
+        output.println("  data [options]               Inspect current live RaceData");
         output.println("  config [options]             Show/update configuration");
         output.println("  test <options>               Engineering test controls");
         output.println("  quit                         Stop the application");
