@@ -2,11 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -18,14 +18,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TagObservationFilterTest {
-    private static final RegistrationId REGISTRATION_ID =
-            new RegistrationId("N0001");
-    private static final TimingTimestamp OBSERVED_1 =
-            TimingTimestamp.parse("2026-10-01T12:00:00.000Z");
-    private static final TimingTimestamp OBSERVED_2 =
-            TimingTimestamp.parse("2026-10-01T12:00:00.100Z");
-    private static final TimingTimestamp OBSERVED_3 =
-            TimingTimestamp.parse("2026-10-01T12:00:00.200Z");
+    private static final RegistrationId REGISTRATION_ID = new RegistrationId("N0001");
+    private static final long OBSERVED_1 = Instant.parse("2026-10-01T12:00:00.000Z").toEpochMilli();
+    private static final long OBSERVED_2 = Instant.parse("2026-10-01T12:00:00.100Z").toEpochMilli();
+    private static final long OBSERVED_3 = Instant.parse("2026-10-01T12:00:00.200Z").toEpochMilli();
 
     @Test
     public void selectsStrongestRssiAcrossDifferentTagsForOneRegistration() {
@@ -36,8 +32,8 @@ public class TagObservationFilterTest {
                 policy(),
                 clock,
                 metrics,
-                (registrationId, observedAt) -> valid.add(
-                        new SelectedObservation(registrationId, observedAt)));
+                (registrationId, observedAtMillis) ->
+                        valid.add(new SelectedObservation(registrationId, observedAtMillis)));
 
         assertEquals(8, metrics.snapshot().passagePoolInitialSize());
         assertEquals(8, metrics.snapshot().passagePoolSize());
@@ -55,7 +51,7 @@ public class TagObservationFilterTest {
 
         assertEquals(1, valid.size());
         assertEquals(REGISTRATION_ID, valid.get(0).registrationId);
-        assertEquals(OBSERVED_2, valid.get(0).observedAt);
+        assertEquals(OBSERVED_2, valid.get(0).observedAtMillis);
         assertFalse(filter.hasPendingState());
         assertEquals(0, metrics.snapshot().passagePoolInUse());
     }
@@ -68,15 +64,14 @@ public class TagObservationFilterTest {
                 policy(),
                 clock,
                 new TagProcessingMetrics(),
-                (registrationId, observedAt) -> valid.add(
-                        new SelectedObservation(registrationId, observedAt)));
+                (registrationId, observedAtMillis) ->
+                        valid.add(new SelectedObservation(registrationId, observedAtMillis)));
 
         filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
 
         /*
-         * Five seconds pass locally before the already-captured second read is
-         * processed. Its antenna monotonic time is still only 100 ms later, so
-         * processing delay must not create another passage.
+         * Five seconds pass locally before the already-captured second read is processed.
+         * Its antenna monotonic time is still only 100 ms later.
          */
         clock.setMillis(5000L);
         filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2, 100L));
@@ -93,8 +88,8 @@ public class TagObservationFilterTest {
                 policy(),
                 clock,
                 new TagProcessingMetrics(),
-                (registrationId, observedAt) -> valid.add(
-                        new SelectedObservation(registrationId, observedAt)));
+                (registrationId, observedAtMillis) ->
+                        valid.add(new SelectedObservation(registrationId, observedAtMillis)));
 
         filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
         filter.add(
@@ -102,11 +97,11 @@ public class TagObservationFilterTest {
                 observation(
                         "N0001B",
                         -40,
-                        TimingTimestamp.parse("2026-10-01T12:00:00.250Z"),
+                        Instant.parse("2026-10-01T12:00:00.250Z").toEpochMilli(),
                         250L));
 
         assertEquals(1, valid.size());
-        assertEquals(OBSERVED_1, valid.get(0).observedAt);
+        assertEquals(OBSERVED_1, valid.get(0).observedAtMillis);
     }
 
     @Test
@@ -122,8 +117,8 @@ public class TagObservationFilterTest {
                         8),
                 clock,
                 new TagProcessingMetrics(),
-                (registrationId, observedAt) -> valid.add(
-                        new SelectedObservation(registrationId, observedAt)));
+                (registrationId, observedAtMillis) ->
+                        valid.add(new SelectedObservation(registrationId, observedAtMillis)));
 
         filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
         filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2, 100L));
@@ -132,11 +127,11 @@ public class TagObservationFilterTest {
                 observation(
                         "N0001A",
                         -30,
-                        TimingTimestamp.parse("2026-10-01T12:00:00.150Z"),
+                        Instant.parse("2026-10-01T12:00:00.150Z").toEpochMilli(),
                         150L));
 
         assertEquals(1, valid.size());
-        assertEquals(OBSERVED_2, valid.get(0).observedAt);
+        assertEquals(OBSERVED_2, valid.get(0).observedAtMillis);
     }
 
     @Test
@@ -147,7 +142,7 @@ public class TagObservationFilterTest {
                 policy(),
                 clock,
                 metrics,
-                (registrationId, observedAt) -> {
+                (registrationId, observedAtMillis) -> {
                     throw new AssertionError("discarded passage must not close");
                 });
 
@@ -172,24 +167,23 @@ public class TagObservationFilterTest {
     private static TagObservation observation(
             String tagId,
             int rssi,
-            TimingTimestamp observedAt,
+            long observedAtMillis,
             long monotonicMillis) {
+
         return new TagObservation(
                 new TagId(tagId),
                 rssi,
-                observedAt.instant().toEpochMilli(),
+                observedAtMillis,
                 TimeUnit.MILLISECONDS.toNanos(monotonicMillis));
     }
 
     private static final class SelectedObservation {
         private final RegistrationId registrationId;
-        private final TimingTimestamp observedAt;
+        private final long observedAtMillis;
 
-        private SelectedObservation(
-                RegistrationId registrationId,
-                TimingTimestamp observedAt) {
+        private SelectedObservation(RegistrationId registrationId, long observedAtMillis) {
             this.registrationId = registrationId;
-            this.observedAt = observedAt;
+            this.observedAtMillis = observedAtMillis;
         }
     }
 

@@ -162,7 +162,7 @@ public class WebSocketOutboundDeliveryTest {
                             LogBookCommands.commitAutomaticRegistration(
                                     node.locationId(),
                                     registrationId,
-                                    effectiveTime,
+                                    effectiveTime.instant().toEpochMilli(),
                                     TimingRecord.TagSource.API,
                                     TimingRecord.AutomaticTimeSource.API));
                 };

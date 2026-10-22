@@ -173,9 +173,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     }
 
     private static String formatRecordedTime(long epochMillis) {
-        Instant instant = Instant.ofEpochMilli(epochMillis);
-        long subCentisecondNanos = instant.getNano() % 10_000_000L;
-        return RECORDED_TIME_FORMAT.format(instant.minusNanos(subCentisecondNanos));
+        return RECORDED_TIME_FORMAT.format(Instant.ofEpochMilli(epochMillis));
     }
 
     @Override

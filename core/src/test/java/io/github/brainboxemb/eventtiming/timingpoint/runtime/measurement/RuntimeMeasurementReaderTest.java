@@ -126,7 +126,7 @@ public class RuntimeMeasurementReaderTest {
                         LogBookCommands.commitAutomaticRegistration(
                                 node.locationId(),
                                 new RegistrationId("N0001"),
-                                EVENT_TIME,
+                                EVENT_TIME.instant().toEpochMilli(),
                                 TimingRecord.TagSource.API,
                                 TimingRecord.AutomaticTimeSource.API));
             };

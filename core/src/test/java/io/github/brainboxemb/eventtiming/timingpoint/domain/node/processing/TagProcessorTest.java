@@ -588,7 +588,7 @@ public class TagProcessorTest {
                                         LogBookCommands.commitAntennaRegistration(
                                                 node.locationId(),
                                                 registration.registrationId(),
-                                                registration.observedAt())));
+                                                registration.observedAtEpochMillis())));
     }
 
     private static void awaitExecutor(ScheduledExecutorService executor)
