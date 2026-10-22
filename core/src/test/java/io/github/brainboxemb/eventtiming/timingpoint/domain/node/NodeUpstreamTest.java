@@ -126,6 +126,40 @@ public class NodeUpstreamTest {
     }
 
     @Test
+    public void failedMessageDoesNotBlockFollowingQueuedMessage() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNodeFixture.Components node =
+                node("A", stream);
+        activate(node.node());
+        activate(node.nodeUpstream());
+        try {
+            stream.receive(
+                    DefaultUpstreamData.ack(
+                            new NodeId("A"),
+                            UpstreamData.Stream.RACE_DATA,
+                            0L));
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "R0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+
+            UpstreamData.Ack ack =
+                    (UpstreamData.Ack) stream.takeSent();
+            assertEquals(1L, ack.sequence());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            deactivate(node.nodeUpstream());
+            deactivate(node.node());
+        }
+    }
+
+    @Test
     public void heartbeatUsesSameOutboundStreamAndTracksMissedIntervals() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
