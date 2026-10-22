@@ -72,8 +72,8 @@ public final class NodeUpstream extends LifecycleComponent {
         this.raceDataSync = new RaceDataSync(nodeId, this::isAvailable, this::send);
         this.timingDataSync = new TimingDataSync(nodeId, this::isAvailable, this::send, logBook);
         this.inputTask = new UpstreamInputTask(nodeId, stream, this::isAvailable,
-                this::readMessage, this::createMessageTask, taskRunner,
-                this::onMessageFailure);
+                this::readMessage, this::createMessageTask,
+                this::cancelMessageState);
     }
 
     /** Returns this node-specific protocol instance identity. */
@@ -196,8 +196,8 @@ public final class NodeUpstream extends LifecycleComponent {
         }
     }
 
-    /** Clears interrupted replay/apply state after one failed inbound operation. */
-    private void onMessageFailure(Throwable failure) {
+    /** Clears protocol continuation state after one failed inbound operation. */
+    private void cancelMessageState() {
         timingDataSync.cancelReplay();
         raceDataSync.cancelApply();
     }
@@ -210,10 +210,6 @@ public final class NodeUpstream extends LifecycleComponent {
      * connection became available.</p>
      */
     public void connectionAvailable() {
-        if (!taskRunner.isRunning()) {
-            return;
-        }
-
         queueTimingDataSync();
         queueHeartbeat();
         wakeQueuedInput();
@@ -253,7 +249,7 @@ public final class NodeUpstream extends LifecycleComponent {
 
     /** Queues one heartbeat protocol turn only while this component and transport are operational. */
     private void queueHeartbeat() {
-        if (taskRunner.isRunning() && isAvailable()) {
+        if (isAvailable()) {
             taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick for node " + nodeId.value());
         }
     }
