@@ -15,9 +15,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
@@ -33,7 +30,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * by this node's task runner. The transport connector only reports connection state; it does not know about PING.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
-    private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
     private static final long HEARTBEAT_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(30L);
 
@@ -257,13 +253,13 @@ public final class NodeUpstream extends LifecycleComponent {
     /** Queues one heartbeat protocol turn only while this component and transport are operational. */
     private void queueHeartbeat() {
         if (taskRunner.isRunning() && isAvailable()) {
-            taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick");
+            taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick for node " + nodeId.value());
         }
     }
 
     /** Queues the current TIMING_DATA source-head advertisement on this node's task lane. */
     private void queueTimingDataSync() {
-        taskRunner.executeOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC");
+        taskRunner.executeOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC for node " + nodeId.value());
     }
 
 }
