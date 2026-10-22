@@ -11,23 +11,25 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
-/** Test fixture around the real gateway-created UpstreamStream application port. */
+/** Test fixture around a real composed UpstreamStream and UpstreamGateway. */
 final class InMemoryUpstreamStream {
     private static final long SEND_WAIT_MILLIS = 1000L;
 
     private NodeId nodeId;
     private final UpstreamDataCodec codec = new DefaultUpstreamDataCodec(new DefaultTimingDataCodec());
     private final TestConnector connector = new TestConnector();
+    private UpstreamGateway gateway;
     private UpstreamStream stream;
 
     UpstreamStream bind(NodeId requestedNodeId) {
         if (stream == null) {
             nodeId = requestedNodeId;
-            UpstreamGateway gateway = new UpstreamGateway();
-            stream = gateway.createApplicationPort(nodeId, connector);
+            stream = new UpstreamStream(nodeId, connector);
+            gateway = new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
         } else if (!nodeId.equals(requestedNodeId)) {
             throw new IllegalStateException("test stream is already bound to another node");
         }

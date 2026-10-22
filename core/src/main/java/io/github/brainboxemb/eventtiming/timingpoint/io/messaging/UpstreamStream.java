@@ -11,82 +11,72 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Node-scoped application port created by {@link UpstreamGateway}.
+ * Fixed node-scoped application port between NodeUpstream and one transport connector.
  *
- * <p>The NodeId-to-connector choice is resolved once when this stream is composed. Normal application-side reads,
- * writes and availability checks then use this fixed port directly; they do not route through the gateway by NodeId
- * again.</p>
- *
- * <p>The stream carries encoded protocol messages only. NodeUpstream owns semantic encoding and decoding. Its event
- * payload is the producing stream itself, following the local subject/observer convention without repeating NodeId
- * that is already fixed by composition.</p>
+ * <p>The routing NodeId and connector are construction-time dependencies. Runtime reads and
+ * writes therefore never perform another gateway lookup.</p>
  */
 public final class UpstreamStream {
+    private static final int INPUT_CAPACITY = 64;
+
     private final NodeId routingNodeId;
     private final UpstreamConnector connector;
-    private final int inputCapacity;
     private final Deque<String> input = new ArrayDeque<String>();
     private final Event<UpstreamStream> connectedEvent = new Event<UpstreamStream>();
     private final Event<UpstreamStream> dataAvailableEvent = new Event<UpstreamStream>();
 
-    /** Transport became available for this node-scoped application port. */
+    /** Sender identity is the already composed node stream; NodeId is not repeated in the event. */
     public final EventSource<UpstreamStream> CONNECTED = connectedEvent;
 
-    /** At least one encoded inbound message is queued for this application port. */
+    /** This is a wake signal; the bounded input queue remains the authoritative pending-data state. */
     public final EventSource<UpstreamStream> DATA_AVAILABLE = dataAvailableEvent;
 
-    UpstreamStream(NodeId routingNodeId, UpstreamConnector connector, int inputCapacity) {
+    /** Each node receives an independent bounded input queue. */
+    public UpstreamStream(NodeId routingNodeId, UpstreamConnector connector) {
+
         failIfInvalidArgument(routingNodeId != null, "routingNodeId must not be null");
         failIfInvalidArgument(connector != null, "connector must not be null");
-        failIfInvalidArgument(inputCapacity > 0, "inputCapacity must be positive");
 
         this.routingNodeId = routingNodeId;
         this.connector = connector;
-        this.inputCapacity = inputCapacity;
     }
 
-    /** Returns whether the transport session bound to this application port is currently usable. */
+    /** Availability follows the bound connector; the stream has no independent session state. */
     public boolean isAvailable() {
         return connector.isAvailable();
     }
 
-    /** Returns whether one inbound encoded message can be read without blocking. */
+    /** Queue state is checked without blocking; event delivery is only a wake mechanism. */
     public synchronized boolean hasMessage() {
         return !input.isEmpty();
     }
 
-    /**
-     * Consumes one inbound encoded message.
-     *
-     * <p>The queue belongs to this fixed application port, so no NodeId lookup is performed on the read path.</p>
-     */
+    /** Reading is non-blocking and requires queued input to be present. */
     public synchronized String read() {
+
         String encodedMessage = input.poll();
         failIfIllegalState(encodedMessage != null, "No upstream input is queued");
         return encodedMessage;
     }
 
-    /**
-     * Sends one encoded message through the connector fixed during composition.
-     *
-     * <p>The captured routing identity is passed directly to the connector for transports that need an external
-     * destination key. The generic message itself remains only the encoded payload.</p>
-     */
+    /** Outbound routing uses the NodeId captured once during composition. */
     public void send(String encodedMessage) {
+
         failIfInvalidArgument(encodedMessage != null, "encodedMessage must not be null");
         connector.send(routingNodeId, encodedMessage);
     }
 
     /**
-     * Queues one message after UpstreamGateway has resolved the inbound NodeId to this application port.
+     * The bounded queue prevents one node's inbound burst from becoming unbounded retained state.
      *
-     * @return false when this port's bounded input queue is full
+     * @return false when this stream has reached its configured input capacity
      */
     boolean offer(String encodedMessage) {
+
         failIfInvalidArgument(encodedMessage != null, "encodedMessage must not be null");
 
         synchronized (this) {
-            if (input.size() >= inputCapacity) {
+            if (input.size() >= INPUT_CAPACITY) {
                 return false;
             }
             input.addLast(encodedMessage);
@@ -96,18 +86,18 @@ public final class UpstreamStream {
         return true;
     }
 
-    /** Publishes one post-fact connection notification for this application port. */
+    /** Connector availability is fanned out only to streams fixed to that connector. */
     void connected() {
         connectedEvent.emit(this);
     }
 
-    /**
-     * Drops unread input from the ended transport session.
-     *
-     * <p>Encoded messages are session input; retaining them across reconnect could apply stale peer data in the next
-     * session.</p>
-     */
+    /** Unread data belongs to the ended transport session and must not survive reconnect. */
     synchronized void disconnected() {
         input.clear();
+    }
+
+    /** Gateway construction rejects a routing table that pairs this stream with another binding. */
+    boolean isBoundTo(NodeId nodeId, UpstreamConnector expectedConnector) {
+        return routingNodeId.equals(nodeId) && connector == expectedConnector;
     }
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Complete upstream Messaging composition before runtime use: construct fixed node-scoped `UpstreamStream` ports first, construct `UpstreamGateway` once from the connector plus complete routing map, remove runtime `createApplicationPort(...)`, `NodeBinding` and the redundant connector/stream registry, keep connector input plumbing package-internal, and align Engineering factories/comments with the Java design rules.
+
 - Simplify `UpstreamData` to one node-scoped immutable base with small concrete message values (`TimingDataTransfer`, `RaceData`, `Sync`, `Ack`, `Req`, `Ping`); remove the subtype-interface plus hidden `DefaultUpstreamData.*Value` implementation hierarchy and keep `DefaultUpstreamData` as a thin reference-profile factory.
 
 - Move fixed system-level event wiring into `TimingSystem`: antenna observations now target the normal `TimingNode.onTagObserved(...)` API, upstream stream events target normal `NodeUpstream` input methods, and Runtime composition only constructs/resolves the components and mappings.

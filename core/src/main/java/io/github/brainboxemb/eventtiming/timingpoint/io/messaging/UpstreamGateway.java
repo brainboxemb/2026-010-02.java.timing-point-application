@@ -1,146 +1,88 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Resolves transport-side NodeId routing to fixed node-scoped application ports.
+ * Routes inbound connector data to the fixed node-scoped UpstreamStreams composed for one system.
  *
- * <p>Routing happens only when inbound transport data arrives. Each {@link UpstreamStream} returned by
- * {@link #createApplicationPort(NodeId, UpstreamConnector)} already owns its connector and bounded input queue, so
- * normal application reads/writes do not perform another gateway map lookup.</p>
- *
- * <p>Connector session changes are post-fact events. Inbound data admission is a command with a result and therefore
- * uses {@link ConnectorPort} rather than pretending that queue acceptance is an event.</p>
+ * <p>The routing table is complete at construction. Runtime operation cannot create, replace or
+ * rebind application ports.</p>
  */
 public final class UpstreamGateway {
-    static final int DEFAULT_INPUT_CAPACITY = 64;
 
-    /** Result of admitting one transport message to its resolved application port. */
+    /** INPUT_FULL refers to the selected stream's bounded queue, not connector capacity. */
     public enum ReceiveResult {
         ACCEPTED,
         UNKNOWN_NODE,
         INPUT_FULL
     }
 
-    /**
-     * Command-style input port given to one transport connector.
-     *
-     * <p>The connector resolves transport framing only. This gateway port owns NodeId routing and bounded application
-     * admission.</p>
-     */
-    public interface ConnectorPort {
-        ReceiveResult receive(NodeId nodeId, String encodedMessage);
-    }
+    private final UpstreamConnector connector;
+    private final Map<NodeId, UpstreamStream> streams;
 
-    /** Connector connection events are wired through the same typed local-event mechanism as other components. */
-    private static final EventInput<UpstreamGateway, UpstreamConnector> CONNECTED =
-            EventInput.of((gateway, source) -> source.subscribe(gateway::onConnected));
+    /** All stream bindings must already be complete and must use the supplied connector. */
+    public UpstreamGateway(UpstreamConnector connector, Map<NodeId, UpstreamStream> nodeStreams) {
 
-    /** Connector disconnect events clear only the application ports that belong to that connector. */
-    private static final EventInput<UpstreamGateway, UpstreamConnector> DISCONNECTED =
-            EventInput.of((gateway, source) -> source.subscribe(gateway::onDisconnected));
-
-    private static final class NodeBinding {
-        private final UpstreamConnector connector;
-        private final UpstreamStream stream;
-
-        private NodeBinding(UpstreamConnector connector, UpstreamStream stream) {
-            this.connector = connector;
-            this.stream = stream;
-        }
-    }
-
-    private final int inputCapacity;
-    private final Map<NodeId, NodeBinding> nodes = new LinkedHashMap<NodeId, NodeBinding>();
-    private final Map<UpstreamConnector, List<UpstreamStream>> connectors =
-            new LinkedHashMap<UpstreamConnector, List<UpstreamStream>>();
-
-    public UpstreamGateway() {
-        this(DEFAULT_INPUT_CAPACITY);
-    }
-
-    UpstreamGateway(int inputCapacity) {
-        failIfInvalidArgument(inputCapacity > 0, "inputCapacity must be positive");
-        this.inputCapacity = inputCapacity;
-    }
-
-    /**
-     * Creates one fixed node-scoped application port.
-     *
-     * <p>The NodeId is consumed here to establish routing. The returned stream subsequently talks directly to its
-     * bound connector and queue without presenting NodeId again to the gateway.</p>
-     */
-    public synchronized UpstreamStream createApplicationPort(NodeId nodeId, UpstreamConnector connector) {
-        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(connector != null, "connector must not be null");
-        failIfInvalidArgument(!nodes.containsKey(nodeId), "duplicate upstream node %s", nodeId.value());
+        failIfInvalidArgument(nodeStreams != null, "nodeStreams must not be null");
 
-        List<UpstreamStream> connectorStreams = connectors.get(connector);
-        if (connectorStreams == null) {
-            connector.bindInput((messageNodeId, encodedMessage) -> receive(connector, messageNodeId, encodedMessage));
-            CONNECTED.bind(this, connector.CONNECTED);
-            DISCONNECTED.bind(this, connector.DISCONNECTED);
+        Map<NodeId, UpstreamStream> copy = new LinkedHashMap<NodeId, UpstreamStream>();
+        for (Map.Entry<NodeId, UpstreamStream> entry : nodeStreams.entrySet()) {
+            NodeId nodeId = entry.getKey();
+            UpstreamStream stream = entry.getValue();
 
-            connectorStreams = new ArrayList<UpstreamStream>();
-            connectors.put(connector, connectorStreams);
+            failIfInvalidArgument(nodeId != null, "nodeStreams must not contain a null NodeId");
+            failIfInvalidArgument(stream != null, "nodeStreams must not contain a null stream");
+            failIfInvalidArgument(stream.isBoundTo(nodeId, connector),
+                    "UpstreamStream binding does not match node %s and connector", nodeId.value());
+
+            copy.put(nodeId, stream);
         }
 
-        UpstreamStream stream = new UpstreamStream(nodeId, connector, inputCapacity);
-        nodes.put(nodeId, new NodeBinding(connector, stream));
-        connectorStreams.add(stream);
-        return stream;
+        this.connector = connector;
+        this.streams = Collections.unmodifiableMap(copy);
+
+        connector.bindInput(this::receive);
+        connector.CONNECTED.subscribe(this::onConnected);
+        connector.DISCONNECTED.subscribe(this::onDisconnected);
     }
 
-    /**
-     * Resolves one transport message to its fixed application port.
-     *
-     * <p>The source connector is checked as part of routing so a connector cannot inject a NodeId that belongs to a
-     * different configured transport binding.</p>
-     */
-    private ReceiveResult receive(UpstreamConnector connector, NodeId nodeId, String encodedMessage) {
-        failIfInvalidArgument(connector != null, "connector must not be null");
+    /** Unknown NodeIds are rejected without changing any stream queue. */
+    private ReceiveResult receive(NodeId nodeId, String encodedMessage) {
+
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(encodedMessage != null, "encodedMessage must not be null");
 
-        UpstreamStream stream;
-        synchronized (this) {
-            NodeBinding binding = nodes.get(nodeId);
-            if (binding == null || binding.connector != connector) {
-                return ReceiveResult.UNKNOWN_NODE;
-            }
-            stream = binding.stream;
+        UpstreamStream stream = streams.get(nodeId);
+        if (stream == null) {
+            return ReceiveResult.UNKNOWN_NODE;
         }
 
         return stream.offer(encodedMessage) ? ReceiveResult.ACCEPTED : ReceiveResult.INPUT_FULL;
     }
 
-    /** Fans one connector connection fact out to the application ports already bound to that connector. */
-    private void onConnected(UpstreamConnector connector) {
-        for (UpstreamStream stream : connectorStreams(connector)) {
+    /** The subscribed connector is fixed, so one connection fact applies to every composed stream. */
+    private void onConnected(UpstreamConnector source) {
+
+        failIfIllegalState(source == connector, "Connection event came from an unexpected connector");
+        for (UpstreamStream stream : streams.values()) {
             stream.connected();
         }
     }
 
-    /** Clears unread session data for all application ports bound to the disconnected connector. */
-    private void onDisconnected(UpstreamConnector connector) {
-        for (UpstreamStream stream : connectorStreams(connector)) {
+    /** Session input is invalid after disconnect and is cleared from every composed stream. */
+    private void onDisconnected(UpstreamConnector source) {
+
+        failIfIllegalState(source == connector, "Disconnect event came from an unexpected connector");
+        for (UpstreamStream stream : streams.values()) {
             stream.disconnected();
         }
-    }
-
-    /** Takes a stable composition-built snapshot before invoking application-port event handlers. */
-    private synchronized List<UpstreamStream> connectorStreams(UpstreamConnector connector) {
-        List<UpstreamStream> streams = connectors.get(connector);
-        failIfIllegalState(streams != null, "Connector is not bound to this UpstreamGateway");
-        return new ArrayList<UpstreamStream>(streams);
     }
 }
