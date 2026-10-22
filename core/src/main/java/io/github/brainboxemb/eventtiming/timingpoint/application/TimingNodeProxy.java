@@ -249,7 +249,7 @@ public final class TimingNodeProxy {
                     LogBookCommands.commitAutomaticRegistration(
                             timingNode.locationId(),
                             registrationId,
-                            effectiveTime,
+                            effectiveTime.instant().toEpochMilli(),
                             TimingRecord.TagSource.API,
                             registrationTimeSource);
             return CommandResult.committed(logBook.process(command));
@@ -276,7 +276,7 @@ public final class TimingNodeProxy {
                     LogBookCommands.commitManualRegistration(
                             timingNode.locationId(),
                             registrationId,
-                            effectiveTime,
+                            effectiveTime.instant().toEpochMilli(),
                             timeSource);
             return CommandResult.committed(logBook.process(command));
         };
@@ -305,7 +305,7 @@ public final class TimingNodeProxy {
                 command = LogBookCommands.revokeAutomaticRegistration(
                         originalLocationId,
                         registrationId,
-                        originalTime);
+                        originalTime.instant().toEpochMilli());
                 break;
             case MAN_REG:
                 failIfInvalidArgument(
@@ -314,7 +314,7 @@ public final class TimingNodeProxy {
                 command = LogBookCommands.revokeManualRegistration(
                         originalLocationId,
                         registrationId,
-                        originalTime,
+                        originalTime.instant().toEpochMilli(),
                         originalTimeSource);
                 break;
             default:

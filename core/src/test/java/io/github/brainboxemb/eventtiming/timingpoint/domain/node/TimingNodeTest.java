@@ -379,8 +379,7 @@ public class TimingNodeTest {
                             "2026-10-02T08:00:00.12Z").instant().toEpochMilli(),
                     open.effectiveTimeMillis());
             assertEquals(
-                    TimingTimestamp.parse(
-                            "2026-10-02T08:00:00.13Z").instant().toEpochMilli(),
+                    Instant.parse("2026-10-02T08:00:00.129Z").toEpochMilli(),
                     open.recordedAtMillis());
         } finally {
             deactivate(node);

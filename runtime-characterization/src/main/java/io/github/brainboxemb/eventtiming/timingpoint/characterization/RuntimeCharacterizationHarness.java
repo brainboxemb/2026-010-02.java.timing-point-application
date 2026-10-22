@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
@@ -368,18 +367,12 @@ final class RuntimeCharacterizationHarness
     private void preloadHistory(
             int count) {
         for (int index = 0; index < count; index++) {
-            TimingTimestamp time =
-                    new TimingTimestamp(
-                            INPUT_TIME_BASE.minusSeconds(
-                                    count - index));
+            long effectiveTimeMillis = INPUT_TIME_BASE.minusSeconds(count - index).toEpochMilli();
             logBook.process(
                     LogBookCommands.commitAntennaRegistration(
                             LOCATION_ID,
-                            new RegistrationId(
-                                    String.format(
-                                            "P%04d",
-                                            index + 1)),
-                            time));
+                            new RegistrationId(String.format("P%04d", index + 1)),
+                            effectiveTimeMillis));
         }
     }
 

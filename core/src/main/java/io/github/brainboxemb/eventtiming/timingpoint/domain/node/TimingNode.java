@@ -407,7 +407,7 @@ public final class TimingNode extends LifecycleComponent {
                     LogBookCommands.commitAntennaRegistration(
                             locationIdProp.get(),
                             registration.registrationId(),
-                            registration.observedAt()));
+                            registration.observedAtEpochMillis()));
         }
     }
 

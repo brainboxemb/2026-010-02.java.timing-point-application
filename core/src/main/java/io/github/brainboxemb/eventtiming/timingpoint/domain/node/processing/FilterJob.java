@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationChange;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
@@ -10,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Monoto
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -37,7 +36,7 @@ final class FilterJob {
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
             ScheduledExecutorService scheduler,
-            BiConsumer<RegistrationId, TimingTimestamp> validObservationCallback) {
+            ObjLongConsumer<RegistrationId> validObservationCallback) {
 
         failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");

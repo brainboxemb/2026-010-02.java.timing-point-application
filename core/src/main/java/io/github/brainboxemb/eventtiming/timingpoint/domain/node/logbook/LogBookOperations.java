@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -64,14 +63,14 @@ final class LogBookOperations {
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
-        long now = currentCentisecondMillis();
+        long nowMillis = currentEpochMillis();
         commitRecord(
                 TimingRecord.createNodeOpened(
                         nodeId(),
                         state.nextTimingDataSequence(),
                         locationId.value(),
-                        now,
-                        currentCentisecondMillis()));
+                        canonicalEffectiveTimeMillis(nowMillis),
+                        nowMillis));
     }
 
     void commitNodeClose(LocationId locationId)
@@ -81,27 +80,26 @@ final class LogBookOperations {
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
-        long now = currentCentisecondMillis();
+        long nowMillis = currentEpochMillis();
         commitRecord(
                 TimingRecord.createNodeClosed(
                         nodeId(),
                         state.nextTimingDataSequence(),
                         locationId.value(),
-                        now,
-                        currentCentisecondMillis()));
+                        canonicalEffectiveTimeMillis(nowMillis),
+                        nowMillis));
     }
 
     TimingRecord commitAutomaticRegistration(
             LocationId locationId,
             RegistrationId registrationId,
-            TimingTimestamp effectiveTime,
+            long effectiveTimeMillis,
             TimingRecord.TagSource tagSource,
             TimingRecord.AutomaticTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        failIfInvalidArgument(effectiveTime != null, "effectiveTime must not be null");
         failIfInvalidArgument(tagSource != null, "tagSource must not be null");
         failIfInvalidArgument(registrationTimeSource != null, "registrationTimeSource must not be null");
         state.ensureOperational();
@@ -111,8 +109,8 @@ final class LogBookOperations {
                 nodeId(),
                 state.nextTimingDataSequence(),
                 locationId.value(),
-                centisecondMillis(effectiveTime.instant()),
-                currentCentisecondMillis(),
+                canonicalEffectiveTimeMillis(effectiveTimeMillis),
+                currentEpochMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.ADD,
                 tagSource,
@@ -124,13 +122,12 @@ final class LogBookOperations {
     TimingRecord commitManualRegistration(
             LocationId locationId,
             RegistrationId registrationId,
-            TimingTimestamp effectiveTime,
+            long effectiveTimeMillis,
             TimingRecord.ManualTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        failIfInvalidArgument(effectiveTime != null, "effectiveTime must not be null");
         failIfInvalidArgument(registrationTimeSource != null, "registrationTimeSource must not be null");
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
@@ -139,8 +136,8 @@ final class LogBookOperations {
                 nodeId(),
                 state.nextTimingDataSequence(),
                 locationId.value(),
-                centisecondMillis(effectiveTime.instant()),
-                currentCentisecondMillis(),
+                canonicalEffectiveTimeMillis(effectiveTimeMillis),
+                currentEpochMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.ADD,
                 registrationTimeSource);
@@ -151,12 +148,11 @@ final class LogBookOperations {
     TimingRecord revokeAutomaticRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
-            TimingTimestamp originalTime)
+            long originalTimeMillis)
             throws TimingDataPersistence.PersistenceException {
 
         failIfInvalidArgument(originalLocationId != null, "originalLocationId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        failIfInvalidArgument(originalTime != null, "originalTime must not be null");
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
@@ -164,8 +160,8 @@ final class LogBookOperations {
                 nodeId(),
                 state.nextTimingDataSequence(),
                 originalLocationId.value(),
-                centisecondMillis(originalTime.instant()),
-                currentCentisecondMillis(),
+                canonicalEffectiveTimeMillis(originalTimeMillis),
+                currentEpochMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.REV,
                 TimingRecord.TagSource.API,
@@ -177,13 +173,12 @@ final class LogBookOperations {
     TimingRecord revokeManualRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
-            TimingTimestamp originalTime,
+            long originalTimeMillis,
             TimingRecord.ManualTimeSource originalTimeSource)
             throws TimingDataPersistence.PersistenceException {
 
         failIfInvalidArgument(originalLocationId != null, "originalLocationId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        failIfInvalidArgument(originalTime != null, "originalTime must not be null");
         failIfInvalidArgument(originalTimeSource != null, "originalTimeSource must not be null");
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
@@ -192,8 +187,8 @@ final class LogBookOperations {
                 nodeId(),
                 state.nextTimingDataSequence(),
                 originalLocationId.value(),
-                centisecondMillis(originalTime.instant()),
-                currentCentisecondMillis(),
+                canonicalEffectiveTimeMillis(originalTimeMillis),
+                currentEpochMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.REV,
                 originalTimeSource);
@@ -228,13 +223,16 @@ final class LogBookOperations {
         return state.timingNodeId().value().charAt(0);
     }
 
-    private long currentCentisecondMillis() {
-        return centisecondMillis(timeSource.now());
+    /** Record-creation time preserves the millisecond precision required by IF-05 recTime. */
+    private long currentEpochMillis() {
+
+        Instant now = timeSource.now();
+        failIfInvalidArgument(now != null, "timeSource.now must not return null");
+        return now.toEpochMilli();
     }
 
-    private static long centisecondMillis(Instant instant) {
-        failIfInvalidArgument(instant != null, "instant must not be null");
-        long epochMillis = instant.toEpochMilli();
+    /** IF-05 v1 effective time is canonical at centisecond precision even though storage uses epoch milliseconds. */
+    private static long canonicalEffectiveTimeMillis(long epochMillis) {
         return epochMillis - Math.floorMod(epochMillis, 10L);
     }
 

@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
@@ -12,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
+import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.slf4j.Logger;
@@ -161,7 +161,7 @@ public final class TagProcessor extends LifecycleComponent {
                     "Tag observation: tagId={}, rssi={}, observedAt={}",
                     tagId,
                     observation.rssi(),
-                    observation.observedAt());
+                    Instant.ofEpochMilli(observation.observedAtEpochMillis()));
         }
 
         RegistrationId registrationId =
@@ -193,31 +193,30 @@ public final class TagProcessor extends LifecycleComponent {
      * makes that just-opened passage irrelevant, so it is discarded before the
      * registration event is emitted.</p>
      */
-    private void processValidObservation(RegistrationId registrationId, TimingTimestamp observedAt) {
+    private void processValidObservation(RegistrationId registrationId, long observedAtEpochMillis) {
         housekeepingJob.recordRegistration(registrationId);
         filterJob.discard(registrationId);
-        newRegistration.emit(new NewRegistration(registrationId, observedAt));
+        newRegistration.emit(new NewRegistration(registrationId, observedAtEpochMillis));
     }
 
-    /** Immutable registration selected from one completed tag passage. */
+    /** Selected passage output retains only the registration identity and absolute epoch-millisecond time. */
     public static final class NewRegistration {
         private final RegistrationId registrationId;
-        private final TimingTimestamp observedAt;
+        private final long observedAtEpochMillis;
 
-        public NewRegistration(RegistrationId registrationId, TimingTimestamp observedAt) {
+        public NewRegistration(RegistrationId registrationId, long observedAtEpochMillis) {
 
             failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-            failIfInvalidArgument(observedAt != null, "observedAt must not be null");
             this.registrationId = registrationId;
-            this.observedAt = observedAt;
+            this.observedAtEpochMillis = observedAtEpochMillis;
         }
 
         public RegistrationId registrationId() {
             return registrationId;
         }
 
-        public TimingTimestamp observedAt() {
-            return observedAt;
+        public long observedAtEpochMillis() {
+            return observedAtEpochMillis;
         }
     }
 }

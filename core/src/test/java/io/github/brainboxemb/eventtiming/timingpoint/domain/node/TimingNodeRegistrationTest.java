@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -165,6 +166,27 @@ public class TimingNodeRegistrationTest {
                     TimingTimestamp.parse(
                             "2026-10-01T12:00:01.98Z").instant().toEpochMilli(),
                     manual.timingRecord().effectiveTimeMillis());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void recordCreationTimePreservesMilliseconds() {
+        RecordingStore store = new RecordingStore();
+        Instant recordedAt = Instant.parse("2026-10-01T12:00:01.987Z");
+        TimingNode node = node(store, () -> recordedAt);
+
+        activate(node);
+        try {
+            node.open(new LocationId(24));
+            assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+
+            TimingRecord opened = store.appended.get(0);
+            assertEquals(recordedAt.toEpochMilli(), opened.recordedAtMillis());
+            assertEquals(
+                    Instant.parse("2026-10-01T12:00:01.980Z").toEpochMilli(),
+                    opened.effectiveTimeMillis());
         } finally {
             deactivate(node);
         }
@@ -462,7 +484,7 @@ public class TimingNodeRegistrationTest {
                                     LogBookCommands.revokeAutomaticRegistration(
                                             new LocationId(24),
                                             new RegistrationId("N1001"),
-                                            EFFECTIVE_TIME));
+                                            EFFECTIVE_TIME.instant().toEpochMilli()));
             assertEquals(1L, data.sequenceNumber());
             assertEquals(24, data.locationId());
             assertEquals(EFFECTIVE_TIME.instant().toEpochMilli(), data.effectiveTimeMillis());
@@ -487,7 +509,7 @@ public class TimingNodeRegistrationTest {
                                     LogBookCommands.revokeManualRegistration(
                                             new LocationId(24),
                                             new RegistrationId("N1001"),
-                                            EFFECTIVE_TIME,
+                                            EFFECTIVE_TIME.instant().toEpochMilli(),
                                             ManualTimeSource.OPERATOR_ENTERED));
             assertEquals(
                     TimingRecord.Action.REV,
@@ -635,7 +657,7 @@ public class TimingNodeRegistrationTest {
                                 LogBookCommands.commitAutomaticRegistration(
                                         node.locationId(),
                                         registrationId,
-                                        effectiveTime,
+                                        effectiveTime.instant().toEpochMilli(),
                                         TimingRecord.TagSource.API,
                                         registrationTimeSource));
                 result = CommandResult.committed(timingRecord);
@@ -661,7 +683,7 @@ public class TimingNodeRegistrationTest {
                                 LogBookCommands.commitManualRegistration(
                                         node.locationId(),
                                         registrationId,
-                                        effectiveTime,
+                                        effectiveTime.instant().toEpochMilli(),
                                         registrationTimeSource));
                 result = CommandResult.committed(timingRecord);
             }
@@ -703,11 +725,11 @@ public class TimingNodeRegistrationTest {
     }
 
     private static TimingNode node(RecordingStore store) {
-        TimeSource timeSource = () -> RECORDED_AT.instant();
-        return TimingNodeFixture.createDirect(
-                new NodeId("A"),
-                store,
-                timeSource);
+        return node(store, () -> RECORDED_AT.instant());
+    }
+
+    private static TimingNode node(RecordingStore store, TimeSource timeSource) {
+        return TimingNodeFixture.createDirect(new NodeId("A"), store, timeSource);
     }
 
     private static final class RecordingStore implements TimingDataPersistence {

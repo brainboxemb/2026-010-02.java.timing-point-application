@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -13,7 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +46,7 @@ final class TagObservationFilter {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final MonotonicClock monotonicClock;
     private final TagProcessingMetrics metrics;
-    private final BiConsumer<RegistrationId, TimingTimestamp> validObservationCallback;
+    private final ObjLongConsumer<RegistrationId> validObservationCallback;
 
     private final Map<RegistrationId, RegistrationPassage> passages =
             new HashMap<RegistrationId, RegistrationPassage>();
@@ -59,7 +58,7 @@ final class TagObservationFilter {
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            BiConsumer<RegistrationId, TimingTimestamp> validObservationCallback) {
+            ObjLongConsumer<RegistrationId> validObservationCallback) {
         this(
                 ReadOnlyConfiguration.fixed(policy),
                 monotonicClock,
@@ -77,7 +76,7 @@ final class TagObservationFilter {
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            BiConsumer<RegistrationId, TimingTimestamp> validObservationCallback) {
+            ObjLongConsumer<RegistrationId> validObservationCallback) {
         failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
@@ -182,11 +181,10 @@ final class TagObservationFilter {
     }
 
     /**
-     * Publishes the strongest observation selected from a completed passage.
+     * Publishes the strongest observation without converting its absolute time back to a wrapper.
      *
-     * <p>Only this boundary reconstructs TimingTimestamp and TagId objects from
-     * primitive passage state. The passage is always returned to the pool, even
-     * when a subscriber throws.</p>
+     * <p>Logging may materialize display objects, but the registration callback keeps the selected
+     * absolute event time as epoch milliseconds. The passage always returns to the pool.</p>
      */
     private void publishAndRelease(RegistrationPassage passage) {
         if (passage == null) {
@@ -195,8 +193,7 @@ final class TagObservationFilter {
 
         RegistrationId registrationId = RegistrationId.fromPackedValue(passage.registrationId);
         TagState selectedTag = passage.selectedTag();
-        TimingTimestamp observedAt = new TimingTimestamp(
-                Instant.ofEpochMilli(selectedTag.strongestObservedAtEpochMillis));
+        long observedAtEpochMillis = selectedTag.strongestObservedAtEpochMillis;
 
         try {
             if (LOG.isInfoEnabled()) {
@@ -205,9 +202,9 @@ final class TagObservationFilter {
                         registrationId,
                         TagId.fromPackedValue(selectedTag.tagId),
                         selectedTag.strongestRssi,
-                        observedAt);
+                        Instant.ofEpochMilli(observedAtEpochMillis));
             }
-            validObservationCallback.accept(registrationId, observedAt);
+            validObservationCallback.accept(registrationId, observedAtEpochMillis);
         } finally {
             release(passage);
         }

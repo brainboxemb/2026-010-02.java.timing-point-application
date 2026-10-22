@@ -46,6 +46,22 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
+    public void recordedTimeKeepsFullMillisecondPrecision() throws Exception {
+        long recordedAtMillis = Instant.parse("2026-09-30T20:01:45.457Z").toEpochMilli();
+        TimingRecord record = TimingRecord.createNodeOpened(
+                'A',
+                1L,
+                7,
+                effectiveMillis(),
+                recordedAtMillis);
+
+        String encoded = text(codec.encode(record));
+
+        assertTrue(encoded.contains("\"recTime\":\"2026-09-30T20:01:45.457Z\""));
+        assertEquals(recordedAtMillis, codec.decode(codec.encode(record)).recordedAtMillis());
+    }
+
+    @Test
     public void preservesAutomaticProvenanceInRecordAndRecovery() throws Exception {
         TimingRecord record = TimingRecord.createAutomaticRegistration(
                 'A',
