@@ -24,7 +24,7 @@ public class MessageWriterEventTimeTest {
                                 "2026-10-20T13:40:00.250Z")
                         .toEpochMilli();
         TimingRecord record =
-                TimingRecord.opened(
+                TimingRecord.createNodeOpened(
                         'A',
                         1L,
                         24,
