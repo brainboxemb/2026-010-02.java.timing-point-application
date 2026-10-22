@@ -7,6 +7,11 @@ import java.util.function.IntSupplier;
 /**
  * Queue-admission and execution measurements shared by independent execution primitives.
  *
+ * <p>The owning primitive defines one metric unit: for {@code SerialLane} that
+ * is one queued typed item, while {@code SerialTaskRunner} uses one eligible
+ * cooperative task step. This class deliberately does not encode either owner's
+ * execution semantics.</p>
+ *
  * <p>The execution primitive records facts here but does not own the diagnostic
  * model itself. Snapshot creation is pull-based and may allocate; hot-path
  * recording keeps only primitive state.</p>
