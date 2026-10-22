@@ -33,6 +33,11 @@ public class LocalConsoleTest {
                     () -> stopped.set(true),
                     new StringReader(
                             "help\n"
+                                    + "help open\n"
+                                    + "help start\n"
+                                    + "help reg\n"
+                                    + "help regs\n"
+                                    + "help config\n"
                                     + "version\n"
                                     + "status\n"
                                     + "node\n"
@@ -54,23 +59,31 @@ public class LocalConsoleTest {
         }
 
         String text = output.toString();
-        assertTrue(text.contains("help                         Show available commands"));
+        assertTrue(text.contains(
+                "help [command]               Show commands or details for one command"));
         assertTrue(text.contains("version                      Show application version"));
+        assertTrue(text.contains("log [T|D|I|W|E]             Show/set log level"));
         assertTrue(text.contains("status                       Show selected TimingNode status"));
         assertTrue(text.contains("node [id]                    Show/select default TimingNode"));
         assertTrue(text.contains("open <locationId>            Open selected TimingNode at location"));
         assertTrue(text.contains("close                        Close selected TimingNode"));
-        assertTrue(text.contains("start <id|team> <HHMMSShh>"));
-        assertTrue(text.contains("Example: start 42 12345678"));
+        assertTrue(text.contains("start <id|team> <time>"));
         assertTrue(text.contains("reg <id|team> [time]"));
-        assertTrue(text.contains("time: now, HHMMSShh, or absolute UTC"));
-        assertTrue(text.contains("Example: reg 7"));
-        assertTrue(text.contains("Example: reg A0001"));
-        assertTrue(text.contains("Example: reg A0001 now"));
-        assertTrue(text.contains("Example: reg A0001 12345678"));
-        assertTrue(text.contains("regs [count|all|<after> [n]]"));
+        assertTrue(text.contains("regs [options]"));
+        assertTrue(text.contains("config [options]"));
+        assertTrue(text.contains("Use 'help <command>' for syntax"));
+        assertTrue(text.contains("Usage: open[:<NodeId>] <locationId>"));
+        assertTrue(text.contains("Example: open:A 1"));
+        assertTrue(text.contains("Usage: start[:<NodeId>] <id|team> <HHMMSShh[U]>"));
+        assertTrue(text.contains("Suffix U makes the compact time UTC."));
+        assertTrue(text.contains(
+                "Usage: reg[:<NodeId>] <id|team> [now|HHMMSShh[U]|<UTC timestamp>]"));
+        assertTrue(text.contains("Usage: regs[:<NodeId>]"));
+        assertTrue(text.contains("runtime is finish minus stage start"));
+        assertTrue(text.contains("Usage: config[:<NodeId>]"));
+        assertTrue(text.contains(
+                "config:<NodeId> tag-processing set <field=value>..."));
         assertFalse(text.contains("auto-reg"));
-        assertTrue(text.contains("config                       Show current configuration"));
         assertTrue(text.contains("quit                         Stop the application"));
         assertTrue(text.contains("exit                         Alias for quit"));
         assertTrue(text.contains("event-timing-app"));
@@ -114,7 +127,7 @@ public class LocalConsoleTest {
                             "open 24\n"
                                     + "reg 1\n"
                                     + "reg 0002 now\n"
-                                    + "reg 3 12345678\n"
+                                    + "reg 3 12345678U\n"
                                     + "reg A0004 2026-10-01T12:35:57Z\n"
                                     + "auto-reg A0005 now\n"
                                     + "quit\n"),
@@ -186,7 +199,7 @@ public class LocalConsoleTest {
                     new StringReader(
                             "open 1\n"
                                     + "start 42 12345678\n"
-                                    + "start A0043 12345679\n"
+                                    + "start A0043 10345679U\n"
                                     + "start 42 24600000\n"
                                     + "quit\n"),
                     output);
@@ -198,9 +211,9 @@ public class LocalConsoleTest {
         assertTrue(text.contains(
                 "Stage start: SET id=A0042 time=12345678"));
         assertTrue(text.contains(
-                "Stage start: SET id=A0043 time=12345679"));
+                "Stage start: SET id=A0043 time=10345679U"));
         assertTrue(text.contains(
-                "Invalid command value: stage start time must be HHMMSShh"));
+                "Invalid command value: stage start time must be HHMMSShh or HHMMSShhU"));
     }
 
     @Test

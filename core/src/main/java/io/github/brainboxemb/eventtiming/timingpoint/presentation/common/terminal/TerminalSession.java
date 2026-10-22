@@ -29,7 +29,9 @@ import java.io.Writer;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -42,14 +44,13 @@ import java.util.Set;
 public final class TerminalSession {
     private static final int REGISTRATION_PAGE_SIZE = 100;
     private static final int MAX_REGISTRATION_PAGE_SIZE = 1000;
-    private static final DateTimeFormatter REGISTRATION_TIME_FORMAT =
-            DateTimeFormatter.ofPattern("HHmmssSS")
-                    .withZone(ZoneOffset.UTC);
 
     private final PresentationGateway presentationGateway;
     private final LoggingLevelControl loggingLevelControl;
     private final ConsolePromptControl consolePromptControl;
     private final Runnable shutdown;
+    private final ZoneId operatorZone;
+    private final DateTimeFormatter registrationTimeFormat;
     private NodeId currentNodeId;
     private boolean strictNodeAddressing;
 
@@ -69,6 +70,21 @@ public final class TerminalSession {
             LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
             Runnable shutdown) {
+        this(
+                presentationGateway,
+                loggingLevelControl,
+                consolePromptControl,
+                shutdown,
+                ZoneId.systemDefault());
+    }
+
+    /** Test seam for deterministic operator-zone interpretation without changing JVM defaults. */
+    TerminalSession(
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
+            Runnable shutdown,
+            ZoneId operatorZone) {
         if (presentationGateway == null) {
             throw new IllegalArgumentException(
                     "presentationGateway must not be null");
@@ -77,10 +93,18 @@ public final class TerminalSession {
             throw new IllegalArgumentException(
                     "shutdown must not be null");
         }
+        if (operatorZone == null) {
+            throw new IllegalArgumentException(
+                    "operatorZone must not be null");
+        }
         this.presentationGateway = presentationGateway;
         this.loggingLevelControl = loggingLevelControl;
         this.consolePromptControl = consolePromptControl;
         this.shutdown = shutdown;
+        this.operatorZone = operatorZone;
+        this.registrationTimeFormat =
+                DateTimeFormatter.ofPattern("HHmmssSS")
+                        .withZone(operatorZone);
     }
 
     public void run(
@@ -181,8 +205,7 @@ public final class TerminalSession {
 
             switch (command) {
                 case "help":
-                    requireArgumentCount(arguments, 1, "help", output);
-                    showHelp(output);
+                    showHelp(arguments, output);
                     return false;
                 case "version":
                     requireArgumentCount(arguments, 1, "version", output);
@@ -299,12 +322,12 @@ public final class TerminalSession {
             PrintWriter output) {
 
         if (arguments.length != 3) {
-            output.println("Usage: start <id|team> <HHMMSShh>");
+            output.println("Usage: start <id|team> <HHMMSShh[U]>");
             return;
         }
         if (!isCompactOperatorTime(arguments[2])) {
             throw new IllegalArgumentException(
-                    "stage start time must be HHMMSShh");
+                    "stage start time must be HHMMSShh or HHMMSShhU");
         }
 
         TimingNodeProxy timingNode = timingNode(nodeId);
@@ -317,10 +340,11 @@ public final class TerminalSession {
             start =
                     compactOperatorTime(
                             arguments[2],
-                            timingNode.timeSource().now());
+                            timingNode.timeSource().now(),
+                            operatorZone);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
-                    "stage start time must be HHMMSShh",
+                    "stage start time must be HHMMSShh or HHMMSShhU",
                     ex);
         }
 
@@ -341,7 +365,7 @@ public final class TerminalSession {
 
         if (arguments.length < 2 || arguments.length > 3) {
             output.println(
-                    "Usage: reg <registrationId> [now|HHMMSShh|<UTC timestamp>]");
+                    "Usage: reg <id|team> [now|HHMMSShh[U]|<UTC timestamp>]");
             return;
         }
 
@@ -356,7 +380,8 @@ public final class TerminalSession {
             effectiveTime =
                     compactOperatorTime(
                             arguments[2],
-                            timingNode.timeSource().now());
+                            timingNode.timeSource().now(),
+                            operatorZone);
             timeSource = AutomaticTimeSource.API;
         } else {
             effectiveTime = TimingTimestamp.parseAbsolute(arguments[2]);
@@ -479,7 +504,7 @@ public final class TerminalSession {
                         + info.lastRevokeSequence());
     }
 
-    private static void printRegistrationPage(
+    private void printRegistrationPage(
             List<TimingNodeProxy.RegistrationEntry> rows,
             PrintWriter output) {
 
@@ -490,7 +515,7 @@ public final class TerminalSession {
                             + " id="
                             + row.registrationId().value()
                             + " time="
-                            + REGISTRATION_TIME_FORMAT.format(
+                            + registrationTimeFormat.format(
                                     row.effectiveTime().instant())
                             + " runtime="
                             + (row.elapsedMillis() == null
@@ -577,13 +602,19 @@ public final class TerminalSession {
         return true;
     }
 
-    /** Reports whether text is the compact operator time form HHMMSShh. */
+    /** Reports whether text is compact local HHMMSShh or explicit UTC HHMMSShhU. */
     private static boolean isCompactOperatorTime(String text) {
 
-        if (text == null || text.length() != 8) {
+        if (text == null
+                || text.length() != 8
+                        && text.length() != 9) {
             return false;
         }
-        for (int index = 0; index < text.length(); index++) {
+        if (text.length() == 9
+                && Character.toUpperCase(text.charAt(8)) != 'U') {
+            return false;
+        }
+        for (int index = 0; index < 8; index++) {
             if (!Character.isDigit(text.charAt(index))) {
                 return false;
             }
@@ -591,16 +622,34 @@ public final class TerminalSession {
         return true;
     }
 
-    /** Resolves compact HHMMSShh against the node clock's current UTC date. */
+    /**
+     * Resolves compact operator time against the current date in its explicit time basis.
+     *
+     * <p>Eight digits are local civil time in the terminal host's operator zone. Suffix U makes
+     * the compact value UTC. Local daylight-saving gaps/overlaps are rejected rather than silently
+     * choosing an instant; operators can use the U suffix or an absolute UTC registration time.</p>
+     */
     private static TimingTimestamp compactOperatorTime(
             String text,
-            Instant nodeNow) {
+            Instant nodeNow,
+            ZoneId operatorZone) {
+
+        if (nodeNow == null) {
+            throw new IllegalArgumentException("nodeNow must not be null");
+        }
+        if (operatorZone == null) {
+            throw new IllegalArgumentException("operatorZone must not be null");
+        }
 
         try {
-            int hour = Integer.parseInt(text.substring(0, 2));
-            int minute = Integer.parseInt(text.substring(2, 4));
-            int second = Integer.parseInt(text.substring(4, 6));
-            int hundredths = Integer.parseInt(text.substring(6, 8));
+            boolean utc =
+                    text.length() == 9
+                            && Character.toUpperCase(text.charAt(8)) == 'U';
+            String digits = text.substring(0, 8);
+            int hour = Integer.parseInt(digits.substring(0, 2));
+            int minute = Integer.parseInt(digits.substring(2, 4));
+            int second = Integer.parseInt(digits.substring(4, 6));
+            int hundredths = Integer.parseInt(digits.substring(6, 8));
 
             LocalTime time =
                     LocalTime.of(
@@ -608,13 +657,22 @@ public final class TerminalSession {
                             minute,
                             second,
                             hundredths * 10_000_000);
-            LocalDate date =
-                    nodeNow.atOffset(ZoneOffset.UTC).toLocalDate();
+            ZoneId zone = utc ? ZoneOffset.UTC : operatorZone;
+            LocalDate date = nodeNow.atZone(zone).toLocalDate();
+            LocalDateTime local = date.atTime(time);
+            List<ZoneOffset> validOffsets =
+                    zone.getRules().getValidOffsets(local);
+            if (validOffsets.size() != 1) {
+                throw new IllegalArgumentException(
+                        "local compact time is ambiguous or does not exist in "
+                                + zone.getId()
+                                + "; use HHMMSShhU");
+            }
             return new TimingTimestamp(
-                    date.atTime(time).toInstant(ZoneOffset.UTC));
+                    local.toInstant(validOffsets.get(0)));
         } catch (DateTimeException | NumberFormatException ex) {
             throw new IllegalArgumentException(
-                    "compact time must be HHMMSShh",
+                    "compact time must be HHMMSShh or HHMMSShhU",
                     ex);
         }
     }
@@ -1054,62 +1112,157 @@ public final class TerminalSession {
         return false;
     }
 
-    private void showHelp(PrintWriter output) {
+    /** Shows the compact command index or detailed help for one command. */
+    private void showHelp(
+            String[] arguments,
+            PrintWriter output) {
+
+        if (arguments.length == 1) {
+            showHelpIndex(output);
+            return;
+        }
+        if (arguments.length != 2) {
+            output.println("Usage: help [command]");
+            return;
+        }
+
+        String command = arguments[1].toLowerCase(Locale.ROOT);
+        switch (command) {
+            case "help":
+                output.println("Usage: help [command]");
+                output.println("  Without a command, shows the compact command index.");
+                output.println("  With a command, shows syntax, semantics and examples.");
+                break;
+            case "version":
+                output.println("Usage: version");
+                output.println("  Show application build/version identity.");
+                break;
+            case "log":
+                output.println("Usage: log [T|D|I|W|E]");
+                output.println("  Show or set log level: TRACE, DEBUG, INFO, WARN or ERROR.");
+                break;
+            case "status":
+                output.println("Usage: status[:<NodeId>]");
+                output.println("  Show functional state and location of one TimingNode.");
+                break;
+            case "node":
+                output.println("Usage: node [id]");
+                output.println("  Show available nodes or select the default node.");
+                output.println("  Node-scoped commands may use <command>:<NodeId>.");
+                output.println("  Example: status:B");
+                break;
+            case "node-mode":
+                output.println("Usage: node-mode [strict|selected]");
+                output.println("  STRICT requires :<NodeId> on node-scoped commands in multi-node mode.");
+                output.println("  SELECTED uses the node selected with the node command.");
+                break;
+            case "open":
+                output.println("Usage: open[:<NodeId>] <locationId>");
+                output.println("  Open one TimingNode at the supplied location.");
+                output.println("  Example: open 1");
+                output.println("  Example: open:A 1");
+                break;
+            case "close":
+                output.println("Usage: close[:<NodeId>]");
+                output.println("  Close one TimingNode.");
+                output.println("  Example: close:A");
+                break;
+            case "start":
+                output.println("Usage: start[:<NodeId>] <id|team> <HHMMSShh[U]>");
+                output.println(
+                        "  HHMMSShh is local operator time in "
+                                + operatorZone.getId()
+                                + ".");
+                output.println("  Suffix U makes the compact time UTC.");
+                output.println("  Numeric team input resolves to RegistrationId for the open location.");
+                output.println("  Example: start 42 12345678");
+                output.println("  Example: start A0042 10345678U");
+                break;
+            case "reg":
+                output.println(
+                        "Usage: reg[:<NodeId>] <id|team> "
+                                + "[now|HHMMSShh[U]|<UTC timestamp>]");
+                output.println("  Omitted time or now uses the selected node clock.");
+                output.println(
+                        "  HHMMSShh is local operator time in "
+                                + operatorZone.getId()
+                                + ".");
+                output.println("  Suffix U makes the compact time UTC.");
+                output.println("  Absolute timestamps must use canonical UTC with Z.");
+                output.println("  Example: reg 7");
+                output.println("  Example: reg A0001 12345678");
+                output.println("  Example: reg A0001 10345678U");
+                output.println("  Example: reg A0001 2026-10-19T13:00:00Z");
+                break;
+            case "regs":
+                output.println("Usage: regs[:<NodeId>]");
+                output.println("       regs[:<NodeId>] count");
+                output.println("       regs[:<NodeId>] all");
+                output.println("       regs[:<NodeId>] <afterSeq> [limit]");
+                output.println(
+                        "  Show the maintained active-WP registration projection in "
+                                + operatorZone.getId()
+                                + " local time.");
+                output.println("  count shows metadata only; all visits every retained row.");
+                output.println(
+                        "  <afterSeq> [limit] pages by original ADD sequence; limit is 1.."
+                                + MAX_REGISTRATION_PAGE_SIZE
+                                + ".");
+                output.println("  runtime is finish minus stage start; '-' means no start is known.");
+                output.println("  rank is maintained competition rank; '-' means not rankable.");
+                output.println("  Example: regs count");
+                output.println("  Example: regs 100 50");
+                break;
+            case "config":
+                output.println("Usage: config[:<NodeId>]");
+                output.println("       config[:<NodeId>] tag-processing");
+                output.println(
+                        "       config:<NodeId> tag-processing set <field=value>...");
+                output.println("       config:<NodeId> tag-processing clear");
+                output.println("  Show configuration or change runtime TagProcessor values.");
+                output.println(
+                        "  Fields: quietTimeoutMillis, maxBurstDurationMillis, "
+                                + "duplicateWindowMillis, sweepCadenceMillis, "
+                                + "observationQueueCapacity.");
+                break;
+            case "test":
+                output.println("Usage: test[:<NodeId>] logbook write <fail|timeout>");
+                output.println("  Engineering control for the next LogBook write only.");
+                break;
+            case "quit":
+            case "exit":
+                output.println("Usage: " + command);
+                output.println("  Stop the application.");
+                break;
+            default:
+                output.println(
+                        "Unknown help topic: "
+                                + arguments[1]
+                                + ". Type 'help' for commands.");
+                break;
+        }
+    }
+
+    /** Shows only the scan-friendly top-level command index. */
+    private static void showHelpIndex(PrintWriter output) {
+
         output.println("Commands:");
-        output.println("  help                         Show available commands");
+        output.println("  help [command]               Show commands or details for one command");
         output.println("  version                      Show application version");
+        output.println("  log [T|D|I|W|E]             Show/set log level");
         output.println("  status                       Show selected TimingNode status");
         output.println("  node [id]                    Show/select default TimingNode");
         output.println("  node-mode [strict|selected]  Show/set multi-node addressing mode");
-        output.println("  <command>:<NodeId>            Target one command at a node");
-        output.println("                               Multi-node defaults to STRICT");
-        output.println("  open:A 1                     Example: open node A at location 1");
-        output.println("  status:B                     Example: show node B status");
         output.println("  open <locationId>            Open selected TimingNode at location");
         output.println("  close                        Close selected TimingNode");
-        output.println(
-                "  start <id|team> <HHMMSShh>   Set registration stage-start time");
-        output.println(
-                "                               Example: start 42 12345678");
-        output.println(
-                "  reg <id|team> [time]         Register one ID/team; omitted/now uses node clock");
-        output.println(
-                "                               time: now, HHMMSShh, or absolute UTC");
-        output.println("                               Example: reg 7");
-        output.println("                               Example: reg A0001");
-        output.println("                               Example: reg A0001 now");
-        output.println("                               Example: reg A0001 12345678");
-        output.println(
-                "                               Example: reg A0001 2026-10-19T13:00:00Z");
-        output.println(
-                "  regs [count|all|<after> [n]]  Show active-WP registration projection");
-        output.println(
-                "                               Example: regs count");
-        output.println(
-                "                               Example: regs 100 50");
-        output.println(
-                "  test logbook write <fail|timeout>"
-                        + "  Fail or delay next LogBook write");
-        output.println(
-                "  test:A logbook write fail   "
-                        + "Example: fail next write for node A");
-        output.println(
-                "  config                       "
-                        + "Show current configuration");
-        output.println(
-                "  log [T|D|I|W|E]             "
-                        + "Show/set log level (TRACE/DEBUG/INFO/WARN/ERROR)");
-        output.println(
-                "  config tag-processing set "
-                        + "<field=value>...");
-        output.println(
-                "                               "
-                        + "Set runtime TagProcessor values");
-        output.println(
-                "  config tag-processing clear  "
-                        + "Restore startup TagProcessor values");
+        output.println("  start <id|team> <time>       Set registration stage-start time");
+        output.println("  reg <id|team> [time]         Register one ID/team");
+        output.println("  regs [options]               Show active-WP registration projection");
+        output.println("  config [options]             Show/update configuration");
+        output.println("  test <options>               Engineering test controls");
         output.println("  quit                         Stop the application");
         output.println("  exit                         Alias for quit");
+        output.println("Use 'help <command>' for syntax, semantics and examples.");
     }
 
     private void showVersion(PrintWriter output) {
