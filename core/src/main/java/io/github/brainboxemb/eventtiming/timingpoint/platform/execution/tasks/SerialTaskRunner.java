@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ExecutionMetrics;
 
 import java.time.Duration;
 import java.util.HashSet;
@@ -240,8 +240,8 @@ public final class SerialTaskRunner implements AutoCloseable {
     private final ScheduledExecutorService scheduler;
     private final int capacity;
     private final AtomicInteger pendingSteps = new AtomicInteger();
-    private final SerialLaneMetrics metrics =
-            new SerialLaneMetrics(pendingSteps::get);
+    private final ExecutionMetrics metrics =
+            new ExecutionMetrics(pendingSteps::get);
     private volatile boolean running;
     private volatile Thread executingThread;
     private final Set<TaskRun> activeRuns =
@@ -309,7 +309,7 @@ public final class SerialTaskRunner implements AutoCloseable {
     }
 
     /** Returns metrics for executor-queued task steps (rather than whole task runs). */
-    public SerialLaneMetrics metrics() {
+    public ExecutionMetrics metrics() {
         return metrics;
     }
 
