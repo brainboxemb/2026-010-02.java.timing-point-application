@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Add node-scoped technical terminal inspection alongside the display-ready `regs` projection: `lb` reuses the real LogBook query boundary for count/latest/range/all history and prints retained TimingRecord fields with absolute UTC effective/recorded timestamps; `data` reads one coherent current RaceData snapshot from the NodeService Task Lane and exposes live Central RegistrationId-to-TeamId mappings plus RegistrationId-scoped UTC stage starts without folding in fixed EventData mappings. Add focused `help lb` and `help data` pages.
+- Align technical LogBook terminal output with the persisted IF-05 vocabulary: `lb` now prints compact `type=AUTO_REG|MAN_REG|NODE_INFO`, persisted `code=` values, and UTC `time`/`recTime` instead of leaking internal Java kind/action names. Add node-scoped `lbl <locationId> ...` with count/latest/all/global-sequence paging through the existing LogBook query boundary so one location can be inspected without introducing another persistence/index model.
+
+- Add node-scoped technical terminal inspection alongside the display-ready `regs` projection: `lb` reuses the real LogBook query boundary for count/latest/range/all history and prints retained TimingRecord fields with absolute UTC time/recTime values; `data` reads one coherent current RaceData snapshot from the NodeService Task Lane and exposes live Central RegistrationId-to-TeamId mappings plus RegistrationId-scoped UTC stage starts without folding in fixed EventData mappings. Add focused `help lb` and `help data` pages.
 
 - Make terminal time entry operator-local by default: compact `HHMMSShh` for `reg` and `start` uses the host/operator system time zone and local current date, optional suffix `U` selects UTC, registration rows are displayed in the same local zone, and ambiguous/nonexistent DST wall times are rejected. Reorganize terminal help into a compact logically ordered command index (help/version/log first) plus `help <command>` detail pages so command syntax, node-target examples, time semantics, paging and config subcommands are explained without interleaving unrelated entries.
 

@@ -1,6 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal;
 
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 
@@ -87,16 +93,78 @@ public class TerminalSessionTest {
         String text = output.toString();
         assertTrue(text.contains("LogBook: count=2"));
         assertTrue(text.contains(
-                "seq=1 node=A kind=NODE_OPEN loc=5"));
+                "seq=1 node=A type=NODE_INFO loc=5 code=OPEN"));
         assertTrue(text.contains(
-                "seq=2 node=A kind=AUTOMATIC_REGISTRATION loc=5 id=A0001 action=ADD"));
-        assertTrue(text.contains("effectiveTime=2026-10-01T12:00:01.000Z"));
-        assertTrue(text.contains("recordedAt=2026-10-01T12:00:01.000Z"));
+                "seq=2 node=A type=AUTO_REG loc=5 id=A0001 code=ADD"));
+        assertTrue(text.contains("time=2026-10-01T12:00:01.000Z"));
+        assertTrue(text.contains("recTime=2026-10-01T12:00:01.000Z"));
         assertTrue(text.contains("RaceData: mappings=0 starts=1 timeBasis=UTC"));
         assertTrue(text.contains(
                 "id=A0001 start=2026-10-01T11:00:00.000Z"));
         assertTrue(text.contains(
                 "RaceData: id=A0001 liveTeam=- start=2026-10-01T11:00:00.000Z"));
+    }
+
+    @Test
+    public void logBookUsesPersistedCodesAndLocationFilter() throws Exception {
+        StringWriter output = new StringWriter();
+
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(
+                        identity(),
+                        new DefaultEventData(),
+                        "A")) {
+            TimingNodeProxy node =
+                    fixture.handler().timingNode(new NodeId("A"));
+            node.open(new LocationId(5));
+            node.addManualRegistration(
+                    new RegistrationId("M0001"),
+                    TimingTimestamp.parse("2026-10-01T12:00:05Z"),
+                    TimingRecord.ManualTimeSource.OPERATOR_ENTERED);
+            node.addManualRegistration(
+                    new RegistrationId("M0002"),
+                    TimingTimestamp.parse("2026-10-01T12:00:05.500Z"),
+                    TimingRecord.ManualTimeSource.AUTOMATIC);
+            node.close();
+            node.open(new LocationId(6));
+            node.addTestAutomaticRegistration(
+                    new RegistrationId("A0002"),
+                    TimingTimestamp.parse("2026-10-01T12:00:06Z"),
+                    TimingRecord.AutomaticTimeSource.API);
+
+            TerminalSession session =
+                    new TerminalSession(
+                            fixture.handler(),
+                            null,
+                            null,
+                            () -> { },
+                            ZoneId.of("Europe/Amsterdam"));
+            session.run(
+                    new StringReader(
+                            "lb all\n"
+                                    + "lbl 5 count\n"
+                                    + "lbl 5 all\n"
+                                    + "quit\n"),
+                    output,
+                    "ready");
+        }
+
+        String text = output.toString();
+        assertTrue(text.contains(
+                "type=MAN_REG loc=5 id=M0001 code=ADD,MAN"));
+        assertTrue(text.contains(
+                "type=MAN_REG loc=5 id=M0002 code=ADD,AUTO"));
+        assertTrue(text.contains(
+                "type=AUTO_REG loc=6 id=A0002 code=ADD"));
+        assertTrue(text.contains("LogBook: location=5 count=4 timeBasis=UTC"));
+
+        int filtered = text.lastIndexOf("LogBook: location=5 count=4 timeBasis=UTC");
+        String filteredText = text.substring(filtered);
+        assertTrue(filteredText.contains("type=NODE_INFO loc=5 code=OPEN"));
+        assertTrue(filteredText.contains("type=MAN_REG loc=5 id=M0001 code=ADD,MAN"));
+        assertTrue(filteredText.contains("type=MAN_REG loc=5 id=M0002 code=ADD,AUTO"));
+        assertTrue(filteredText.contains("type=NODE_INFO loc=5 code=CLOSE"));
+        assertTrue(!filteredText.contains(" loc=6 "));
     }
 
     @Test
@@ -119,6 +187,7 @@ public class TerminalSessionTest {
                                     + "help open\n"
                                     + "help regs\n"
                                     + "help lb\n"
+                                    + "help lbl\n"
                                     + "help data\n"
                                     + "help config\n"
                                     + "quit\n"),
@@ -135,7 +204,9 @@ public class TerminalSessionTest {
         assertTrue(text.contains("Usage: regs[:<NodeId>]"));
         assertTrue(text.contains("runtime is finish minus stage start"));
         assertTrue(text.contains("Usage: lb[:<NodeId>]"));
-        assertTrue(text.contains("effectiveTime and recordedAt are absolute UTC"));
+        assertTrue(text.contains("type/code/time/recTime follow persisted LogBook vocabulary."));
+        assertTrue(text.contains("Usage: lbl[:<NodeId>] <locationId>"));
+        assertTrue(text.contains("Read raw LogBook history restricted to one LocationId."));
         assertTrue(text.contains("Usage: data[:<NodeId>]"));
         assertTrue(text.contains("Fixed EventData mappings are intentionally not included."));
         assertTrue(text.contains("Usage: config[:<NodeId>]"));

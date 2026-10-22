@@ -36,11 +36,14 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /** Shared line-oriented command session used by local and remote terminal transports. */
 public final class TerminalSession {
@@ -247,6 +250,9 @@ public final class TerminalSession {
                     return false;
                 case "lb":
                     logBook(arguments, nodeId, output);
+                    return false;
+                case "lbl":
+                    locationLogBook(arguments, nodeId, output);
                     return false;
                 case "data":
                     raceData(arguments, nodeId, output);
@@ -652,6 +658,226 @@ public final class TerminalSession {
                 output);
     }
 
+    /**
+     * Reads raw LogBook history restricted to one required LocationId.
+     *
+     * <p>The filter is applied over the existing ordered LogBook query boundary; no second
+     * persistence/index model is introduced. Sequence paging remains based on global LogBook
+     * sequence numbers so output can always be correlated with the unfiltered lb view.</p>
+     */
+    private void locationLogBook(
+            String[] arguments,
+            NodeId nodeId,
+            PrintWriter output) {
+
+        if (arguments.length < 2) {
+            output.println(
+                    "Usage: lbl <locationId> "
+                            + "[count|latest [n]|all|<fromSeq> [limit]]");
+            return;
+        }
+
+        int locationId;
+        try {
+            locationId = Integer.parseInt(arguments[1]);
+        } catch (NumberFormatException ex) {
+            output.println(
+                    "Usage: lbl <locationId> "
+                            + "[count|latest [n]|all|<fromSeq> [limit]]");
+            return;
+        }
+        if (locationId < 1) {
+            output.println("lbl requires locationId >= 1");
+            return;
+        }
+
+        TimingNodeProxy timingNode = timingNode(nodeId);
+        int count = logBookLocationCount(timingNode, locationId);
+
+        if (arguments.length == 3
+                && "count".equalsIgnoreCase(arguments[2])) {
+            printLocationLogBookHeader(locationId, count, output);
+            return;
+        }
+
+        if (arguments.length == 2) {
+            printLocationLogBookHeader(locationId, count, output);
+            printLogBookRecords(
+                    latestLocationLogBook(
+                            timingNode,
+                            locationId,
+                            Math.min(LOGBOOK_DEFAULT_LATEST, count)),
+                    output);
+            return;
+        }
+
+        if ("latest".equalsIgnoreCase(arguments[2])) {
+            if (arguments.length > 4) {
+                output.println(
+                        "Usage: lbl <locationId> "
+                                + "[count|latest [n]|all|<fromSeq> [limit]]");
+                return;
+            }
+            int limit = LOGBOOK_DEFAULT_LATEST;
+            if (arguments.length == 4) {
+                try {
+                    limit = Integer.parseInt(arguments[3]);
+                } catch (NumberFormatException ex) {
+                    output.println(
+                            "Usage: lbl <locationId> "
+                                    + "[count|latest [n]|all|<fromSeq> [limit]]");
+                    return;
+                }
+            }
+            if (limit < 1 || limit > MAX_LOGBOOK_PAGE_SIZE) {
+                output.println("lbl latest limit must be 1.." + MAX_LOGBOOK_PAGE_SIZE);
+                return;
+            }
+            printLocationLogBookHeader(locationId, count, output);
+            printLogBookRecords(
+                    latestLocationLogBook(
+                            timingNode,
+                            locationId,
+                            Math.min(limit, count)),
+                    output);
+            return;
+        }
+
+        if (arguments.length == 3
+                && "all".equalsIgnoreCase(arguments[2])) {
+            printLocationLogBookHeader(locationId, count, output);
+            visitLogBookLocation(
+                    timingNode,
+                    locationId,
+                    1L,
+                    Integer.MAX_VALUE,
+                    record -> printLogBookRecord(record, output));
+            return;
+        }
+
+        if (arguments.length < 3 || arguments.length > 4) {
+            output.println(
+                    "Usage: lbl <locationId> "
+                            + "[count|latest [n]|all|<fromSeq> [limit]]");
+            return;
+        }
+
+        long from;
+        int limit = LOGBOOK_PAGE_SIZE;
+        try {
+            from = Long.parseLong(arguments[2]);
+            if (arguments.length == 4) {
+                limit = Integer.parseInt(arguments[3]);
+            }
+        } catch (NumberFormatException ex) {
+            output.println(
+                    "Usage: lbl <locationId> "
+                            + "[count|latest [n]|all|<fromSeq> [limit]]");
+            return;
+        }
+        if (from < 1L || limit < 1 || limit > MAX_LOGBOOK_PAGE_SIZE) {
+            output.println(
+                    "lbl requires fromSeq >= 1 and limit 1.."
+                            + MAX_LOGBOOK_PAGE_SIZE);
+            return;
+        }
+
+        printLocationLogBookHeader(locationId, count, output);
+        List<TimingRecord> records = new ArrayList<TimingRecord>();
+        visitLogBookLocation(
+                timingNode,
+                locationId,
+                from,
+                limit,
+                records::add);
+        printLogBookRecords(records, output);
+    }
+
+    /** Counts retained LogBook records belonging to one location. */
+    private static int logBookLocationCount(
+            TimingNodeProxy timingNode,
+            int locationId) {
+
+        int[] count = new int[] { 0 };
+        visitLogBookLocation(
+                timingNode,
+                locationId,
+                1L,
+                Integer.MAX_VALUE,
+                record -> count[0]++);
+        return count[0];
+    }
+
+    /** Collects the newest matching rows while scanning the existing global LogBook sequence. */
+    private static List<TimingRecord> latestLocationLogBook(
+            TimingNodeProxy timingNode,
+            int locationId,
+            int limit) {
+
+        if (limit == 0) {
+            return new ArrayList<TimingRecord>();
+        }
+
+        Deque<TimingRecord> latest = new ArrayDeque<TimingRecord>(limit);
+        visitLogBookLocation(
+                timingNode,
+                locationId,
+                1L,
+                Integer.MAX_VALUE,
+                record -> {
+                    if (latest.size() == limit) {
+                        latest.removeFirst();
+                    }
+                    latest.addLast(record);
+                });
+        return new ArrayList<TimingRecord>(latest);
+    }
+
+    /**
+     * Visits matching rows in global sequence order using bounded existing LogBook pages.
+     *
+     * <p>The supplied visitor is invoked after each bounded LogBook query has returned, so
+     * terminal output never runs on the LogBook Data Lane.</p>
+     */
+    private static int visitLogBookLocation(
+            TimingNodeProxy timingNode,
+            int locationId,
+            long fromSequence,
+            int limit,
+            Consumer<TimingRecord> visitor) {
+
+        int total = timingNode.logBookCount();
+        long from = fromSequence;
+        int visited = 0;
+
+        while (from <= total && visited < limit) {
+            int pageLimit =
+                    (int) Math.min(
+                            LOGBOOK_PAGE_SIZE,
+                            total - from + 1L);
+            List<TimingRecord> page =
+                    logBookPage(
+                            timingNode,
+                            from,
+                            pageLimit);
+            if (page.isEmpty()) {
+                break;
+            }
+
+            for (TimingRecord record : page) {
+                if (record.locationId() == locationId) {
+                    visitor.accept(record);
+                    visited++;
+                    if (visited >= limit) {
+                        break;
+                    }
+                }
+            }
+            from = page.get(page.size() - 1).sequenceNumber() + 1L;
+        }
+        return visited;
+    }
+
     /** Returns a bounded LogBook range without doing terminal I/O on the LogBook Data Lane. */
     private static List<TimingRecord> logBookPage(
             TimingNodeProxy timingNode,
@@ -685,55 +911,113 @@ public final class TerminalSession {
         output.println("LogBook: count=" + count + " timeBasis=UTC");
     }
 
-    /** Prints exact retained TimingRecord scalar values; both absolute times are UTC. */
+    /** Prints metadata for one location-filtered raw LogBook view. */
+    private static void printLocationLogBookHeader(
+            int locationId,
+            int count,
+            PrintWriter output) {
+
+        output.println(
+                "LogBook: location="
+                        + locationId
+                        + " count="
+                        + count
+                        + " timeBasis=UTC");
+    }
+
+    /** Prints exact retained IF-05-style LogBook semantics with absolute UTC timestamps. */
     private static void printLogBookRecords(
             List<TimingRecord> records,
             PrintWriter output) {
 
         for (TimingRecord record : records) {
-            StringBuilder line = new StringBuilder();
-            line.append("  seq=")
-                    .append(record.sequenceNumber())
-                    .append(" node=")
-                    .append(record.nodeId())
-                    .append(" kind=")
-                    .append(record.kind().name())
-                    .append(" loc=")
-                    .append(record.locationId());
+            printLogBookRecord(record, output);
+        }
+    }
 
-            if (record.registrationId() != 0) {
-                line.append(" id=")
-                        .append(
-                                RegistrationId.fromPackedValue(
-                                        record.registrationId()).value())
-                        .append(" action=")
-                        .append(record.action().name());
-            }
+    /** Prints one retained record using persisted LogBook vocabulary rather than Java enum names. */
+    private static void printLogBookRecord(
+            TimingRecord record,
+            PrintWriter output) {
 
-            line.append(" effectiveTime=")
+        StringBuilder line = new StringBuilder();
+        line.append("  seq=")
+                .append(record.sequenceNumber())
+                .append(" node=")
+                .append(record.nodeId())
+                .append(" type=")
+                .append(logBookType(record.kind()))
+                .append(" loc=")
+                .append(record.locationId());
+
+        if (record.registrationId() != 0) {
+            line.append(" id=")
                     .append(
-                            UTC_MILLIS_FORMAT.format(
-                                    Instant.ofEpochMilli(
-                                            record.effectiveTimeMillis())))
-                    .append(" recordedAt=")
-                    .append(
-                            UTC_MILLIS_FORMAT.format(
-                                    Instant.ofEpochMilli(
-                                            record.recordedAtMillis())));
+                            RegistrationId.fromPackedValue(
+                                    record.registrationId()).value());
+        }
 
-            if (record.tagSource() != null) {
-                line.append(" tagSrc=")
-                        .append(record.tagSource().name());
-            }
-            if (record.automaticTimeSource() != null) {
-                line.append(" timeSrc=")
-                        .append(record.automaticTimeSource().name());
-            }
-            if (record.manualTimeSource() != null) {
-                line.append(" timeSrc=")
-                        .append(record.manualTimeSource().name());
-            }
-            output.println(line.toString());
+        line.append(" code=")
+                .append(logBookCode(record))
+                .append(" time=")
+                .append(
+                        UTC_MILLIS_FORMAT.format(
+                                Instant.ofEpochMilli(
+                                        record.effectiveTimeMillis())))
+                .append(" recTime=")
+                .append(
+                        UTC_MILLIS_FORMAT.format(
+                                Instant.ofEpochMilli(
+                                        record.recordedAtMillis())));
+
+        if (record.tagSource() != null) {
+            line.append(" tagSrc=")
+                    .append(record.tagSource().name());
+        }
+        if (record.automaticTimeSource() != null) {
+            line.append(" timeSrc=")
+                    .append(record.automaticTimeSource().name());
+        }
+        output.println(line.toString());
+    }
+
+    /** Returns the compact persisted record type for one internal TimingRecord kind. */
+    private static String logBookType(TimingRecord.Kind kind) {
+
+        switch (kind) {
+            case AUTOMATIC_REGISTRATION:
+                return "AUTO_REG";
+            case MANUAL_REGISTRATION:
+                return "MAN_REG";
+            case NODE_OPEN:
+            case NODE_CLOSE:
+                return "NODE_INFO";
+            default:
+                throw new IllegalArgumentException(
+                        "Unsupported TimingRecord kind " + kind);
+        }
+    }
+
+    /** Returns the persisted IF-05 code sequence represented by one TimingRecord. */
+    private static String logBookCode(TimingRecord record) {
+
+        switch (record.kind()) {
+            case AUTOMATIC_REGISTRATION:
+                return record.action().name();
+            case MANUAL_REGISTRATION:
+                return record.action().name()
+                        + ","
+                        + (record.manualTimeSource()
+                                        == TimingRecord.ManualTimeSource.AUTOMATIC
+                                ? "AUTO"
+                                : "MAN");
+            case NODE_OPEN:
+                return "OPEN";
+            case NODE_CLOSE:
+                return "CLOSE";
+            default:
+                throw new IllegalArgumentException(
+                        "Unsupported TimingRecord kind " + record.kind());
         }
     }
 
@@ -1243,6 +1527,7 @@ public final class TerminalSession {
                 || "reg".equals(command)
                 || "regs".equals(command)
                 || "lb".equals(command)
+                || "lbl".equals(command)
                 || "data".equals(command)
                 || "test".equals(command)
                 || "config".equals(command);
@@ -1258,6 +1543,7 @@ public final class TerminalSession {
                 || "reg".equals(command)
                 || "regs".equals(command)
                 || "lb".equals(command)
+                || "lbl".equals(command)
                 || "data".equals(command)
                 || "test".equals(command)) {
             return true;
@@ -1544,10 +1830,27 @@ public final class TerminalSession {
                 output.println("  latest [n] shows the newest bounded rows in sequence order.");
                 output.println("  <fromSeq> [limit] reads an inclusive bounded sequence range.");
                 output.println("  all pages through the complete LogBook.");
-                output.println("  effectiveTime and recordedAt are absolute UTC timestamps with Z.");
+                output.println("  type/code/time/recTime follow persisted LogBook vocabulary.");
+                output.println("  time and recTime are absolute UTC timestamps with Z.");
                 output.println("  Example: lb count");
                 output.println("  Example: lb latest 10");
                 output.println("  Example: lb 100 25");
+                break;
+            case "lbl":
+                output.println(
+                        "Usage: lbl[:<NodeId>] <locationId> "
+                                + "[count|latest [n]|all|<fromSeq> [limit]]");
+                output.println("  Read raw LogBook history restricted to one LocationId.");
+                output.println("  locationId is required; sequence paging stays globally addressable.");
+                output.println(
+                        "  With no option, shows the latest "
+                                + LOGBOOK_DEFAULT_LATEST
+                                + " matching rows.");
+                output.println("  count/all/latest/range have the same meaning as for lb.");
+                output.println("  Output uses the same persisted type/code and UTC time vocabulary.");
+                output.println("  Example: lbl 5");
+                output.println("  Example: lbl 5 count");
+                output.println("  Example: lbl:A 5 latest 10");
                 break;
             case "data":
                 output.println(
@@ -1608,6 +1911,7 @@ public final class TerminalSession {
         output.println("  reg <id|team> [time]         Register one ID/team");
         output.println("  regs [options]               Show active-WP registration projection");
         output.println("  lb [options]                 Inspect raw LogBook history");
+        output.println("  lbl <locationId> [options]   Inspect raw LogBook by location");
         output.println("  data [options]               Inspect current live RaceData");
         output.println("  config [options]             Show/update configuration");
         output.println("  test <options>               Engineering test controls");

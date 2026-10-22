@@ -42,6 +42,8 @@ public class RemoteShellServerTest {
             assertTrue(response.contains(
                     "lb [options]                 Inspect raw LogBook history"));
             assertTrue(response.contains(
+                    "lbl <locationId> [options]   Inspect raw LogBook by location"));
+            assertTrue(response.contains(
                     "data [options]               Inspect current live RaceData"));
             assertFalse(response.contains("Unknown command"));
         } finally {
