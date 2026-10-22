@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make terminal time entry operator-local by default: compact `HHMMSShh` for `reg` and `start` uses the host/operator system time zone and local current date, optional suffix `U` selects UTC, registration rows are displayed in the same local zone, and ambiguous/nonexistent DST wall times are rejected. Reorganize terminal help into a compact logically ordered command index (help/version/log first) plus `help <command>` detail pages so command syntax, node-target examples, time semantics, paging and config subcommands are explained without interleaving unrelated entries.
+
 - Restore ActiveRegistrations as the display-ready active-WP timing projection: retain RegistrationId-scoped stage-start scalars beside each compact registration row, derive runtime directly, maintain competition rank on live ADD/REV and stage-start changes, defer ranking until OPEN reconstruction catches up, expose runtime/rank through the terminal `regs` view, and remove the package-info policy file that incorrectly excluded calculated timing state from this projection.
 
 - Correct draft IF-06 RACE_DATA stage-start identity: `stageStartTimes` now uses `regId` rather than `teamId`; retain stage starts by `RegistrationId` through NodeService/RaceDataState, reject legacy team-only stage-start items, and resolve terminal `start <id|team> <HHMMSShh>` input to a RegistrationId before applying the override.
