@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -211,6 +212,7 @@ public final class TimingNodeProxy {
     private final NodeId timingNodeId;
     private final TimingNode timingNode;
     private final NodeService nodeService;
+    private final NodeStateAccessor nodeState;
     private final LogBookAccessor logBook;
     private final LogBookTestControl logBookTestControl;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<TimingNodeStatus>();
@@ -228,6 +230,7 @@ public final class TimingNodeProxy {
         this.timingNodeId = timingNode.nodeId();
         this.timingNode = timingNode;
         this.nodeService = nodeService;
+        this.nodeState = nodeService.state();
         this.logBook = logBook;
         if (!(logBook instanceof LogBookTestControl)) {
             throw new IllegalStateException(
@@ -270,7 +273,7 @@ public final class TimingNodeProxy {
 
         List<RaceDataMapping> mappings = new ArrayList<RaceDataMapping>();
         List<RaceDataStageStart> stageStarts = new ArrayList<RaceDataStageStart>();
-        nodeService.visitRaceData(
+        nodeState.visitRaceData(
                 (registrationId, teamId) ->
                         mappings.add(new RaceDataMapping(registrationId, teamId)),
                 (registrationId, startMillis) ->
@@ -294,7 +297,7 @@ public final class TimingNodeProxy {
     public RegistrationProjectionInfo registrationProjectionInfo() {
 
         return registrationProjectionInfo(
-                nodeService.registrationProjectionInfo());
+                nodeState.registrationProjectionInfo());
     }
 
     /** Visits one bounded page and returns metadata from the same ordered read turn. */
@@ -307,8 +310,8 @@ public final class TimingNodeProxy {
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        NodeService.RegistrationProjectionInfo info =
-                nodeService.visitRegistrationPage(
+        NodeStateAccessor.RegistrationProjectionInfo info =
+                nodeState.visitRegistrationPage(
                         afterSequence,
                         limit,
                         registration -> visitor.accept(
@@ -348,7 +351,7 @@ public final class TimingNodeProxy {
     }
 
     private static RegistrationProjectionInfo registrationProjectionInfo(
-            NodeService.RegistrationProjectionInfo info) {
+            NodeStateAccessor.RegistrationProjectionInfo info) {
 
         return new RegistrationProjectionInfo(
                 info.locationId(),
@@ -368,7 +371,7 @@ public final class TimingNodeProxy {
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        return nodeService.visitRegistrationsAfter(
+        return nodeState.visitRegistrationsAfter(
                 afterSequence,
                 limit,
                 registration -> visitor.accept(
