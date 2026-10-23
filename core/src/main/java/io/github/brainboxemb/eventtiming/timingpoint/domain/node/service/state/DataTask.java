@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
@@ -22,7 +22,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Maintains the registration projections for the currently open WP from LogBook history.
+ * Maintains the registration projections for the currently open WP from LogBook TimingData.
  *
  * <p>CLOSED requires no projection. OPEN(locationId) requests a fresh bounded replay from LogBook
  * sequence one; ActiveRegistrations filters that replay to the selected LocationId and
@@ -38,15 +38,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 final class DataTask extends AbstractTask {
     private static final int TIMING_DATA_BATCH_SIZE = 64;
 
-    /** Receives one stable OPEN-rebuild completion on the NodeService Task Lane. */
-    interface RebuildCompletedHandler {
-        void completed(int locationId, long recordsProcessed);
-    }
-
     private final SerialTaskRunner taskRunner;
     private final LogBookAccessor logBook;
     private final NodeState state;
-    private final RebuildCompletedHandler rebuildCompletedHandler;
+    private final java.util.function.BiConsumer<Integer, Long> rebuildCompletedHandler;
     private final Consumer<Throwable> failureHandler;
 
     private boolean available;
@@ -66,7 +61,7 @@ final class DataTask extends AbstractTask {
             SerialTaskRunner taskRunner,
             LogBookAccessor logBook,
             NodeState state,
-            RebuildCompletedHandler rebuildCompletedHandler,
+            java.util.function.BiConsumer<Integer, Long> rebuildCompletedHandler,
             Consumer<Throwable> failureHandler) {
 
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
@@ -383,9 +378,9 @@ final class DataTask extends AbstractTask {
             state.activeRegistrations().completeRebuild();
             state.registeredTeams().completeRebuild();
             rebuilding = false;
-            rebuildCompletedHandler.completed(
-                    activeLocationId,
-                    nextSequence - 1L);
+            rebuildCompletedHandler.accept(
+                    Integer.valueOf(activeLocationId),
+                    Long.valueOf(nextSequence - 1L));
         }
         caughtUp.complete(null);
         return true;

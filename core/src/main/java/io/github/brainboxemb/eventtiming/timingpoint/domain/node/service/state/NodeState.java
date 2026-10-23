@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -22,11 +22,11 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Owns current live and derived data for one TimingNode.
  *
- * <p>Mutations are package-private and run on the NodeService Task Lane. The public
- * NodeStateAccessor contract exposes ordered reads only. Active-WP reads wait until the LogBook
- * projection has caught up, so callers never observe a partial reconstruction.</p>
+ * <p>NodeService supplies mutations on its Task Lane. The NodeStateAccessor contract exposes
+ * ordered reads to other components. Active-WP reads wait until the LogBook projection has caught
+ * up, so callers never observe a partial reconstruction.</p>
  */
-final class NodeState implements NodeStateAccessor {
+public final class NodeState implements NodeStateAccessor {
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
 
     private final SerialTaskRunner taskRunner;
@@ -36,12 +36,12 @@ final class NodeState implements NodeStateAccessor {
     private final DataTask dataTask;
 
     /** Binds retained state and its LogBook projection task to the NodeService Task Lane. */
-    NodeState(
+    public NodeState(
             SerialTaskRunner taskRunner,
             LogBookAccessor logBook,
             RaceDataState raceData,
             ActiveRegistrations activeRegistrations,
-            DataTask.RebuildCompletedHandler rebuildCompletedHandler,
+            java.util.function.BiConsumer<Integer, Long> rebuildCompletedHandler,
             Consumer<Throwable> failureHandler) {
 
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
@@ -64,7 +64,7 @@ final class NodeState implements NodeStateAccessor {
     }
 
     /** Applies one validated live RaceData change and keeps the active registration projection aligned. */
-    void applyRaceDataChanges(
+    public void applyRaceDataChanges(
             Map<RegistrationId, TeamId> assignmentsToSet,
             List<RegistrationId> assignmentsToDelete,
             Map<RegistrationId, Long> stageStartsToSet,
@@ -79,14 +79,14 @@ final class NodeState implements NodeStateAccessor {
     }
 
     /** Re-evaluates active team membership after one live assignment changed. */
-    void teamAssignmentChanged(RegistrationId registrationId) {
+    public void teamAssignmentChanged(RegistrationId registrationId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
     }
 
     /** Applies one engineering stage start to live state and the active registration projection. */
-    void setStageStart(RegistrationId registrationId, long startMillis) {
+    public void setStageStart(RegistrationId registrationId, long startMillis) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         raceData.setStageStart(registrationId, startMillis);
@@ -94,37 +94,37 @@ final class NodeState implements NodeStateAccessor {
     }
 
     /** Starts reconstruction for the newly opened WP before active-state reads may complete. */
-    void locationOpened(LocationId locationId) {
+    public void locationOpened(LocationId locationId) {
 
         dataTask.locationOpened(locationId);
     }
 
     /** Invalidates the active-WP projection when the TimingNode closes. */
-    void locationClosed() {
+    public void locationClosed() {
 
         dataTask.locationClosed();
     }
 
     /** Makes LogBook-backed projection work eligible after LogBook loading completed. */
-    void logBookAvailable() {
+    public void logBookAvailable() {
 
         dataTask.logBookAvailable();
     }
 
     /** Prevents active projection reads from succeeding while LogBook is unavailable. */
-    void logBookUnavailable() {
+    public void logBookUnavailable() {
 
         dataTask.unavailable();
     }
 
     /** Coalesces a committed TimingRecord into projection catch-up work. */
-    void dataChanged() {
+    public void dataChanged() {
 
         dataTask.dataChanged();
     }
 
     /** Cancels projection work and clears transient active-WP data during NodeService deactivation. */
-    void stop() {
+    public void stop() {
 
         dataTask.stop();
     }
