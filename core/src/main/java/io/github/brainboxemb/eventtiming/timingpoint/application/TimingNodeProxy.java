@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -17,8 +18,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /** Presentation-facing application proxy for one TimingNode. */
@@ -107,7 +109,7 @@ public final class TimingNodeProxy {
         }
     }
 
-    /** Immutable metadata for the active NodeService registration projection. */
+    /** Immutable metadata for the active NodeState registration projection. */
     public static final class RegistrationProjectionInfo {
         private final LocationId locationId;
         private final int count;
@@ -211,8 +213,9 @@ public final class TimingNodeProxy {
 
     private final NodeId timingNodeId;
     private final TimingNode timingNode;
-    private final NodeService nodeService;
+    private final EventData eventData;
     private final NodeStateAccessor nodeState;
+    private final NodeStateTestControl nodeStateTestControl;
     private final LogBookAccessor logBook;
     private final LogBookTestControl logBookTestControl;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<TimingNodeStatus>();
@@ -222,15 +225,20 @@ public final class TimingNodeProxy {
 
     TimingNodeProxy(
             TimingNode timingNode,
-            NodeService nodeService,
+            EventData eventData,
+            NodeStateAccessor nodeState,
+            NodeStateTestControl nodeStateTestControl,
             LogBookAccessor logBook) {
         failIfInvalidArgument(timingNode != null, "timingNode must not be null");
-        failIfInvalidArgument(nodeService != null, "nodeService must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
+        failIfInvalidArgument(nodeState != null, "nodeState must not be null");
+        failIfInvalidArgument(nodeStateTestControl != null, "nodeStateTestControl must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         this.timingNodeId = timingNode.nodeId();
         this.timingNode = timingNode;
-        this.nodeService = nodeService;
-        this.nodeState = nodeService.state();
+        this.eventData = eventData;
+        this.nodeState = nodeState;
+        this.nodeStateTestControl = nodeStateTestControl;
         this.logBook = logBook;
         if (!(logBook instanceof LogBookTestControl)) {
             throw new IllegalStateException(
@@ -250,17 +258,20 @@ public final class TimingNodeProxy {
     }
 
     public RegistrationId registrationIdFor(TeamId teamId) {
+
         failIfInvalidArgument(teamId != null, "teamId must not be null");
-        return timingNode.registrationIdFor(teamId);
+        LocationId locationId = timingNode.locationId();
+        failIfIllegalState(locationId != null, "TimingNode is not open");
+        return eventData.registrationIdFor(locationId, teamId);
     }
 
-    /** Sets one RegistrationId's engineering stage-start value in normalized UTC milliseconds. */
-    public void setStageStart(
+    /** Applies one engineering-only stage-start override. */
+    public void overrideStageStart(
             RegistrationId registrationId,
             long startMillis) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        nodeService.setStageStart(registrationId, startMillis);
+        nodeStateTestControl.overrideStageStart(registrationId, startMillis);
     }
 
     /**

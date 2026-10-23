@@ -369,7 +369,7 @@ public final class TerminalSession {
                     ex);
         }
 
-        timingNode.setStageStart(
+        timingNode.overrideStageStart(
                 registrationId,
                 start.instant().toEpochMilli());
         output.println(

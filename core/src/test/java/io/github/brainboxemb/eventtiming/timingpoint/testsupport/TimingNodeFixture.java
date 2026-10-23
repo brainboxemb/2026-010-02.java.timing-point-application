@@ -79,6 +79,7 @@ public final class TimingNodeFixture {
      */
     public static final class Components {
         private final TimingNode node;
+        private final EventData eventData;
         private final LogBook logBook;
         private final NodeService nodeService;
         private final TagProcessor tagProcessor;
@@ -88,12 +89,14 @@ public final class TimingNodeFixture {
         /** Creates test-only references to one fully composed TimingNode graph. */
         private Components(
                 TimingNode node,
+                EventData eventData,
                 LogBook logBook,
                 NodeService nodeService,
                 TagProcessor tagProcessor,
                 NodeUpstream nodeUpstream,
                 RaceDataState raceData) {
             this.node = node;
+            this.eventData = eventData;
             this.logBook = logBook;
             this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
@@ -135,7 +138,9 @@ public final class TimingNodeFixture {
         public TimingNodeProxyComponents presentationComponents() {
             return new TimingNodeProxyComponents(
                     node,
-                    nodeService,
+                    eventData,
+                    nodeService.state(),
+                    nodeService.stateTestControl(),
                     logBook);
         }
     }
@@ -328,7 +333,6 @@ public final class TimingNodeFixture {
                         nodeWorker,
                         logBook,
                         timeSource,
-                        eventData,
                         raceData,
                         activeRegistrations);
 
@@ -364,6 +368,7 @@ public final class TimingNodeFixture {
 
         return new Components(
                 node,
+                eventData,
                 logBook,
                 nodeService,
                 tagProcessor,

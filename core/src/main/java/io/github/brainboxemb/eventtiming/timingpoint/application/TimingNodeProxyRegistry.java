@@ -45,7 +45,9 @@ final class TimingNodeProxyRegistry
                     nodeId,
                     new TimingNodeProxy(
                             timingNode,
-                            components.nodeService(),
+                            components.eventData(),
+                            components.nodeState(),
+                            components.nodeStateTestControl(),
                             components.logBook()));
         }
     }

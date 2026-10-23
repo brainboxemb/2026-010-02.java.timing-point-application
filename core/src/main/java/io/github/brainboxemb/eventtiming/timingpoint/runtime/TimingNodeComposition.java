@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxyComponents;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -39,10 +40,13 @@ final class TimingNodeComposition {
     }
 
     /** Returns explicit application-facing component boundaries for this node. */
-    TimingNodeProxyComponents presentationComponents() {
+    TimingNodeProxyComponents presentationComponents(EventData eventData) {
+
         return new TimingNodeProxyComponents(
                 node,
-                nodeService,
+                eventData,
+                nodeService.state(),
+                nodeService.stateTestControl(),
                 logBook);
     }
 }
