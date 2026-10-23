@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateTestControl;
@@ -23,9 +24,6 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -115,10 +113,9 @@ public final class NodeService extends LifecycleComponent {
     /**
      * Applies one ordered Central RACE_DATA change set.
      *
-     * <p>NodeUpstream dispatches this to the independent NodeService task lane. This ingress
-     * boundary samples the shared TimeSource once, resolves all protocol civil-time values to UTC
-     * epoch milliseconds and passes only normalized domain values into RaceDataState. Team
-     * assignment changes are then reflected in RegisteredTeams.</p>
+     * <p>NodeUpstream dispatches this to the independent NodeService task lane. Stage-start
+     * values are normalized once to compact UTC while preserving whether the source supplied a
+     * date. Team assignment changes are then reflected in RegisteredTeams.</p>
      */
     public CompletableFuture<Void> applyRaceData(UpstreamData.RaceData changes) {
 
@@ -134,8 +131,8 @@ public final class NodeService extends LifecycleComponent {
     /** Converts one protocol change set to domain values before mutating retained race state. */
     private void applyNormalizedRaceData(UpstreamData.RaceData changes) {
 
-        Instant receivedAt = timeSource.now();
-        failIfInvalidArgument(receivedAt != null, "timeSource.now must not return null");
+        Instant offsetReference = timeSource.now();
+        failIfInvalidArgument(offsetReference != null, "timeSource.now must not return null");
 
         Map<RegistrationId, TeamId> assignmentsToSet =
                 new LinkedHashMap<RegistrationId, TeamId>();
@@ -166,7 +163,10 @@ public final class NodeService extends LifecycleComponent {
                 case SET:
                     stageStartsToSet.put(
                             change.registrationId(),
-                            absoluteStartMillis(change.start(), receivedAt));
+                            StageTiming.compactUtc(
+                                    change.start(),
+                                    timeSource.zone(),
+                                    offsetReference));
                     break;
                 case DEL:
                     stageStartsToDelete.add(change.registrationId());
@@ -186,24 +186,6 @@ public final class NodeService extends LifecycleComponent {
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
             state.teamAssignmentChanged(change.registrationId());
         }
-    }
-
-    /** Resolves one IF-06 stage-start value to the node's internal UTC millisecond basis. */
-    private static long absoluteStartMillis(TimingTimestamp start, Instant receivedAt) {
-
-        failIfInvalidArgument(start != null, "stage start must not be null");
-
-        if (start.isAbsolute()) {
-            return start.instant().toEpochMilli();
-        }
-
-        LocalDate date =
-                start.hasDate()
-                        ? start.date()
-                        : receivedAt.atOffset(ZoneOffset.UTC).toLocalDate();
-        return LocalDateTime.of(date, start.time())
-                .toInstant(ZoneOffset.UTC)
-                .toEpochMilli();
     }
 
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */

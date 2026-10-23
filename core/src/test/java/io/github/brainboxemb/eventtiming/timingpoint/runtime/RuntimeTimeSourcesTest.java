@@ -42,5 +42,11 @@ public class RuntimeTimeSourcesTest {
         assertEquals(
                 first.now(),
                 second.now());
+        assertEquals(
+                ZoneOffset.UTC,
+                first.zone());
+        assertEquals(
+                first.zone(),
+                second.zone());
     }
 }

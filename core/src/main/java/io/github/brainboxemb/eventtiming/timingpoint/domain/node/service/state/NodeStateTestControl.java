@@ -13,8 +13,9 @@ public interface NodeStateTestControl {
     /**
      * Overrides one RegistrationId's stage start without changing upstream protocol state.
      *
-     * <p>The value is an absolute UTC epoch-millisecond timestamp. A later ordered upstream
-     * RaceData update may replace this engineering override.</p>
+     * <p>The engineering boundary accepts an absolute UTC epoch-millisecond timestamp.
+     * NodeState converts it once to the same compact UTC representation used by RaceData.
+     * A later ordered upstream update may replace the override.</p>
      */
     void overrideStageStart(
             RegistrationId registrationId,

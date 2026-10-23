@@ -1087,8 +1087,7 @@ public final class TerminalSession {
                         + " start="
                         + (start == null
                                 ? "-"
-                                : UTC_MILLIS_FORMAT.format(
-                                        start.start().instant())));
+                                : start.start().toString()));
     }
 
     private static void printRaceDataHeader(
@@ -1100,7 +1099,7 @@ public final class TerminalSession {
                         + snapshot.mappings().size()
                         + " starts="
                         + snapshot.stageStarts().size()
-                        + " timeBasis=UTC");
+                        + " timeBasis=UTC compact");
     }
 
     private static void printRaceDataMappings(
@@ -1127,8 +1126,7 @@ public final class TerminalSession {
                     "    id="
                             + start.registrationId().value()
                             + " start="
-                            + UTC_MILLIS_FORMAT.format(
-                                    start.start().instant()));
+                            + start.start().toString());
         }
     }
 

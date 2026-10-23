@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.time;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 /**
  * Shared source of absolute timing time.
@@ -10,9 +12,9 @@ import java.time.Instant;
  * so Domain and I/O components that belong to the same timing context can use
  * the same corrected absolute-time basis.</p>
  *
- * <p>This lower-level contract returns a Java absolute instant rather than a
- * protocol or domain value type. A consuming ingress/commit boundary converts
- * it once to the absolute scalar or external representation that it owns.</p>
+ * <p>The source also exposes the configured civil-time zone used when an external
+ * value omits an offset. Runtime composition owns that choice; domain code must
+ * not fall back to the host default zone.</p>
  *
  * <p>Elapsed-time measurement does not use this contract; monotonic time is a
  * separate platform capability.</p>
@@ -20,5 +22,16 @@ import java.time.Instant;
 @FunctionalInterface
 public interface TimeSource {
 
+    /** Current absolute timing instant. */
     Instant now();
+
+    /**
+     * Configured civil-time zone for values that do not carry an explicit offset.
+     *
+     * <p>Simple/custom sources default to UTC. ClockTimeSource overrides this with the zone
+     * carried by its injected Clock, which Runtime can replace or re-zone explicitly.</p>
+     */
+    default ZoneId zone() {
+        return ZoneOffset.UTC;
+    }
 }

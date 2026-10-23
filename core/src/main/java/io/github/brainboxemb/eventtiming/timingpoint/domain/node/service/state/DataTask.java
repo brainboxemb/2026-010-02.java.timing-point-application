@@ -146,13 +146,13 @@ final class DataTask extends AbstractTask {
     /** Applies one engineering stage-start override to the active display projection. */
     void stageStartChanged(
             RegistrationId registrationId,
-            Long startMillis) {
+            Long stageStart) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         if (isCurrentProjection()) {
             state.activeRegistrations().stageStartChanged(
                     registrationId,
-                    startMillis);
+                    stageStart);
         }
     }
 
@@ -317,11 +317,11 @@ final class DataTask extends AbstractTask {
             long sequence = record.sequenceNumber();
             failIfIllegalState(sequence == nextSequence, "Expected sequence %s, got %s", nextSequence, sequence);
 
-            Long stageStartMillis = stageStartMillis(record);
+            Long stageStart = stageStart(record);
             ActiveRegistrations.Change change =
                     state.activeRegistrations().apply(
                             record,
-                            stageStartMillis);
+                            stageStart);
             if (change != null) {
                 state.registeredTeams().apply(change, state.raceData().teamIdFor(change.registrationId()));
             }
@@ -330,12 +330,12 @@ final class DataTask extends AbstractTask {
     }
 
     /** Resolves the current RaceData start for a registration ADD before retaining its row. */
-    private Long stageStartMillis(TimingRecord record) {
+    private Long stageStart(TimingRecord record) {
 
         if ((record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION
                         || record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION)
                 && record.action() == TimingRecord.Action.ADD) {
-            return state.raceData().stageStartMillisFor(
+            return state.raceData().stageStartFor(
                     RegistrationId.fromPackedValue(
                             record.registrationId()));
         }

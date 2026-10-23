@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.Appli
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationUpdateResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
@@ -19,7 +20,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -608,7 +611,11 @@ public class TagProcessorTest {
     }
 
     private TimingNode node(RecordingStore store) {
-        TimeSource timeSource = () -> RECORDED_AT.instant();
+        TimeSource timeSource =
+                new ClockTimeSource(
+                        Clock.fixed(
+                                RECORDED_AT.instant(),
+                                ZoneOffset.UTC));
         return TimingNodeFixture.create(
                 new NodeId("A"),
                 store,

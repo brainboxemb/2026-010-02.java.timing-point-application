@@ -4,16 +4,22 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixtu
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Collections;
 
 import org.junit.Test;
@@ -181,6 +187,74 @@ public class TimingNodeRaceDataTest {
         }
     }
 
+    @Test
+    public void timeOnlyStageStartUsesConfiguredZoneWithoutAddingDate() {
+        TimeSource timeSource =
+                new ClockTimeSource(
+                        Clock.fixed(
+                                Instant.parse("2026-10-23T12:00:00Z"),
+                                ZoneId.of("Europe/Amsterdam")));
+        Fixture fixture = fixture(timeSource);
+
+        activate(fixture.node);
+        activate(fixture.port);
+        try {
+            fixture.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartSet(
+                                            "R0001",
+                                            LocalTime.of(1, 0)))));
+            fixture.stream.takeSent();
+
+            assertEquals(
+                    Long.valueOf(23_00_00_00L),
+                    fixture.raceData.stageStartFor(
+                            new RegistrationId("R0001")));
+        } finally {
+            deactivate(fixture.port);
+            deactivate(fixture.node);
+        }
+    }
+
+    @Test
+    public void datedLocalStageStartCarriesUtcDateAcrossPreviousDay() {
+        TimeSource timeSource =
+                new ClockTimeSource(
+                        Clock.fixed(
+                                Instant.parse("2026-10-23T12:00:00Z"),
+                                ZoneId.of("Europe/Amsterdam")));
+        Fixture fixture = fixture(timeSource);
+
+        activate(fixture.node);
+        activate(fixture.port);
+        try {
+            fixture.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartSet(
+                                            "R0001",
+                                            TimingTimestamp.localDateTime(
+                                                    LocalDate.of(2026, 10, 23),
+                                                    LocalTime.of(1, 0))))));
+            fixture.stream.takeSent();
+
+            assertEquals(
+                    Long.valueOf(2026_10_22_23_00_00_00L),
+                    fixture.raceData.stageStartFor(
+                            new RegistrationId("R0001")));
+        } finally {
+            deactivate(fixture.port);
+            deactivate(fixture.node);
+        }
+    }
+
     /** Builds one RACE_DATA team-assignment update for node A. */
     private static UpstreamData.RaceData raceDataSet(
             long sequence,
@@ -198,14 +272,20 @@ public class TimingNodeRaceDataTest {
 
     /** Creates one same-thread node fixture with an in-memory upstream stream. */
     private static Fixture fixture() {
+
+        return fixture(
+                () -> Instant.parse(
+                        "2026-10-13T12:00:00Z"));
+    }
+
+    private static Fixture fixture(TimeSource timeSource) {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
                         new EmptyPersistence(),
-                        () -> Instant.parse(
-                                "2026-10-13T12:00:00Z"),
+                        timeSource,
                         new DefaultEventData(),
                         stream.bind(
                                 new NodeId("A")));
