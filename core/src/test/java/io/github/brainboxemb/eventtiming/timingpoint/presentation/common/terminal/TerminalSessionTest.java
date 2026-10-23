@@ -98,11 +98,11 @@ public class TerminalSessionTest {
                 "seq=2 node=A type=AUTO_REG loc=5 id=A0001 code=ADD"));
         assertTrue(text.contains("time=2026-10-01T12:00:01.000Z"));
         assertTrue(text.contains("recTime=2026-10-01T12:00:01.000Z"));
-        assertTrue(text.contains("RaceData: mappings=0 starts=1 timeBasis=UTC"));
+        assertTrue(text.contains("RaceData: mappings=0 starts=1 timeBasis=UTC compact"));
         assertTrue(text.contains(
-                "id=A0001 start=2026-10-01T11:00:00.000Z"));
+                "id=A0001 start=2026-10-01T11:00:00Z"));
         assertTrue(text.contains(
-                "RaceData: id=A0001 liveTeam=- start=2026-10-01T11:00:00.000Z"));
+                "RaceData: id=A0001 liveTeam=- start=2026-10-01T11:00:00Z"));
     }
 
     @Test

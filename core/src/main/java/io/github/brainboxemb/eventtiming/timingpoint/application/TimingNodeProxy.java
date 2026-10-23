@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyUpdate;
@@ -80,7 +81,7 @@ public final class TimingNodeProxy {
             return registrationId;
         }
 
-        /** Absolute UTC stage-start timestamp materialized from retained epoch milliseconds. */
+        /** Stage-start knowledge materialized from the retained compact UTC value. */
         public TimingTimestamp start() {
             return start;
         }
@@ -190,12 +191,12 @@ public final class TimingNodeProxy {
             return effectiveTime;
         }
 
-        /** Returns the maintained stage start, or null while RaceData has none. */
+        /** Returns the maintained stage-start knowledge, or null while RaceData has none. */
         public TimingTimestamp stageStart() {
             return stageStart;
         }
 
-        /** Returns the maintained passage runtime in milliseconds, or null without a start. */
+        /** Returns the maintained runtime, or null while the stage start is not resolvable. */
         public Long elapsedMillis() {
             return elapsedMillis;
         }
@@ -278,7 +279,7 @@ public final class TimingNodeProxy {
      * Returns one coherent technical snapshot of current live RaceData.
      *
      * <p>Mappings contain only live Central assignments. Fixed EventData mappings are excluded.
-     * Stage starts are materialized from retained epoch-millisecond scalars only here.</p>
+     * Stage starts are materialized from retained compact UTC values only here.</p>
      */
     public RaceDataSnapshot raceDataSnapshot() {
 
@@ -287,13 +288,12 @@ public final class TimingNodeProxy {
         nodeState.visitRaceData(
                 (registrationId, teamId) ->
                         mappings.add(new RaceDataMapping(registrationId, teamId)),
-                (registrationId, startMillis) ->
+                (registrationId, stageStart) ->
                         stageStarts.add(
                                 new RaceDataStageStart(
                                         registrationId,
-                                        new TimingTimestamp(
-                                                Instant.ofEpochMilli(
-                                                        startMillis.longValue())))));
+                                        StageTiming.timestamp(
+                                                stageStart.longValue()))));
 
         Comparator<RaceDataMapping> mappingOrder =
                 Comparator.comparing(value -> value.registrationId().value());
@@ -336,12 +336,11 @@ public final class TimingNodeProxy {
 
         TimingTimestamp stageStart =
                 registration.hasStageStart()
-                        ? new TimingTimestamp(
-                                Instant.ofEpochMilli(
-                                        registration.stageStartMillis()))
+                        ? StageTiming.timestamp(
+                                registration.stageStart())
                         : null;
         Long elapsedMillis =
-                registration.hasStageStart()
+                registration.hasElapsedTime()
                         ? Long.valueOf(registration.elapsedMillis())
                         : null;
         Integer rank =

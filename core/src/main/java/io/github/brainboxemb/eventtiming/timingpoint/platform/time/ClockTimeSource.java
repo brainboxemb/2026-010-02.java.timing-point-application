@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.time;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 
 /**
  * TimeSource backed directly by an absolute Java wall clock.
@@ -26,5 +27,10 @@ public final class ClockTimeSource implements TimeSource {
     @Override
     public Instant now() {
         return clock.instant();
+    }
+
+    @Override
+    public ZoneId zone() {
+        return clock.getZone();
     }
 }

@@ -14,10 +14,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Retains the current Central-owned race data for one TimingNode.
  *
  * <p>This passive state object is owned exclusively by the Task Lane. NodeService normalizes each
- * ordered RACE_DATA change set at ingress and passes only domain values and absolute UTC epoch
- * milliseconds here. The changes are applied to independent copies of team assignments and stage
- * starts; live state is replaced only after the complete change set validates, so an invalid
- * message cannot leave a partially applied update.</p>
+ * ordered RACE_DATA change set at ingress and passes compact UTC stage-start values here. Time-only
+ * values remain time-only. Live state is replaced only after the complete change set validates.</p>
  *
  * <p>Fixed EventData remains authoritative for configured RegistrationId-to-TeamId mappings.
  * Live RACE_DATA assignments may resolve only registrations that EventData does not already own,
@@ -38,20 +36,20 @@ public final class RaceDataState {
         this.eventData = eventData;
     }
 
-    /** Sets one already-normalized stage-start value owned by the NodeService Task Lane. */
+    /** Sets one already-normalized compact UTC stage start on the Task Lane. */
     public void setStageStart(
             RegistrationId registrationId,
-            long startMillis) {
+            long stageStart) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        stageStartTimes.set(registrationId, startMillis);
+        stageStartTimes.set(registrationId, stageStart);
     }
 
-    /** Returns the current normalized stage start for one RegistrationId, or null when unknown. */
-    public Long stageStartMillisFor(RegistrationId registrationId) {
+    /** Returns the current compact UTC stage start, or null when none is known. */
+    public Long stageStartFor(RegistrationId registrationId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        return stageStartTimes.startMillisFor(registrationId);
+        return stageStartTimes.startFor(registrationId);
     }
 
     /**
@@ -86,8 +84,8 @@ public final class RaceDataState {
     /**
      * Validates and atomically applies one normalized Central RACE_DATA change set.
      *
-     * <p>All stage-start values are already absolute UTC epoch milliseconds. Protocol civil-time
-     * interpretation therefore remains at NodeService ingress and cannot leak into retained state.</p>
+     * <p>Stage-start values are already compact UTC. Protocol civil-time interpretation remains
+     * at NodeService ingress, while missing date knowledge remains missing in retained state.</p>
      */
     public void applyChanges(
             Map<RegistrationId, TeamId> assignmentsToSet,
@@ -141,10 +139,10 @@ public final class RaceDataState {
 
         for (Map.Entry<RegistrationId, Long> change : stageStartsToSet.entrySet()) {
             RegistrationId registrationId = change.getKey();
-            Long startMillis = change.getValue();
+            Long stageStart = change.getValue();
             failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-            failIfInvalidArgument(startMillis != null, "stage start must not be null");
-            updatedStarts.set(registrationId, startMillis.longValue());
+            failIfInvalidArgument(stageStart != null, "stage start must not be null");
+            updatedStarts.set(registrationId, stageStart.longValue());
         }
 
         for (RegistrationId registrationId : stageStartsToDelete) {

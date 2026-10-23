@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.time;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 
 import org.junit.Test;
 
@@ -12,11 +12,12 @@ public class ClockTimeSourceTest {
 
     @Test
     public void readsAbsoluteTimeFromInjectedClock() {
+        ZoneId zone = ZoneId.of("Europe/Amsterdam");
         Clock clock =
                 Clock.fixed(
                         Instant.parse(
                                 "2026-10-07T06:00:00Z"),
-                        ZoneOffset.UTC);
+                        zone);
 
         TimeSource timeSource =
                 new ClockTimeSource(
@@ -26,5 +27,8 @@ public class ClockTimeSourceTest {
                 Instant.parse(
                         "2026-10-07T06:00:00Z"),
                 timeSource.now());
+        assertEquals(
+                zone,
+                timeSource.zone());
     }
 }

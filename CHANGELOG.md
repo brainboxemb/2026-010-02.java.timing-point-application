@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve IF-06 stage-start knowledge as compact UTC longs instead of inventing dates: time-only values remain `HHmmsscc`, dated values use `yyyyMMddHHmmsscc`, `ClockTimeSource` supplies the configurable civil-time zone, and `StageTiming` resolves time-only midnight rollover only when runtime is unambiguous and below 12 hours.
+
 - Remove NodeService pass-through access: application code now resolves shared EventData directly, NodeState exposes engineering stage-start mutation through a separate `NodeStateTestControl`, and TimingNodeProxy no longer depends on NodeService.
 
 - Split retained node data from `NodeService` processing: `NodeState` now owns `RaceDataState`, `ActiveRegistrations` and `RegisteredTeams` and directly implements the read-only `NodeStateAccessor` boundary. Keep ordered/catch-up-aware reads with the state owner, while `NodeService` remains focused on input processing, mutation ordering and lifecycle.

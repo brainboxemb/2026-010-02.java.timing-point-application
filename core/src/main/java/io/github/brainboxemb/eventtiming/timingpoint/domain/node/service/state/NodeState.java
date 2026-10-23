@@ -7,11 +7,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -86,19 +88,22 @@ public final class NodeState implements NodeStateAccessor, NodeStateTestControl 
         dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
     }
 
-    /** Applies one engineering override on the same Task Lane as normal RaceData mutations. */
+    /** Applies one absolute engineering override using the same compact UTC state as RaceData. */
     @Override
     public void overrideStageStart(
             RegistrationId registrationId,
             long startMillis) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        long stageStart =
+                StageTiming.compactUtc(
+                        Instant.ofEpochMilli(startMillis));
         runOrderedMutation(
                 () -> {
-                    raceData.setStageStart(registrationId, startMillis);
+                    raceData.setStageStart(registrationId, stageStart);
                     dataTask.stageStartChanged(
                             registrationId,
-                            Long.valueOf(startMillis));
+                            Long.valueOf(stageStart));
                 });
     }
 

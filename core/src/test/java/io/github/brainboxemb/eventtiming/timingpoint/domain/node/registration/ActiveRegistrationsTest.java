@@ -75,7 +75,9 @@ public class ActiveRegistrationsTest {
     @Test
     public void maintainsRuntimeAndCompetitionRankInTheRetainedRows() {
         ActiveRegistrations registrations = activeAt(1);
-        long start = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
+        long start =
+                StageTiming.compactUtc(
+                        Instant.parse("2026-10-13T12:00:00Z"));
 
         registrations.apply(
                 registrationAt(
@@ -117,7 +119,9 @@ public class ActiveRegistrationsTest {
     @Test
     public void stageStartAndRevokeChangesRecalculateExistingRanks() {
         ActiveRegistrations registrations = activeAt(1);
-        long start = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
+        long start =
+                StageTiming.compactUtc(
+                        Instant.parse("2026-10-13T12:00:00Z"));
 
         registrations.apply(
                 registrationAt(
@@ -140,8 +144,8 @@ public class ActiveRegistrationsTest {
         registrations.stageStartChanged(
                 new RegistrationId("A0001"),
                 Long.valueOf(
-                        Instant.parse("2026-10-13T12:00:15Z")
-                                .toEpochMilli()));
+                        StageTiming.compactUtc(
+                                Instant.parse("2026-10-13T12:00:15Z"))));
 
         List<ActiveRegistrations.Registration> rows = new ArrayList<>();
         registrations.visit(10, rows::add);
@@ -166,6 +170,29 @@ public class ActiveRegistrationsTest {
                 null);
         assertFalse(rows.get(1).hasStageStart());
         assertEquals(0, rows.get(1).rank());
+    }
+
+    @Test
+    public void ambiguousTimeOnlyStartIsRetainedButDoesNotRank() {
+        ActiveRegistrations registrations = activeAt(1);
+
+        registrations.apply(
+                registrationAt(
+                        1L,
+                        1,
+                        "A0001",
+                        Instant.parse("2026-10-13T12:00:00Z"),
+                        TimingRecord.Action.ADD),
+                Long.valueOf(00_00_00_00L));
+        registrations.completeRebuild();
+
+        List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+        registrations.visit(1, rows::add);
+        ActiveRegistrations.Registration row = rows.get(0);
+
+        assertTrue(row.hasStageStart());
+        assertFalse(row.hasElapsedTime());
+        assertEquals(0, row.rank());
     }
 
     @Test

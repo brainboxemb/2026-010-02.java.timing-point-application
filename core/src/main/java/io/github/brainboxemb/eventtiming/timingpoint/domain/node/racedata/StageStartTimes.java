@@ -11,9 +11,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Package-private RegistrationId-to-stage-start state owned by RaceDataState.
  *
- * <p>Only normalized absolute UTC epoch milliseconds are retained. Copies participate in the
- * same all-or-nothing RACE_DATA update as team assignments; external code never receives the
- * mutable map or a partial civil-time value.</p>
+ * <p>Values use compact UTC longs: time-only HHmmsscc remains below 100000000, while dated
+ * values use yyyyMMddHHmmsscc. Copies participate in the same all-or-nothing RACE_DATA update
+ * as team assignments.</p>
  */
 final class StageStartTimes {
     private final Map<RegistrationId, Long> starts;
@@ -24,7 +24,7 @@ final class StageStartTimes {
         this.starts = new LinkedHashMap<RegistrationId, Long>();
     }
 
-    /** Creates an independent mutable copy from existing absolute start values. */
+    /** Creates an independent mutable copy from existing compact UTC start values. */
     private StageStartTimes(Map<RegistrationId, Long> starts) {
 
         this.starts = new LinkedHashMap<RegistrationId, Long>(starts);
@@ -36,21 +36,21 @@ final class StageStartTimes {
         return new StageStartTimes(starts);
     }
 
-    /** Sets one already-normalized absolute UTC stage start. */
-    void set(RegistrationId registrationId, long startMillis) {
+    /** Sets one already-normalized compact UTC stage start. */
+    void set(RegistrationId registrationId, long stageStart) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        starts.put(registrationId, startMillis);
+        starts.put(registrationId, stageStart);
     }
 
     /** Returns the current normalized start value, or null when none is known. */
-    Long startMillisFor(RegistrationId registrationId) {
+    Long startFor(RegistrationId registrationId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return starts.get(registrationId);
     }
 
-    /** Visits all retained absolute stage starts in retained order and returns their count. */
+    /** Visits all retained compact UTC stage starts in retained order and returns their count. */
     int visit(BiConsumer<RegistrationId, Long> visitor) {
         failIfInvalidArgument(visitor != null, "visitor must not be null");
         for (Map.Entry<RegistrationId, Long> entry : starts.entrySet()) {

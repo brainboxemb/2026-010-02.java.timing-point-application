@@ -25,12 +25,12 @@ public class RaceDataStateTest {
                 Collections.<RegistrationId>emptyList(),
                 Collections.singletonMap(
                         registrationId,
-                        Long.valueOf(1798112096780L)),
+                        Long.valueOf(12_34_56_78L)),
                 Collections.<RegistrationId>emptyList());
 
         assertEquals(
-                Long.valueOf(1798112096780L),
-                state.stageStartMillisFor(registrationId));
+                Long.valueOf(12_34_56_78L),
+                state.stageStartFor(registrationId));
 
         state.applyChanges(
                 Collections.<RegistrationId, TeamId>emptyMap(),
@@ -38,7 +38,7 @@ public class RaceDataStateTest {
                 Collections.<RegistrationId, Long>emptyMap(),
                 Collections.singletonList(registrationId));
 
-        assertNull(state.stageStartMillisFor(registrationId));
+        assertNull(state.stageStartFor(registrationId));
     }
 
     @Test
@@ -55,7 +55,7 @@ public class RaceDataStateTest {
         state.applyChanges(
                 Collections.singletonMap(first, new TeamId("0042")),
                 Collections.<RegistrationId>emptyList(),
-                Collections.singletonMap(second, Long.valueOf(1798112096780L)),
+                Collections.singletonMap(second, Long.valueOf(12_34_56_78L)),
                 Collections.<RegistrationId>emptyList());
 
         List<String> mappings = new ArrayList<String>();
@@ -71,32 +71,32 @@ public class RaceDataStateTest {
         assertEquals(
                 1,
                 state.visitStageStarts(
-                        (registrationId, startMillis) ->
+                        (registrationId, stageStart) ->
                                 stageStarts.add(
                                         registrationId.value()
                                                 + "="
-                                                + startMillis)));
+                                                + stageStart)));
 
         assertEquals(Collections.singletonList("R0042=0042"), mappings);
         assertEquals(new TeamId("0001"), state.teamIdFor(fixed));
         assertEquals(
-                Collections.singletonList("R0043=1798112096780"),
+                Collections.singletonList("R0043=12345678"),
                 stageStarts);
     }
 
     @Test
-    public void engineeringStageStartReplacesOneNormalizedValue() {
+    public void engineeringStageStartReplacesOneCompactUtcValue() {
         RaceDataState state = new RaceDataState(EventData.empty());
         RegistrationId registrationId = new RegistrationId("R0042");
 
-        state.setStageStart(registrationId, 1798112096780L);
+        state.setStageStart(registrationId, 12_34_56_78L);
         assertEquals(
-                Long.valueOf(1798112096780L),
-                state.stageStartMillisFor(registrationId));
+                Long.valueOf(12_34_56_78L),
+                state.stageStartFor(registrationId));
 
-        state.setStageStart(registrationId, 1798112097120L);
+        state.setStageStart(registrationId, 2026_10_23_12_34_57_12L);
         assertEquals(
-                Long.valueOf(1798112097120L),
-                state.stageStartMillisFor(registrationId));
+                Long.valueOf(2026_10_23_12_34_57_12L),
+                state.stageStartFor(registrationId));
     }
 }

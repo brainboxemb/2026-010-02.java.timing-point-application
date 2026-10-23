@@ -21,10 +21,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * a matching REV marks the newest corresponding row invalid without removing or reordering it.</p>
  *
  * <p>Each retained row is compact primitive state containing the registration passage time,
- * current RegistrationId-scoped stage start and current competition rank. Runtime is derived by
- * direct subtraction. A stage-start SET/DEL updates every retained passage for that RegistrationId
- * and recalculates ranking. Valid rows with known stage starts participate independently; equal
- * runtimes share competition rank. Invalid or start-less rows have rank zero.</p>
+ * current compact UTC stage start and current competition rank. StageTiming derives runtime
+ * without inventing a missing date. A stage-start SET/DEL updates every retained passage for that
+ * RegistrationId and recalculates ranking. Only valid rows with an unambiguous runtime rank.</p>
  *
  * <p>Historical rebuild defers ranking until catch-up completes, avoiding repeated whole-list
  * ranking work while LogBook rows are replayed. Later live ADD/REV and RaceData stage-start
@@ -85,7 +84,7 @@ public final class ActiveRegistrations {
      */
     public Change apply(
             TimingRecord record,
-            Long stageStartMillis) {
+            Long stageStart) {
 
         failIfInvalidArgument(record != null, "record must not be null");
         failIfIllegalState(locationId != 0, "registration projection is not active");
@@ -101,9 +100,9 @@ public final class ActiveRegistrations {
                                 record.sequenceNumber(),
                                 effectiveTimeMillis,
                                 packedRegistrationId,
-                                stageStartMillis == null
+                                stageStart == null
                                         ? NO_STAGE_START
-                                        : stageStartMillis.longValue());
+                                        : stageStart.longValue());
                 registrations.add(registration);
                 lastMutationSequence = record.sequenceNumber();
                 change = new Change(Change.Action.ADDED, registration);
@@ -139,12 +138,12 @@ public final class ActiveRegistrations {
         boolean changed = false;
         for (Map.Entry<RegistrationId, Long> entry : startsToSet.entrySet()) {
             RegistrationId registrationId = entry.getKey();
-            Long startMillis = entry.getValue();
+            Long stageStart = entry.getValue();
             failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-            failIfInvalidArgument(startMillis != null, "stage start must not be null");
+            failIfInvalidArgument(stageStart != null, "stage start must not be null");
             changed |= replaceStageStart(
                     registrationId.packedValue(),
-                    startMillis.longValue());
+                    stageStart.longValue());
         }
 
         for (RegistrationId registrationId : startsToDelete) {
@@ -162,15 +161,15 @@ public final class ActiveRegistrations {
     /** Applies one engineering stage-start update to all passages of one RegistrationId. */
     public void stageStartChanged(
             RegistrationId registrationId,
-            Long startMillis) {
+            Long stageStart) {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
 
         long value =
-                startMillis == null
+                stageStart == null
                         ? NO_STAGE_START
-                        : startMillis.longValue();
+                        : stageStart.longValue();
         if (replaceStageStart(registrationId.packedValue(), value)
                 && !rebuilding) {
             recalculateRanks();
@@ -240,13 +239,13 @@ public final class ActiveRegistrations {
     /** Updates the retained stage-start scalar on every passage with one packed RegistrationId. */
     private boolean replaceStageStart(
             int registrationId,
-            long stageStartMillis) {
+            long stageStart) {
 
         boolean changed = false;
         for (Registration registration : registrations) {
             if (registration.registrationId == registrationId
-                    && registration.stageStartMillis != stageStartMillis) {
-                registration.stageStartMillis = stageStartMillis;
+                    && registration.stageStart != stageStart) {
+                registration.stageStart = stageStart;
                 changed = true;
             }
         }
@@ -290,21 +289,22 @@ public final class ActiveRegistrations {
         int rankableCount = 0;
         for (Registration registration : registrations) {
             registration.rank = 0;
-            if (registration.valid && registration.hasStageStart()) {
-                rankingElapsedMillis[rankableCount++] =
-                        registration.elapsedMillis();
+            long elapsed = registration.elapsedMillisOrMissing();
+            if (registration.valid && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
+                rankingElapsedMillis[rankableCount++] = elapsed;
             }
         }
 
         Arrays.sort(rankingElapsedMillis, 0, rankableCount);
 
         for (Registration registration : registrations) {
-            if (registration.valid && registration.hasStageStart()) {
+            long elapsed = registration.elapsedMillisOrMissing();
+            if (registration.valid && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
                 registration.rank =
                         firstIndexOf(
                                 rankingElapsedMillis,
                                 rankableCount,
-                                registration.elapsedMillis())
+                                elapsed)
                                 + 1;
             }
         }
@@ -351,14 +351,14 @@ public final class ActiveRegistrations {
      * One retained display registration for the active WP.
      *
      * <p>All retained fields are primitive. RegistrationId is reconstructed only at a read
-     * boundary. A missing stage start uses an internal sentinel; rank zero means the row is not
-     * currently rankable because it is invalid or has no stage start.</p>
+     * boundary. A missing stage start uses an internal sentinel; rank zero means the row is invalid
+     * or its compact stage start cannot yet produce an unambiguous runtime.</p>
      */
     public static final class Registration {
         private final long sequenceNumber;
         private final long effectiveTimeMillis;
         private final int registrationId;
-        private long stageStartMillis;
+        private long stageStart;
         private int rank;
         private boolean valid = true;
 
@@ -366,12 +366,12 @@ public final class ActiveRegistrations {
                 long sequenceNumber,
                 long effectiveTimeMillis,
                 int registrationId,
-                long stageStartMillis) {
+                long stageStart) {
 
             this.sequenceNumber = sequenceNumber;
             this.effectiveTimeMillis = effectiveTimeMillis;
             this.registrationId = registrationId;
-            this.stageStartMillis = stageStartMillis;
+            this.stageStart = stageStart;
         }
 
         /** Returns the original committed ADD sequence number used for display paging. */
@@ -395,21 +395,39 @@ public final class ActiveRegistrations {
         /** Reports whether this row currently has a RegistrationId-scoped stage start. */
         public boolean hasStageStart() {
 
-            return stageStartMillis != NO_STAGE_START;
+            return stageStart != NO_STAGE_START;
         }
 
-        /** Returns the absolute stage start; requires hasStageStart(). */
-        public long stageStartMillis() {
+        /** Returns the compact UTC stage start; requires hasStageStart(). */
+        public long stageStart() {
 
             failIfIllegalState(hasStageStart(), "registration has no stage start");
-            return stageStartMillis;
+            return stageStart;
         }
 
-        /** Returns passage runtime in milliseconds; requires hasStageStart(). */
+        /** Reports whether StageTiming can derive an unambiguous runtime for this row. */
+        public boolean hasElapsedTime() {
+
+            return elapsedMillisOrMissing() != StageTiming.NO_ELAPSED_MILLIS;
+        }
+
+        /** Returns passage runtime in milliseconds; requires hasElapsedTime(). */
         public long elapsedMillis() {
 
-            failIfIllegalState(hasStageStart(), "registration has no stage start");
-            return effectiveTimeMillis - stageStartMillis;
+            long elapsed = elapsedMillisOrMissing();
+            failIfIllegalState(
+                    elapsed != StageTiming.NO_ELAPSED_MILLIS,
+                    "registration has no resolved elapsed time");
+            return elapsed;
+        }
+
+        private long elapsedMillisOrMissing() {
+
+            return hasStageStart()
+                    ? StageTiming.elapsedMillisOrMissing(
+                            stageStart,
+                            effectiveTimeMillis)
+                    : StageTiming.NO_ELAPSED_MILLIS;
         }
 
         /** Returns competition rank, or zero when this row is not currently rankable. */
