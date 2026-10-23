@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Split retained node data from `NodeService` processing: `NodeState` now owns `RaceDataState`, `ActiveRegistrations` and `RegisteredTeams` and directly implements the read-only `NodeStateAccessor` boundary. Keep ordered/catch-up-aware reads with the state owner, while `NodeService` remains focused on input processing, mutation ordering and lifecycle.
+
 - Align technical LogBook terminal output with the persisted IF-05 vocabulary: `lb` now prints compact `type=AUTO_REG|MAN_REG|NODE_INFO`, persisted `code=` values, and UTC `time`/`recTime` instead of leaking internal Java kind/action names. Add node-scoped `lbl <locationId> ...` with count/latest/all/global-sequence paging through the existing LogBook query boundary so one location can be inspected without introducing another persistence/index model.
 
 - Add node-scoped technical terminal inspection alongside the display-ready `regs` projection: `lb` reuses the real LogBook query boundary for count/latest/range/all history and prints retained TimingRecord fields with absolute UTC time/recTime values; `data` reads one coherent current RaceData snapshot from the NodeService Task Lane and exposes live Central RegistrationId-to-TeamId mappings plus RegistrationId-scoped UTC stage starts without folding in fixed EventData mappings. Add focused `help lb` and `help data` pages.

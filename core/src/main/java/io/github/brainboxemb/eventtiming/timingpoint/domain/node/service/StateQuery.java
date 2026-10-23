@@ -10,21 +10,30 @@ import java.util.function.Supplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Executes one result-bearing NodeService read on the node Task Lane. */
-final class NodeServiceQuery<T> implements YieldingTask {
+/**
+ * Result-bearing NodeState read task.
+ *
+ * <p>The task may first wait for projection catch-up without blocking the Task Lane worker.
+ * The supplied read itself always runs on that lane.</p>
+ */
+final class StateQuery<T> implements YieldingTask {
     private final CompletionStage<?> catchUpCompletion;
     private final Supplier<T> operation;
     private T result;
 
-    private NodeServiceQuery(CompletionStage<?> catchUpCompletion, Supplier<T> operation) {
+    /** Creates one read task with an optional completion that must settle before the read runs. */
+    private StateQuery(
+            CompletionStage<?> catchUpCompletion,
+            Supplier<T> operation) {
 
         failIfInvalidArgument(operation != null, "operation must not be null");
-
         this.catchUpCompletion = catchUpCompletion;
         this.operation = operation;
     }
 
-    /** Queues an ordered read and blocks the caller until the Task Lane returns its result. */
+    /**
+     * Runs directly when already on the Task Lane; otherwise blocks only the caller for the result.
+     */
     static <T> T execute(
             SerialTaskRunner taskRunner,
             Duration timeout,
@@ -39,12 +48,12 @@ final class NodeServiceQuery<T> implements YieldingTask {
             return operation.get();
         }
 
-        NodeServiceQuery<T> query = new NodeServiceQuery<T>(catchUpCompletion, operation);
+        StateQuery<T> query = new StateQuery<T>(catchUpCompletion, operation);
         taskRunner.await(taskRunner.runTask(query), timeout);
         return query.result;
     }
 
-    /** Waits cooperatively for NodeService catch-up and then executes the requested read. */
+    /** Yields until catch-up completes, then performs the read on the Task Lane. */
     @Override
     public TaskStep runStep() {
 

@@ -7,9 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -47,9 +45,7 @@ final class DataTask extends AbstractTask {
 
     private final SerialTaskRunner taskRunner;
     private final LogBookAccessor logBook;
-    private final RaceDataState raceData;
-    private final ActiveRegistrations activeRegistrations;
-    private final RegisteredTeams registeredTeams;
+    private final NodeState state;
     private final RebuildCompletedHandler rebuildCompletedHandler;
     private final Consumer<Throwable> failureHandler;
 
@@ -69,17 +65,13 @@ final class DataTask extends AbstractTask {
     DataTask(
             SerialTaskRunner taskRunner,
             LogBookAccessor logBook,
-            RaceDataState raceData,
-            ActiveRegistrations activeRegistrations,
-            RegisteredTeams registeredTeams,
+            NodeState state,
             RebuildCompletedHandler rebuildCompletedHandler,
             Consumer<Throwable> failureHandler) {
 
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
-        failIfInvalidArgument(raceData != null, "raceData must not be null");
-        failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
-        failIfInvalidArgument(registeredTeams != null, "registeredTeams must not be null");
+        failIfInvalidArgument(state != null, "state must not be null");
         failIfInvalidArgument(
                 rebuildCompletedHandler != null,
                 "rebuildCompletedHandler must not be null");
@@ -87,9 +79,7 @@ final class DataTask extends AbstractTask {
 
         this.taskRunner = taskRunner;
         this.logBook = logBook;
-        this.raceData = raceData;
-        this.activeRegistrations = activeRegistrations;
-        this.registeredTeams = registeredTeams;
+        this.state = state;
         this.rebuildCompletedHandler = rebuildCompletedHandler;
         this.failureHandler = failureHandler;
     }
@@ -140,7 +130,7 @@ final class DataTask extends AbstractTask {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         if (isCurrentProjection()) {
-            registeredTeams.teamAssignmentChanged(registrationId, teamId);
+            state.registeredTeams().teamAssignmentChanged(registrationId, teamId);
         }
     }
 
@@ -152,7 +142,7 @@ final class DataTask extends AbstractTask {
         failIfInvalidArgument(startsToSet != null, "startsToSet must not be null");
         failIfInvalidArgument(startsToDelete != null, "startsToDelete must not be null");
         if (isCurrentProjection()) {
-            activeRegistrations.applyStageStartChanges(
+            state.activeRegistrations().applyStageStartChanges(
                     startsToSet,
                     startsToDelete);
         }
@@ -165,7 +155,7 @@ final class DataTask extends AbstractTask {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         if (isCurrentProjection()) {
-            activeRegistrations.stageStartChanged(
+            state.activeRegistrations().stageStartChanged(
                     registrationId,
                     startMillis);
         }
@@ -219,8 +209,8 @@ final class DataTask extends AbstractTask {
         rebuilding = false;
         nextSequence = 1L;
         pendingRead = null;
-        activeRegistrations.deactivate();
-        registeredTeams.deactivate();
+        state.activeRegistrations().deactivate();
+        state.registeredTeams().deactivate();
         caughtUp.cancel(true);
         caughtUp = CompletableFuture.completedFuture(null);
     }
@@ -303,12 +293,12 @@ final class DataTask extends AbstractTask {
 
         if (activeLocationId == 0) {
             rebuilding = false;
-            activeRegistrations.deactivate();
-            registeredTeams.deactivate();
+            state.activeRegistrations().deactivate();
+            state.registeredTeams().deactivate();
         } else {
             rebuilding = true;
-            activeRegistrations.activate(new LocationId(activeLocationId));
-            registeredTeams.beginRebuild();
+            state.activeRegistrations().activate(new LocationId(activeLocationId));
+            state.registeredTeams().beginRebuild();
         }
     }
 
@@ -334,11 +324,11 @@ final class DataTask extends AbstractTask {
 
             Long stageStartMillis = stageStartMillis(record);
             ActiveRegistrations.Change change =
-                    activeRegistrations.apply(
+                    state.activeRegistrations().apply(
                             record,
                             stageStartMillis);
             if (change != null) {
-                registeredTeams.apply(change, raceData.teamIdFor(change.registrationId()));
+                state.registeredTeams().apply(change, state.raceData().teamIdFor(change.registrationId()));
             }
             nextSequence++;
         }
@@ -350,7 +340,7 @@ final class DataTask extends AbstractTask {
         if ((record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION
                         || record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION)
                 && record.action() == TimingRecord.Action.ADD) {
-            return raceData.stageStartMillisFor(
+            return state.raceData().stageStartMillisFor(
                     RegistrationId.fromPackedValue(
                             record.registrationId()));
         }
@@ -390,8 +380,8 @@ final class DataTask extends AbstractTask {
         }
 
         if (activeLocationId != 0 && rebuilding) {
-            activeRegistrations.completeRebuild();
-            registeredTeams.completeRebuild();
+            state.activeRegistrations().completeRebuild();
+            state.registeredTeams().completeRebuild();
             rebuilding = false;
             rebuildCompletedHandler.completed(
                     activeLocationId,

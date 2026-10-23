@@ -11,10 +11,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -32,27 +30,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Coordinates node-local state that must remain ordered on the TimingNode Task Lane.
+ * Processes node-local input on one ordered Task Lane.
  *
- * <p>MainTask reacts only to LogBook availability. DataTask owns the active-WP LogBook cursor:
- * while CLOSED there is no registration projection; OPEN(locationId) rebuilds that WP from the
- * complete LogBook in bounded batches and then keeps it caught up. RaceDataState owns live Central
- * RACE_DATA. ActiveRegistrations and RegisteredTeams own the two active-WP projections.</p>
- *
- * <p>The public registration reads are relative to the one currently open WP, so they take no
- * LocationId argument. Reads first wait for DataTask reconstruction/catch-up and then execute on
- * the Task Lane. Calling them while CLOSED is an illegal state.</p>
+ * <p>NodeService normalizes incoming changes and drives NodeState. NodeState owns the retained
+ * live and derived data and exposes its read-only NodeStateAccessor boundary.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
@@ -71,14 +59,8 @@ public final class NodeService extends LifecycleComponent {
     private final SerialTaskRunner taskRunner;
     private final TimeSource timeSource;
     private final EventData eventData;
-    private final RaceDataState raceData;
-    private final ActiveRegistrations activeRegistrations;
-    private final RegisteredTeams registeredTeams = new RegisteredTeams();
-    private final DataTask dataTask;
+    private final NodeState state;
     private final MainTask mainTask = new MainTask();
-
-    /** Incremental team membership changes for a smart display's own team list. */
-    public final EventSource<RegisteredTeams.Change> REGISTERED_TEAMS_CHANGED = registeredTeams.CHANGED;
 
     /** Creates the service over one LogBook and the node Task Lane. */
     public NodeService(
@@ -106,15 +88,12 @@ public final class NodeService extends LifecycleComponent {
                         scheduler);
         this.timeSource = timeSource;
         this.eventData = eventData;
-        this.raceData = raceData;
-        this.activeRegistrations = activeRegistrations;
-        dataTask =
-                new DataTask(
+        this.state =
+                new NodeState(
                         taskRunner,
                         logBook,
                         raceData,
                         activeRegistrations,
-                        registeredTeams,
                         this::dataTaskRebuilt,
                         this::dataTaskFailed);
     }
@@ -131,7 +110,7 @@ public final class NodeService extends LifecycleComponent {
     protected void onDeactivate() {
 
         mainTask.stop();
-        dataTask.stop();
+        state.stop();
         taskRunner.close();
     }
 
@@ -200,20 +179,14 @@ public final class NodeService extends LifecycleComponent {
             }
         }
 
-        raceData.applyChanges(
+        state.applyRaceDataChanges(
                 assignmentsToSet,
                 assignmentsToDelete,
                 stageStartsToSet,
                 stageStartsToDelete);
-        dataTask.stageStartChangesApplied(
-                stageStartsToSet,
-                stageStartsToDelete);
 
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
-            RegistrationId registrationId = change.registrationId();
-            dataTask.teamAssignmentChanged(
-                    registrationId,
-                    raceData.teamIdFor(registrationId));
+            state.teamAssignmentChanged(change.registrationId());
         }
     }
 
@@ -247,28 +220,20 @@ public final class NodeService extends LifecycleComponent {
             long startMillis) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        runOrderedMutation(
-                () -> {
-                    raceData.setStageStart(
-                            registrationId,
-                            startMillis);
-                    dataTask.stageStartChanged(
-                            registrationId,
-                            Long.valueOf(startMillis));
-                });
+        runOrderedMutation(() -> state.setStageStart(registrationId, startMillis));
     }
 
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */
     public void locationOpened(LocationId locationId) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
-        dataTask.locationOpened(locationId);
+        state.locationOpened(locationId);
     }
 
     /** Deactivates registration state when TimingNode closes its WP. */
     public void locationClosed() {
 
-        dataTask.locationClosed();
+        state.locationClosed();
     }
 
     /** Resolves fixed event reference data for one location/team pair. */
@@ -281,108 +246,10 @@ public final class NodeService extends LifecycleComponent {
         return eventData.registrationIdFor(locationId, teamId);
     }
 
-    /** Returns one stable metadata snapshot of the active registration projection. */
-    public RegistrationProjectionInfo registrationProjectionInfo() {
+    /** Exposes current node data without exposing its mutation API. */
+    public NodeStateAccessor state() {
 
-        return readActive(this::currentRegistrationProjectionInfo);
-    }
-
-    /** Visits one bounded page and returns metadata from the same ordered read turn. */
-    public RegistrationProjectionInfo visitRegistrationPage(
-            long afterSequence,
-            int limit,
-            Consumer<ActiveRegistrations.Registration> visitor) {
-
-        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
-        failIfInvalidArgument(limit >= 0, "limit must not be negative");
-        failIfInvalidArgument(visitor != null, "visitor must not be null");
-
-        return readActive(
-                () -> {
-                    activeRegistrations.visitAfter(
-                            afterSequence,
-                            limit,
-                            visitor);
-                    return currentRegistrationProjectionInfo();
-                });
-    }
-
-    private RegistrationProjectionInfo currentRegistrationProjectionInfo() {
-
-        return new RegistrationProjectionInfo(
-                activeRegistrations.locationId(),
-                activeRegistrations.size(),
-                registeredTeams.uniqueTeamCount(),
-                activeRegistrations.lastMutationSequence(),
-                activeRegistrations.lastRevokeSequence());
-    }
-
-    /** Returns the number of uniquely registered teams in the currently open WP. */
-    public int uniqueTeamRegistrationCount() {
-
-        return readActive(registeredTeams::uniqueTeamCount);
-    }
-
-    /**
-     * Visits registrations of one WP in original ADD order, including invalidated rows.
-     *
-     * <p>This is the maintained chronological registration projection used by the smart-display
-     * boundary; it is not a calculated presentation list.</p>
-     */
-    public int visitRegistrations(
-            int limit, Consumer<ActiveRegistrations.Registration> visitor) {
-
-        failIfInvalidArgument(limit >= 0, "limit must not be negative");
-        failIfInvalidArgument(visitor != null, "visitor must not be null");
-
-        return readActive(() -> activeRegistrations.visit(limit, visitor));
-    }
-
-    /**
-     * Visits later registration rows without restarting at the first displayed sequence.
-     *
-     * <p>A later REV can change an earlier row. Use visitRegistrations when checking
-     * those earlier rows for invalidation; this cursor only pages newly added rows.</p>
-     */
-    public int visitRegistrationsAfter(
-            long afterSequence,
-            int limit,
-            Consumer<ActiveRegistrations.Registration> visitor) {
-
-        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
-        failIfInvalidArgument(limit >= 0, "limit must not be negative");
-        failIfInvalidArgument(visitor != null, "visitor must not be null");
-
-        return readActive(() -> activeRegistrations.visitAfter(afterSequence, limit, visitor));
-    }
-
-    /** Visits the complete current unique-team set for an order-independent compact display burst. */
-    public int visitRegisteredTeams(Consumer<TeamId> visitor) {
-
-        failIfInvalidArgument(visitor != null, "visitor must not be null");
-
-        return readActive(() -> registeredTeams.visit(visitor));
-    }
-
-    /**
-     * Visits one coherent snapshot of current live RaceData on the NodeService Task Lane.
-     *
-     * <p>The assignment visitor sees only live Central assignments, not fixed EventData mappings.
-     * Stage-start values are normalized absolute UTC epoch milliseconds.</p>
-     */
-    public void visitRaceData(
-            BiConsumer<RegistrationId, TeamId> assignmentVisitor,
-            BiConsumer<RegistrationId, Long> stageStartVisitor) {
-
-        failIfInvalidArgument(assignmentVisitor != null, "assignmentVisitor must not be null");
-        failIfInvalidArgument(stageStartVisitor != null, "stageStartVisitor must not be null");
-
-        readOrdered(
-                () -> {
-                    raceData.visitLiveAssignments(assignmentVisitor);
-                    raceData.visitStageStarts(stageStartVisitor);
-                    return null;
-                });
+        return state;
     }
 
     /** Passes LogBook availability changes to MainTask. */
@@ -392,11 +259,11 @@ public final class NodeService extends LifecycleComponent {
         mainTask.statusChanged(status);
     }
 
-    /** Wakes DataTask after a committed timing-record change. */
+    /** Treats a committed TimingRecord as a wake signal; NodeState rereads LogBook by sequence. */
     private void onTimingDataChanged(TimingRecord record) {
 
         failIfInvalidArgument(record != null, "TimingRecord must not be null");
-        dataTask.dataChanged();
+        state.dataChanged();
     }
 
     /** Executes one short race-state mutation on the NodeService Task Lane. */
@@ -417,36 +284,6 @@ public final class NodeService extends LifecycleComponent {
                 QUERY_TIMEOUT);
     }
 
-    /** Runs one ordered current-state read without waiting for LogBook projection catch-up. */
-    private <T> T readOrdered(Supplier<T> operation) {
-
-        return NodeServiceQuery.execute(
-                taskRunner,
-                QUERY_TIMEOUT,
-                null,
-                operation);
-    }
-
-    /** Runs one ordered active-WP read after DataTask has reconstructed/caught up. */
-    private <T> T readActive(Supplier<T> operation) {
-
-        return read(
-                () -> {
-                    dataTask.requireActive();
-                    return operation.get();
-                });
-    }
-
-    /** Runs one ordered service read after DataTask has caught up. */
-    private <T> T read(Supplier<T> operation) {
-
-        return NodeServiceQuery.execute(
-                taskRunner,
-                QUERY_TIMEOUT,
-                dataTask.caughtUp(),
-                operation);
-    }
-
     /** Logs one completed historical reconstruction for an OPEN WP. */
     private void dataTaskRebuilt(int locationId, long recordsProcessed) {
 
@@ -461,48 +298,6 @@ public final class NodeService extends LifecycleComponent {
     private void dataTaskFailed(Throwable failure) {
 
         LOG.error("NodeService DataTask failed for node {}", nodeId.value(), failure);
-    }
-
-    /** Immutable synchronization metadata for the active registration projection. */
-    public static final class RegistrationProjectionInfo {
-        private final LocationId locationId;
-        private final int count;
-        private final int uniqueCount;
-        private final long lastMutationSequence;
-        private final long lastRevokeSequence;
-
-        private RegistrationProjectionInfo(
-                LocationId locationId,
-                int count,
-                int uniqueCount,
-                long lastMutationSequence,
-                long lastRevokeSequence) {
-            this.locationId = locationId;
-            this.count = count;
-            this.uniqueCount = uniqueCount;
-            this.lastMutationSequence = lastMutationSequence;
-            this.lastRevokeSequence = lastRevokeSequence;
-        }
-
-        public LocationId locationId() {
-            return locationId;
-        }
-
-        public int count() {
-            return count;
-        }
-
-        public int uniqueCount() {
-            return uniqueCount;
-        }
-
-        public long lastMutationSequence() {
-            return lastMutationSequence;
-        }
-
-        public long lastRevokeSequence() {
-            return lastRevokeSequence;
-        }
     }
 
     /** Handles only LogBook availability transitions. */
@@ -535,10 +330,10 @@ public final class NodeService extends LifecycleComponent {
 
             switch (currentStatus()) {
                 case LOADED:
-                    dataTask.logBookAvailable();
+                    state.logBookAvailable();
                     break;
                 case ERROR:
-                    dataTask.unavailable();
+                    state.logBookUnavailable();
                     break;
                 case INIT:
                     break;

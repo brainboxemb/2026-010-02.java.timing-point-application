@@ -46,7 +46,7 @@ public class ActiveRegistrationsIntegrationTest {
 
         List<RegisteredTeams.Change> teamChanges =
                 Collections.synchronizedList(new ArrayList<RegisteredTeams.Change>());
-        components.nodeService().REGISTERED_TEAMS_CHANGED.subscribe(teamChanges::add);
+        components.nodeService().state().registeredTeamsChanged().subscribe(teamChanges::add);
 
         activate(node);
         activate(components.nodeUpstream());
@@ -58,7 +58,7 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(0, teamChanges.size());
 
             List<TeamId> initialTeams = new ArrayList<>();
-            assertEquals(1, components.nodeService().visitRegisteredTeams(initialTeams::add));
+            assertEquals(1, components.nodeService().state().visitRegisteredTeams(initialTeams::add));
             assertEquals(new TeamId("0001"), initialTeams.get(0));
 
             stream.receive(
@@ -155,7 +155,7 @@ public class ActiveRegistrationsIntegrationTest {
             components.node().open(new LocationId(1));
 
             List<ActiveRegistrations.Registration> rows = new ArrayList<>();
-            assertEquals(2, components.nodeService().visitRegistrations(2, rows::add));
+            assertEquals(2, components.nodeService().state().visitRegistrations(2, rows::add));
             assertEquals(1L, rows.get(0).sequenceNumber());
             assertEquals(2L, rows.get(1).sequenceNumber());
         } finally {
@@ -277,12 +277,12 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
     private static void awaitUniqueTeamCount(NodeService service, int expected) {
-        assertEquals(expected, service.uniqueTeamRegistrationCount());
+        assertEquals(expected, service.state().uniqueTeamRegistrationCount());
     }
 
     private static void assertSequences(NodeService service, long... expected) {
         List<ActiveRegistrations.Registration> rows = new ArrayList<>();
-        assertEquals(expected.length, service.visitRegistrations(expected.length + 1, rows::add));
+        assertEquals(expected.length, service.state().visitRegistrations(expected.length + 1, rows::add));
         for (int index = 0; index < expected.length; index++) {
             assertEquals(expected[index], rows.get(index).sequenceNumber());
         }
