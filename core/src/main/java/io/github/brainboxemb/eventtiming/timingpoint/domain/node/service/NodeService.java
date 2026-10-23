@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -13,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDa
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
@@ -60,7 +60,6 @@ public final class NodeService extends LifecycleComponent {
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final TimeSource timeSource;
-    private final EventData eventData;
     private final NodeState state;
     private final MainTask mainTask = new MainTask();
 
@@ -70,7 +69,6 @@ public final class NodeService extends LifecycleComponent {
             ScheduledExecutorService scheduler,
             LogBookAccessor logBook,
             TimeSource timeSource,
-            EventData eventData,
             RaceDataState raceData,
             ActiveRegistrations activeRegistrations) {
 
@@ -78,7 +76,6 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
-        failIfInvalidArgument(eventData != null, "eventData must not be null");
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
 
@@ -89,7 +86,6 @@ public final class NodeService extends LifecycleComponent {
                         "NodeService-" + nodeId.value(),
                         scheduler);
         this.timeSource = timeSource;
-        this.eventData = eventData;
         this.state =
                 new NodeState(
                         taskRunner,
@@ -210,21 +206,6 @@ public final class NodeService extends LifecycleComponent {
                 .toEpochMilli();
     }
 
-    /**
-     * Sets one engineering stage-start value without changing the upstream protocol sequence.
-     *
-     * <p>The caller supplies an absolute UTC epoch-millisecond value. The mutation is serialized
-     * on the same Task Lane that owns Central RACE_DATA state, so a later ordered Central update
-     * may deliberately replace it.</p>
-     */
-    public void setStageStart(
-            RegistrationId registrationId,
-            long startMillis) {
-
-        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        runOrderedMutation(() -> state.setStageStart(registrationId, startMillis));
-    }
-
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */
     public void locationOpened(LocationId locationId) {
 
@@ -238,18 +219,14 @@ public final class NodeService extends LifecycleComponent {
         state.locationClosed();
     }
 
-    /** Resolves fixed event reference data for one location/team pair. */
-    public RegistrationId registrationIdFor(
-            LocationId locationId,
-            TeamId teamId) {
-
-        failIfInvalidArgument(locationId != null, "locationId must not be null");
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
-        return eventData.registrationIdFor(locationId, teamId);
-    }
-
     /** Exposes current node data without exposing its mutation API. */
     public NodeStateAccessor state() {
+
+        return state;
+    }
+
+    /** Exposes engineering/test mutations without widening the normal state accessor. */
+    public NodeStateTestControl stateTestControl() {
 
         return state;
     }
@@ -266,24 +243,6 @@ public final class NodeService extends LifecycleComponent {
 
         failIfInvalidArgument(record != null, "TimingRecord must not be null");
         state.dataChanged();
-    }
-
-    /** Executes one short race-state mutation on the NodeService Task Lane. */
-    private void runOrderedMutation(Runnable operation) {
-
-        failIfInvalidArgument(operation != null, "operation must not be null");
-        if (taskRunner.isExecutingOnCurrentThread()) {
-            operation.run();
-            return;
-        }
-
-        taskRunner.await(
-                taskRunner.runTask(
-                        () -> {
-                            operation.run();
-                            return TaskStep.done();
-                        }),
-                QUERY_TIMEOUT);
     }
 
     /** Logs one completed historical reconstruction for an OPEN WP. */

@@ -86,7 +86,6 @@ public class RuntimeMeasurementReaderTest {
                         nodeWorker,
                         logBook,
                         timeSource,
-                        eventData,
                         new RaceDataState(eventData),
                         new ActiveRegistrations());
         TagProcessor tags =

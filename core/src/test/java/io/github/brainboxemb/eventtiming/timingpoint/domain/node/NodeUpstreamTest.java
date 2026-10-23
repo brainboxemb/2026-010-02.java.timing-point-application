@@ -249,7 +249,6 @@ public class NodeUpstreamTest {
                         nodeWorker,
                         logBook,
                         timeSource,
-                        eventData,
                         raceData,
                         activeRegistrations);
         NodeUpstream nodeUpstream =

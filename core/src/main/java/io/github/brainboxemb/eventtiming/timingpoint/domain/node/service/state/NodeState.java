@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.Ac
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.util.List;
@@ -26,7 +27,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * ordered reads to other components. Active-WP reads wait until the LogBook projection has caught
  * up, so callers never observe a partial reconstruction.</p>
  */
-public final class NodeState implements NodeStateAccessor {
+public final class NodeState implements NodeStateAccessor, NodeStateTestControl {
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
 
     private final SerialTaskRunner taskRunner;
@@ -85,12 +86,20 @@ public final class NodeState implements NodeStateAccessor {
         dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
     }
 
-    /** Applies one engineering stage start to live state and the active registration projection. */
-    public void setStageStart(RegistrationId registrationId, long startMillis) {
+    /** Applies one engineering override on the same Task Lane as normal RaceData mutations. */
+    @Override
+    public void overrideStageStart(
+            RegistrationId registrationId,
+            long startMillis) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        raceData.setStageStart(registrationId, startMillis);
-        dataTask.stageStartChanged(registrationId, Long.valueOf(startMillis));
+        runOrderedMutation(
+                () -> {
+                    raceData.setStageStart(registrationId, startMillis);
+                    dataTask.stageStartChanged(
+                            registrationId,
+                            Long.valueOf(startMillis));
+                });
     }
 
     /** Starts reconstruction for the newly opened WP before active-state reads may complete. */
@@ -244,6 +253,24 @@ public final class NodeState implements NodeStateAccessor {
                     raceData.visitStageStarts(stageStartVisitor);
                     return null;
                 });
+    }
+
+    /** Runs one short engineering mutation on the Task Lane and waits for completion. */
+    private void runOrderedMutation(Runnable operation) {
+
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        if (taskRunner.isExecutingOnCurrentThread()) {
+            operation.run();
+            return;
+        }
+
+        taskRunner.await(
+                taskRunner.runTask(
+                        () -> {
+                            operation.run();
+                            return TaskStep.done();
+                        }),
+                QUERY_TIMEOUT);
     }
 
     /** Executes one state read on the Task Lane without waiting for the LogBook projection. */

@@ -100,17 +100,22 @@ final class TimingSystemComposer {
                         upstream);
         return new TimingSystemComposition(
                 timingSystem,
-                presentationNodes(nodeCompositions));
+                presentationNodes(
+                        system,
+                        nodeCompositions));
     }
 
     /** Materializes the application-facing node seams before Runtime drops child references. */
     private static List<TimingNodeProxyComponents> presentationNodes(
+            TimingSystemResolvedData system,
             List<TimingNodeComposition> compositions) {
 
         List<TimingNodeProxyComponents> nodes =
                 new ArrayList<TimingNodeProxyComponents>();
         for (TimingNodeComposition composition : compositions) {
-            nodes.add(composition.presentationComponents());
+            nodes.add(
+                    composition.presentationComponents(
+                            system.eventData()));
         }
         return nodes;
     }

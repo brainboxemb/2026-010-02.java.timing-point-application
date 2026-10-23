@@ -205,7 +205,6 @@ final class RuntimeCharacterizationHarness
                         nodeWorker,
                         logBook,
                         timeSource,
-                        nodeEventData,
                         raceData,
                         activeRegistrations);
 

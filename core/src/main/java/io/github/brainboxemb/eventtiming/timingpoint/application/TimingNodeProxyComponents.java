@@ -1,34 +1,43 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.state.NodeStateTestControl;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Explicit composition input for one presentation-facing TimingNode proxy.
  *
- * <p>The value keeps the owning TimingNode, NodeService and LogBook boundaries separate.
- * It owns no lifecycle and adds no delegation; Runtime constructs it from the already
- * composed node graph and Presentation uses each component only for its own responsibility.</p>
+ * <p>The value carries only boundaries used by Presentation. Runtime keeps NodeService
+ * internal and supplies EventData plus the normal and engineering state boundaries explicitly.</p>
  */
 public final class TimingNodeProxyComponents {
     private final TimingNode timingNode;
-    private final NodeService nodeService;
+    private final EventData eventData;
+    private final NodeStateAccessor nodeState;
+    private final NodeStateTestControl nodeStateTestControl;
     private final LogBookAccessor logBook;
 
     /** Creates one immutable proxy-composition value. */
     public TimingNodeProxyComponents(
             TimingNode timingNode,
-            NodeService nodeService,
+            EventData eventData,
+            NodeStateAccessor nodeState,
+            NodeStateTestControl nodeStateTestControl,
             LogBookAccessor logBook) {
 
         failIfInvalidArgument(timingNode != null, "timingNode must not be null");
-        failIfInvalidArgument(nodeService != null, "nodeService must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
+        failIfInvalidArgument(nodeState != null, "nodeState must not be null");
+        failIfInvalidArgument(nodeStateTestControl != null, "nodeStateTestControl must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         this.timingNode = timingNode;
-        this.nodeService = nodeService;
+        this.eventData = eventData;
+        this.nodeState = nodeState;
+        this.nodeStateTestControl = nodeStateTestControl;
         this.logBook = logBook;
     }
 
@@ -36,8 +45,16 @@ public final class TimingNodeProxyComponents {
         return timingNode;
     }
 
-    NodeService nodeService() {
-        return nodeService;
+    EventData eventData() {
+        return eventData;
+    }
+
+    NodeStateAccessor nodeState() {
+        return nodeState;
+    }
+
+    NodeStateTestControl nodeStateTestControl() {
+        return nodeStateTestControl;
     }
 
     LogBookAccessor logBook() {
