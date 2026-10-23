@@ -74,7 +74,7 @@ public class ActiveRegistrationsIntegrationTest {
 
             awaitUniqueTeamCount(components.nodeService(), 2);
             List<TeamId> synchronizedTeams = new ArrayList<>();
-            assertEquals(2, components.nodeService().visitRegisteredTeams(synchronizedTeams::add));
+            assertEquals(2, components.nodeService().state().visitRegisteredTeams(synchronizedTeams::add));
             org.junit.Assert.assertTrue(synchronizedTeams.contains(new TeamId("0001")));
             org.junit.Assert.assertTrue(synchronizedTeams.contains(new TeamId("0042")));
             assertEquals(1, teamChanges.size());
@@ -208,7 +208,7 @@ public class ActiveRegistrationsIntegrationTest {
             stream.takeSent();
 
             List<ActiveRegistrations.Registration> rows = new ArrayList<>();
-            components.nodeService().visitRegistrations(10, rows::add);
+            components.nodeService().state().visitRegistrations(10, rows::add);
             assertEquals(20000L, rows.get(0).elapsedMillis());
             assertEquals(2, rows.get(0).rank());
             assertEquals(10000L, rows.get(1).elapsedMillis());
