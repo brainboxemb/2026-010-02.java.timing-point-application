@@ -239,10 +239,10 @@ final class CentralMessagesPaneTest {
                 CentralMessagesPane.detailPayload(
                         packet,
                         raw);
-        String[] lines = displayed.split("\R");
+        String[] lines = displayed.split("\\R");
 
         assertEquals(4, lines.length);
-        assertTrue(lines[0].endsWith(""data":["));
+        assertTrue(lines[0].endsWith("\\\"data\\\":["));
         assertTrue(lines[1].trim().startsWith("{"));
         assertTrue(lines[1].trim().endsWith("},"));
         assertTrue(lines[2].trim().startsWith("{"));
@@ -250,9 +250,7 @@ final class CentralMessagesPaneTest {
         assertEquals("]}}", lines[3]);
         assertEquals(
                 raw,
-                displayed.replace("
-  ", "").replace("
-", ""));
+                displayed.replace("\n  ", "").replace("\n", ""));
     }
 
     @Test
