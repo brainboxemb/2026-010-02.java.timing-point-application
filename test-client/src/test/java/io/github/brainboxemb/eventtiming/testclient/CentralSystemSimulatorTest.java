@@ -357,6 +357,34 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void semanticMessageJournalKeepsOnlyLatestTwoHundredViewerRows() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of());
+
+        for (int index = 1; index <= 201; index++) {
+            UpstreamData outbound =
+                    DefaultUpstreamData.createDnPacket(
+                            NODE_A,
+                            0L,
+                            DefaultUpstreamData.createPing(
+                                    UpstreamData.PingOperation.ANS,
+                                    UpstreamData.PingMode.HB,
+                                    "hb-" + index,
+                                    new TimingTimestamp(RECEIVED.plusMillis(index))));
+            simulator.recordSent(
+                    outbound,
+                    RECEIVED.plusMillis(index),
+                    ApiEventClient.encodeUpstreamData(outbound));
+        }
+
+        List<CentralSystemSimulator.MessageView> messages =
+                simulator.messages();
+        assertEquals(200, messages.size());
+        assertEquals(2L, messages.get(0).ordinal());
+        assertEquals(201L, messages.get(messages.size() - 1).ordinal());
+    }
+
+    @Test
     void reconstructedLogBookIgnoresReplayDuplicatesAndSurvivesReconnect() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));
