@@ -357,29 +357,29 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void timingDataMessageTimeUsesLastRecordCreationTimeInsteadOfEventReceiptTime() {
+    void timingDataMessageTimeUsesLastEffectiveTimeInsteadOfEventReceiptTime() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));
         simulator.connected();
 
-        Instant firstRecorded =
+        Instant firstEffective =
+                Instant.parse("2026-10-24T17:31:55.490Z");
+        Instant secondEffective =
                 Instant.parse("2026-10-24T17:31:55.492Z");
-        Instant secondRecorded =
-                Instant.parse("2026-10-24T17:31:55.499Z");
         TimingRecord first =
                 TimingRecord.createNodeOpened(
                         'A',
                         1L,
                         7,
-                        firstRecorded.minusMillis(2).toEpochMilli(),
-                        firstRecorded.toEpochMilli());
+                        firstEffective.toEpochMilli(),
+                        Instant.parse("2026-10-24T17:31:55.500Z").toEpochMilli());
         TimingRecord second =
                 TimingRecord.createNodeClosed(
                         'A',
                         2L,
                         7,
-                        secondRecorded.minusMillis(2).toEpochMilli(),
-                        secondRecorded.toEpochMilli());
+                        secondEffective.toEpochMilli(),
+                        Instant.parse("2026-10-24T17:31:55.501Z").toEpochMilli());
 
         UpstreamData packet =
                 timingDataPacket(
@@ -399,7 +399,7 @@ final class CentralSystemSimulatorTest {
 
         CentralSystemSimulator.MessageView message =
                 simulator.messages().get(0);
-        assertEquals(secondRecorded, message.messageTime());
+        assertEquals(secondEffective, message.messageTime());
         assertEquals(receivedAt, message.receivedAt());
     }
 
