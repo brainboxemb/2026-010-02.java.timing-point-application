@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -14,15 +13,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Owns heartbeat protocol state for one NodeUpstream.
  *
- * <p>This helper has no worker or timer. Connector heartbeat cadence reaches
- * NodeUpstream as a typed event; NodeUpstream then executes {@link #tick()} on
- * its serial task runner. Semantic PING construction and response state stay
- * here, while actual encoding/sending remains owned by NodeUpstream.</p>
+ * <p>This helper owns semantic PING creation/response only. NodeUpstream wraps every PING
+ * in packetId 0 and keeps heartbeat cadence serialized with the other protocol state.</p>
  */
 final class Heartbeat {
-    private final NodeId nodeId;
     private final BooleanSupplier available;
-    private final Consumer<UpstreamData> sender;
+    private final Consumer<UpstreamData.Message> sender;
     private final TimeSource timeSource;
 
     private long requestsSent;
@@ -39,26 +35,18 @@ final class Heartbeat {
                     false);
 
     Heartbeat(
-            NodeId nodeId,
             BooleanSupplier available,
-            Consumer<UpstreamData> sender,
+            Consumer<UpstreamData.Message> sender,
             TimeSource timeSource) {
-        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sender != null, "sender must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
-        this.nodeId = nodeId;
         this.available = available;
         this.sender = sender;
         this.timeSource = timeSource;
     }
 
-    /**
-     * Sends one heartbeat request when communication is available.
-     *
-     * <p>An unanswered previous request counts as one missed interval before the
-     * next request replaces its ping id.</p>
-     */
+    /** Sends one heartbeat request when communication is available. */
     void tick() {
         if (!available.getAsBoolean()) {
             return;
@@ -74,8 +62,7 @@ final class Heartbeat {
 
         publishStatus();
         sender.accept(
-                DefaultUpstreamData.ping(
-                        nodeId,
+                DefaultUpstreamData.createPing(
                         UpstreamData.PingOperation.REQ,
                         UpstreamData.PingMode.HB,
                         pendingPingId,
@@ -89,8 +76,7 @@ final class Heartbeat {
 
         if (ping.operation() == UpstreamData.PingOperation.REQ) {
             sender.accept(
-                    DefaultUpstreamData.ping(
-                            nodeId,
+                    DefaultUpstreamData.createPing(
                             UpstreamData.PingOperation.ANS,
                             ping.mode(),
                             ping.pingId(),
