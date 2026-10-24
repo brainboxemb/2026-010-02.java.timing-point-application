@@ -747,7 +747,8 @@ public final class TestClientFxApplication extends Application {
                         : centralSimulator.accept(
                                 upstreamEvent.upstreamData(),
                                 upstreamEvent.occurredAt(),
-                                upstreamEvent.receivedAt())) {
+                                upstreamEvent.receivedAt(),
+                                upstreamEvent.rawPayloadJson())) {
                     sendUpstreamDataWithTraffic(reply)
                             .whenComplete((ignored, error) -> {
                                 if (error != null) {
@@ -842,7 +843,7 @@ public final class TestClientFxApplication extends Application {
         String rawPayload = ApiEventClient.encodeUpstreamData(data);
         java.time.Instant sentAt = java.time.Instant.now();
         CompletableFuture<Void> send = system.eventClient().sendUpstreamData(data);
-        centralSimulator.recordSent(data, sentAt);
+        centralSimulator.recordSent(data, sentAt, rawPayload);
         eventTrafficPane.recordOutbound(
                 sentAt,
                 data.family().name(),

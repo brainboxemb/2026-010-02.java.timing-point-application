@@ -334,7 +334,7 @@ final class CentralMessagesPane {
         }
 
         followEnd = false;
-        rawMessage.setText(ApiEventClient.encodeUpstreamData(selected.message().data()));
+        rawMessage.setText(selected.message().rawPayloadJson());
     }
 
     private void selectFollowEnd() {
@@ -493,21 +493,10 @@ final class CentralMessagesPane {
         long first = firstRecord.sequenceNumber();
         long last = lastRecord.sequenceNumber();
 
-        String recordType = timingRecordType(firstRecord.kind());
-        boolean sameType = true;
-        for (int index = 1; index < records.size(); index++) {
-            if (records.get(index).kind() != firstRecord.kind()) {
-                sameType = false;
-                break;
-            }
-        }
-
         if (first == last) {
-            return recordType + " #" + first;
+            return timingRecordType(firstRecord.kind()) + " #" + first;
         }
-        return sameType
-                ? recordType + " #" + first + ".." + last
-                : "#" + first + ".." + last;
+        return "#" + first + ".." + last;
     }
 
     /** Returns the compact IF-05 record type already used by operator-facing LogBook output. */
