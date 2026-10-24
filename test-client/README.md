@@ -498,8 +498,7 @@ nodes the same API workbench addresses the selected node.
 
 The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/filter
 editor. The Engineering Client still does not expose arbitrary TagObservation injection,
-TagProcessor/filter mutation or StageStartTimes/NextUpTeams editors. The first narrow
-Central RACE_DATA editor is now available separately as **C|RaceData**.
+TagProcessor/filter mutation or StageStartTimes/NextUpTeams editors. The first Central RACE_DATA editor is now available separately as **C|RaceData**.
 
 The narrow explorer deliberately contains three different projections. **A|Systems** is
 the direct IF-03/API system view of SI-01. **C|Nodes** does not invent a Central system
