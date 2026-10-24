@@ -22,6 +22,18 @@ import java.util.Map;
  * ordered source per NodeId.</p>
  */
 final class CentralSystemSimulator {
+    enum MessageDirection {
+        IN,
+        OUT
+    }
+
+    record MessageView(
+            long ordinal,
+            MessageDirection direction,
+            Instant timestamp,
+            UpstreamData data) {
+    }
+
     record NodeView(
             String nodeId,
             boolean connected,
@@ -42,10 +54,14 @@ final class CentralSystemSimulator {
             Instant changedAt) {
     }
 
+    private static final int MAX_MESSAGE_HISTORY = 2000;
+
     private final List<Integer> configuredLocationIds;
     private final Map<String, NodeState> nodes = new LinkedHashMap<>();
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
+    private final List<MessageView> messages = new ArrayList<>();
     private boolean connected;
+    private long nextMessageOrdinal = 1L;
 
     CentralSystemSimulator(Collection<Integer> configuredLocationIds) {
         if (configuredLocationIds == null) {
@@ -75,6 +91,8 @@ final class CentralSystemSimulator {
         connected = false;
         nodes.clear();
         locations.clear();
+        messages.clear();
+        nextMessageOrdinal = 1L;
         restoreConfiguredLocations();
     }
 
@@ -139,6 +157,8 @@ final class CentralSystemSimulator {
             throw new IllegalArgumentException("receivedAt must not be null");
         }
 
+        recordMessage(MessageDirection.IN, data, receivedAt);
+
         String nodeId = data.timingNodeId().value();
         NodeState node = nodes.computeIfAbsent(nodeId, NodeState::new);
 
@@ -159,6 +179,42 @@ final class CentralSystemSimulator {
             }
             default -> Collections.emptyList();
         };
+    }
+
+    /**
+     * Records one semantic Central-to-node message after transport send has been requested.
+     *
+     * <p>The bounded message journal is inspection state only. RACE_DATA replay uses the
+     * independent retained source history and is therefore not affected when old journal
+     * rows are evicted.</p>
+     */
+    void recordSent(UpstreamData data, Instant sentAt) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
+        }
+        if (sentAt == null) {
+            throw new IllegalArgumentException("sentAt must not be null");
+        }
+        recordMessage(MessageDirection.OUT, data, sentAt);
+    }
+
+    List<MessageView> messages() {
+        return List.copyOf(messages);
+    }
+
+    private void recordMessage(
+            MessageDirection direction,
+            UpstreamData data,
+            Instant timestamp) {
+        messages.add(
+                new MessageView(
+                        nextMessageOrdinal++,
+                        direction,
+                        timestamp,
+                        data));
+        if (messages.size() > MAX_MESSAGE_HISTORY) {
+            messages.remove(0);
+        }
     }
 
     List<NodeView> nodes() {
