@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.nod
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -16,6 +17,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -264,7 +266,9 @@ public final class NodeUpstream extends LifecycleComponent {
                         .append(", recType=")
                         .append(timingRecordType(record.kind()))
                         .append(", loc=")
-                        .append(record.locationId());
+                        .append(record.locationId())
+                        .append(", time=")
+                        .append(utcTime(record.effectiveTimeMillis()));
 
         if (record.registrationId() != 0) {
             summary.append(", regId=")
@@ -274,8 +278,16 @@ public final class NodeUpstream extends LifecycleComponent {
         }
 
         summary.append(", code=")
-                .append(timingRecordCode(record));
+                .append(timingRecordCode(record))
+                .append(", recTime=")
+                .append(utcTime(record.recordedAtMillis()));
         return summary.toString();
+    }
+
+    private static String utcTime(long epochMillis) {
+        return new TimingTimestamp(
+                Instant.ofEpochMilli(epochMillis))
+                .toString();
     }
 
     private static String timingRecordType(TimingRecord.Kind kind) {

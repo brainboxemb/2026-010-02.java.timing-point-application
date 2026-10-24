@@ -60,7 +60,9 @@ public class DefaultUpstreamDataCodecTest {
                         "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"pckNr\":57,"
                                 + "\"msg\":{\"type\":\"TIMING_DATA\",\"data\":[{"));
         assertTrue(json.contains("\"seqNr\":42"));
+        assertTrue(json.contains("\"time\":\"2026-10-13T08:00:00.12Z\""));
         assertTrue(json.contains("\"regId\":\"A0042\""));
+        assertTrue(json.contains("\"recTime\":\"2026-10-13T08:00:00.123Z\""));
 
         UpstreamData decoded = codec.decode(bytes(json));
         assertSame(
