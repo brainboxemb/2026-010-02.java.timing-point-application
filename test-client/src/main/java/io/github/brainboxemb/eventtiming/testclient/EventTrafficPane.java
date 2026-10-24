@@ -9,6 +9,8 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -54,12 +56,15 @@ final class EventTrafficPane {
     private final ComboBox<String> directionFilter = new ComboBox<>();
     private final ComboBox<String> typeFilter = new ComboBox<>();
     private final TableView<Entry> table = new TableView<>(visible);
+    private final TextArea rawFrame = new TextArea();
     private final VBox pane;
 
     EventTrafficPane() {
         directionFilter.getItems().setAll(ALL, Direction.IN.name(), Direction.OUT.name());
         directionFilter.setValue(ALL);
         directionFilter.setPrefWidth(92);
+        directionFilter.setTooltip(new Tooltip(
+                "IN = SI-01 to SI-02, OUT = SI-02 to SI-01"));
 
         typeFilter.getItems().setAll(ALL);
         typeFilter.setValue(ALL);
@@ -69,6 +74,14 @@ final class EventTrafficPane {
         typeFilter.setOnAction(event -> applyFilter());
 
         configureTable();
+        rawFrame.setEditable(false);
+        rawFrame.setWrapText(false);
+        rawFrame.setPromptText("Select a frame to inspect its exact payload");
+        rawFrame.setPrefRowCount(5);
+        rawFrame.getStyleClass().add("engineering-raw-data");
+        table.getSelectionModel().selectedItemProperty().addListener(
+                (ignored, previous, selected) ->
+                        rawFrame.setText(selected == null ? "" : selected.rawPayload()));
 
         HBox filters = new HBox(
                 8,
@@ -79,7 +92,7 @@ final class EventTrafficPane {
         filters.setAlignment(Pos.CENTER_LEFT);
         filters.getStyleClass().add("engineering-traffic-filters");
 
-        pane = new VBox(4, filters, table);
+        pane = new VBox(4, filters, table, rawFrame);
         pane.getStyleClass().add("engineering-data-pane");
         VBox.setVgrow(table, Priority.ALWAYS);
     }
