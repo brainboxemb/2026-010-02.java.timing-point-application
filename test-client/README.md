@@ -287,7 +287,7 @@ and RACE_DATA to 16 combined changes per message. The table ends with one presen
 `— Follow end —` row: while that row is selected, new messages keep the table scrolled
 to the end; selecting a real message suspends follow and preserves the inspected viewport
 while later messages arrive. The **End** button at the far right of the filters resumes
-follow. The bounded message journal is inspection state only. Central RACE_DATA is current
+follow. The message journal retains only the latest 200 rows because it is temporary viewer state, not protocol storage. Central RACE_DATA is current
 state plus at most one outstanding normal DN_PACKET for retry; there is no retained
 RACE_DATA source-sequence history.
 
