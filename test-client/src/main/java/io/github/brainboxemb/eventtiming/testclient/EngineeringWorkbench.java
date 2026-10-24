@@ -59,6 +59,7 @@ final class EngineeringWorkbench {
             Node apiSystems,
             Node centralNodes,
             Node centralLocations,
+            Node centralMessages,
             Node centralRaceData,
             Node timingNode,
             Node apiInfo,
@@ -159,6 +160,8 @@ final class EngineeringWorkbench {
                 dockable(builder, controls, new WorkbenchPanel("api-info", "API", apiInfo)),
                 dockable(builder, controls, new WorkbenchPanel("registration", "Registration", registration)),
                 dockable(builder, controls, new WorkbenchPanel("simulation", "Simulation", simulation)),
+                dockable(builder, controls,
+                        new WorkbenchPanel("central-messages", "C|Messages", centralMessages)),
                 dockable(builder, controls,
                         new WorkbenchPanel("central-race-data", "C|RaceData", centralRaceData)),
                 dockable(builder, controls, new WorkbenchPanel("scripts", "Scripts", scripts)));
