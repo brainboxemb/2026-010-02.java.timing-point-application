@@ -61,7 +61,7 @@ final class RaceDataTask implements YieldingTask {
         }
 
         applyFuture.join();
-        delivery.complete(packet.packetId());
+        delivery.complete(packet);
         return TaskStep.done();
     }
 }
