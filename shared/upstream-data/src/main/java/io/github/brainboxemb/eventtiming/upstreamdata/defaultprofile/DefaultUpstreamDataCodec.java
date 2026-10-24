@@ -47,8 +47,8 @@ public final class DefaultUpstreamDataCodec
             generator.writeNumberField("v", VERSION);
             generator.writeStringField("type", data.direction().name());
             generator.writeStringField("nodeId", data.timingNodeId().value());
-            generator.writeNumberField("packetId", data.packetId());
-            generator.writeFieldName("message");
+            generator.writeNumberField("seqNr", data.packetId());
+            generator.writeFieldName("msg");
             writeMessage(generator, data.message());
             generator.writeEndObject();
             generator.close();
@@ -209,7 +209,7 @@ public final class DefaultUpstreamDataCodec
             UpstreamData.Receive receive)
             throws IOException {
         generator.writeStartObject();
-        generator.writeNumberField("receivedPacketId", receive.receivedPacketId());
+        generator.writeNumberField("rcvSeqNr", receive.receivedPacketId());
         generator.writeEndObject();
     }
 
@@ -275,14 +275,14 @@ public final class DefaultUpstreamDataCodec
                         throw invalid("Duplicate nodeId", null);
                     }
                     nodeId = readString(parser, value, "nodeId");
-                } else if ("packetId".equals(field)) {
+                } else if ("seqNr".equals(field)) {
                     if (packetId != null) {
-                        throw invalid("Duplicate packetId", null);
+                        throw invalid("Duplicate seqNr", null);
                     }
-                    packetId = Long.valueOf(readLong(parser, value, "packetId"));
-                } else if ("message".equals(field)) {
+                    packetId = Long.valueOf(readLong(parser, value, "seqNr"));
+                } else if ("msg".equals(field)) {
                     if (message != null) {
-                        throw invalid("Duplicate message", null);
+                        throw invalid("Duplicate msg", null);
                     }
                     message = captureCurrentValue(parser);
                 } else {
@@ -301,7 +301,7 @@ public final class DefaultUpstreamDataCodec
                     || packetId == null
                     || message == null) {
                 throw invalid(
-                        "v, type, nodeId, packetId and message are required",
+                        "v, type, nodeId, seqNr and msg are required",
                         null);
             }
             if (version.intValue() != VERSION) {
@@ -368,18 +368,18 @@ public final class DefaultUpstreamDataCodec
                 JsonToken value = parser.nextToken();
                 if ("type".equals(field)) {
                     if (type != null) {
-                        throw invalid("Duplicate message type", null);
+                        throw invalid("Duplicate msg type", null);
                     }
                     type = readString(parser, value, "message.type");
                 } else if ("locationId".equals(field)) {
                     if (locationId != null) {
-                        throw invalid("Duplicate message locationId", null);
+                        throw invalid("Duplicate msg locationId", null);
                     }
                     locationId = Integer.valueOf(
                             readInt(parser, value, "message.locationId"));
                 } else if ("data".equals(field)) {
                     if (data != null) {
-                        throw invalid("Duplicate message data", null);
+                        throw invalid("Duplicate msg data", null);
                     }
                     data = captureCurrentValue(parser);
                 } else {
@@ -704,7 +704,7 @@ public final class DefaultUpstreamDataCodec
 
     private static UpstreamData.Receive decodeReceive(byte[] payload)
             throws CodecException {
-        Long packetId = readSingleLongObject(payload, "receivedPacketId");
+        Long packetId = readSingleLongObject(payload, "rcvSeqNr");
         try {
             return DefaultUpstreamData.createReceive(packetId.longValue());
         } catch (IllegalArgumentException ex) {
