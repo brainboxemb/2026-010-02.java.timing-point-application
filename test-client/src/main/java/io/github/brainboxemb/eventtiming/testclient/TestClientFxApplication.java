@@ -54,6 +54,7 @@ public final class TestClientFxApplication extends Application {
 
     private final Button apiBoundary = new Button();
     private final Button eventBoundary = new Button();
+    private final Button centralBoundary = new Button();
     private final Button terminalBoundary = new Button();
     private final Button deviceLogBoundary = new Button();
     private final TextField targetHost = new TextField();
@@ -303,14 +304,15 @@ public final class TestClientFxApplication extends Application {
         separator.getStyleClass().add("host-toolbar-divider");
         HBox bar = new HBox(
                 6, hostLabel, targetHost, connectTarget,
-                separator, apiBoundary, eventBoundary,
+                separator, apiBoundary, eventBoundary, centralBoundary,
                 terminalBoundary, deviceLogBoundary);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("host-toolbar");
         HBox.setHgrow(targetHost, Priority.NEVER);
         bar.setPadding(new Insets(3, 8, 3, 8));
         for (Button boundary : new Button[] {
-                apiBoundary, eventBoundary, terminalBoundary, deviceLogBoundary }) {
+                apiBoundary, eventBoundary, centralBoundary,
+                terminalBoundary, deviceLogBoundary }) {
             boundary.getStyleClass().add("connection-button");
         }
         refreshTargetConnectButton();
@@ -366,6 +368,7 @@ public final class TestClientFxApplication extends Application {
         int connected =
                 ConnectionToolbarState.countConnected(events, terminal, deviceLog);
         boolean busy = eventBoundary.isDisabled()
+                || centralBoundary.isDisabled()
                 || terminalBoundary.isDisabled() || deviceLogBoundary.isDisabled();
 
         connectTarget.getStyleClass().removeAll(
@@ -380,8 +383,8 @@ public final class TestClientFxApplication extends Application {
                 ? "Connecting…" : state == ConnectionToolbarState.NONE ? "Connect" : "Disconnect");
         connectTarget.setDisable(busy);
         String action = state == ConnectionToolbarState.NONE
-                ? "Apply Host and connect API check, Events/Upstream, Terminal and Device Log"
-                : "Disconnect all active Events/Upstream, Terminal and Device Log links";
+                ? "Apply Host and connect API check, Events, Terminal and Device Log"
+                : "Disconnect all active Events, Terminal and Device Log links";
         connectTargetTooltip.setText(action
                 + " (" + connected + "/3 stateful links connected)."
                 + " The local Client Log is always active.");
@@ -392,6 +395,7 @@ public final class TestClientFxApplication extends Application {
     private void configureBoundaryButtons() {
         setApiState("CHECK");
         setEventConnected(false, "CONNECT");
+        setCentralConnected(false, "CONNECT");
         setShellConnected(false, "CONNECT");
         setLogConnected(false, "CONNECT");
 
@@ -401,6 +405,13 @@ public final class TestClientFxApplication extends Application {
                 disconnectEvents();
             } else {
                 connectEvents();
+            }
+        });
+        centralBoundary.setOnAction(event -> {
+            if (system.eventClient().isUpstreamRoleConnected()) {
+                disconnectCentral();
+            } else {
+                connectCentral();
             }
         });
         terminalBoundary.setOnAction(event -> {
@@ -526,22 +537,94 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectEvents() {
+        if (system.eventClient().isConnected()) {
+            setEventConnected(true, "CONNECTED");
+            return;
+        }
+        connectEventSession(false);
+    }
+
+    /**
+     * Promotes the one IF-03 event session to the explicit upstream role.
+     *
+     * <p>A normal Events/API connection is deliberately not a Central connection. The
+     * Timing Point Application sees an upstream peer only while this role-specific
+     * session is active.</p>
+     */
+    private void connectCentral() {
+        if (system.eventClient().isUpstreamRoleConnected()) {
+            setCentralConnected(true, "CONNECTED");
+            return;
+        }
+
+        eventConnectionEpoch.invalidate();
+        if (system.eventClient().isConnected()) {
+            system.eventClient().disconnect();
+        }
+        setBoundaryState(eventBoundary, "Events", "CONNECTING");
+        setBoundaryState(centralBoundary, "Central", "CONNECTING");
+        connectEventSession(true);
+    }
+
+    /**
+     * Drops the upstream role but keeps ordinary IF-03 Events connected.
+     *
+     * <p>The same ApiEventClient is reconnected without role=upstream; there is never a
+     * second simultaneous WebSocket service.</p>
+     */
+    private void disconnectCentral() {
+        if (!system.eventClient().isUpstreamRoleConnected()) {
+            centralSimulator.disconnected();
+            centralPane.refresh();
+            setCentralConnected(false, "CONNECT");
+            return;
+        }
+
+        eventConnectionEpoch.invalidate();
+        setBoundaryState(eventBoundary, "Events", "CONNECTING");
+        setBoundaryState(centralBoundary, "Central", "DISCONNECTING");
+        system.eventClient().disconnect();
+        centralSimulator.disconnected();
+        centralPane.refresh();
+        connectEventSession(false);
+    }
+
+    private void connectEventSession(boolean upstreamRole) {
         final long eventGeneration = eventConnectionEpoch.begin();
         eventBoundary.setDisable(true);
+        centralBoundary.setDisable(true);
         setBoundaryState(eventBoundary, "Events", "CONNECTING");
-        clientLog.info("Connecting IF-03 Events/Upstream to " + eventEndpoint());
+        if (upstreamRole) {
+            setBoundaryState(centralBoundary, "Central", "CONNECTING");
+        }
+        java.net.URI endpoint =
+                upstreamRole ? upstreamEventEndpoint() : eventEndpoint();
+        clientLog.info(
+                "Connecting IF-03 "
+                        + (upstreamRole ? "Events + Central upstream" : "Events")
+                        + " to "
+                        + endpoint);
 
         try {
-            system.eventClient().connect(eventEndpoint(), new ApiEventClient.Listener() {
+            system.eventClient().connect(endpoint, new ApiEventClient.Listener() {
                 @Override
                 public void onConnected() {
                     Platform.runLater(() -> {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         setEventConnected(true, "CONNECTED");
-                        centralSimulator.connected();
+                        if (upstreamRole) {
+                            centralSimulator.connected();
+                            setCentralConnected(true, "CONNECTED");
+                        } else {
+                            centralSimulator.disconnected();
+                            setCentralConnected(false, "CONNECT");
+                        }
                         centralPane.refresh();
                         apiPane.connected();
-                        clientLog.info("IF-03 Events/Upstream connected");
+                        clientLog.info(
+                                upstreamRole
+                                        ? "IF-03 Events + Central upstream connected"
+                                        : "IF-03 Events connected");
                     });
                 }
 
@@ -562,8 +645,10 @@ public final class TestClientFxApplication extends Application {
                         setEventConnected(false, "CONNECT");
                         centralSimulator.disconnected();
                         centralPane.refresh();
+                        setCentralConnected(false, "CONNECT");
                         apiPane.disconnected(true);
-                        clientLog.warn("IF-03 Events/Upstream disconnected (" + statusCode + ")");
+                        clientLog.warn(
+                                "IF-03 event session disconnected (" + statusCode + ")");
                     });
                 }
 
@@ -576,6 +661,7 @@ public final class TestClientFxApplication extends Application {
                             setEventConnected(false, "ERROR");
                             centralSimulator.disconnected();
                             centralPane.refresh();
+                            setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
                             apiPane.disconnected(true);
                         }
                         feedback.setText("Events error: " + message);
@@ -589,8 +675,10 @@ public final class TestClientFxApplication extends Application {
                         setEventConnected(false, "ERROR");
                         centralSimulator.disconnected();
                         centralPane.refresh();
+                        setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
                         apiPane.disconnected(true);
-                        clientLog.error("IF-03 Events connect failed: " + rootMessage(cause));
+                        clientLog.error(
+                                "IF-03 event connect failed: " + rootMessage(cause));
                         feedback.setText("Events error: " + rootMessage(cause));
                     });
                 }
@@ -599,21 +687,24 @@ public final class TestClientFxApplication extends Application {
             setEventConnected(false, "CONNECT");
             centralSimulator.disconnected();
             centralPane.refresh();
-            clientLog.error("IF-03 Events/Upstream connect failed: " + ex.getMessage());
+            setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
+            clientLog.error("IF-03 event connect failed: " + ex.getMessage());
         }
     }
 
     private void disconnectEvents() {
         eventConnectionEpoch.invalidate();
         setBoundaryState(eventBoundary, "Events", "DISCONNECTING");
-        system.eventClient().disconnect();
-        if (!system.eventClient().isConnected()) {
-            setEventConnected(false, "CONNECT");
-            centralSimulator.disconnected();
-            centralPane.refresh();
-            apiPane.disconnected(true);
-            clientLog.info("IF-03 Events/Upstream disconnected");
+        if (system.eventClient().isUpstreamRoleConnected()) {
+            setBoundaryState(centralBoundary, "Central", "DISCONNECTING");
         }
+        system.eventClient().disconnect();
+        setEventConnected(false, "CONNECT");
+        centralSimulator.disconnected();
+        centralPane.refresh();
+        setCentralConnected(false, "CONNECT");
+        apiPane.disconnected(true);
+        clientLog.info("IF-03 Events disconnected");
     }
 
     private void showEvent(ApiEventClient.ApiEvent event) {
@@ -623,7 +714,8 @@ public final class TestClientFxApplication extends Application {
             apiPane.applyStatusEvent(statusEvent);
         } else if (event instanceof ApiEventClient.TimingDataEvent dataEvent) {
             apiPane.applyTimingDataEvent(dataEvent);
-        } else if (event instanceof ApiEventClient.UpstreamDataEvent upstreamEvent) {
+        } else if (event instanceof ApiEventClient.UpstreamDataEvent upstreamEvent
+                && system.eventClient().isUpstreamRoleConnected()) {
             try {
                 for (UpstreamData reply
                         : centralSimulator.accept(
@@ -829,6 +921,10 @@ public final class TestClientFxApplication extends Application {
     }
 
     private java.net.URI eventEndpoint() {
+        return system.eventEndpoint();
+    }
+
+    private java.net.URI upstreamEventEndpoint() {
         return system.upstreamEventEndpoint();
     }
 
@@ -845,6 +941,7 @@ public final class TestClientFxApplication extends Application {
             setEventConnected(false, "CONNECT");
             centralSimulator.resetTargetState();
             centralPane.refresh();
+            setCentralConnected(false, "CONNECT");
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
             setApiState("CHECK");
@@ -924,6 +1021,11 @@ public final class TestClientFxApplication extends Application {
     private void setEventConnected(boolean connected, String state) {
         eventBoundary.setDisable(false);
         setBoundaryState(eventBoundary, "Events", state);
+    }
+
+    private void setCentralConnected(boolean connected, String state) {
+        centralBoundary.setDisable(false);
+        setBoundaryState(centralBoundary, "Central", state);
     }
 
     private void setShellConnected(boolean connected, String state) {
