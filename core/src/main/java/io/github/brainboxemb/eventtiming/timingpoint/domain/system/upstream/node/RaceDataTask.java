@@ -17,7 +17,7 @@ final class RaceDataTask implements YieldingTask {
     private final BooleanSupplier available;
     private final DownstreamDelivery delivery;
     private final NodeService nodeService;
-    private final long packetId;
+    private final UpstreamData packet;
     private final UpstreamData.RaceData raceData;
 
     private CompletableFuture<Void> applyFuture;
@@ -26,31 +26,32 @@ final class RaceDataTask implements YieldingTask {
             BooleanSupplier available,
             DownstreamDelivery delivery,
             NodeService nodeService,
-            long packetId,
-            UpstreamData.RaceData raceData) {
+            UpstreamData packet) {
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(delivery != null, "delivery must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
-        failIfInvalidArgument(packetId > 0L, "packetId must be positive");
-        failIfInvalidArgument(raceData != null, "raceData must not be null");
+        failIfInvalidArgument(packet != null, "packet must not be null");
+        failIfInvalidArgument(
+                packet.family() == UpstreamData.Family.RACE_DATA,
+                "packet must carry RACE_DATA");
         this.available = available;
         this.delivery = delivery;
         this.nodeService = nodeService;
-        this.packetId = packetId;
-        this.raceData = raceData;
+        this.packet = packet;
+        this.raceData = (UpstreamData.RaceData) packet.message();
     }
 
     @Override
     public TaskStep runStep() {
         if (applyFuture == null) {
             if (!available.getAsBoolean()) {
-                delivery.cancelProcessing();
+                delivery.cancelPending();
                 return TaskStep.done();
             }
 
             applyFuture = nodeService.applyRaceData(raceData);
             if (applyFuture == null) {
-                delivery.cancelProcessing();
+                delivery.cancelPending();
                 throw new IllegalStateException(
                         "NodeService returned no RACE_DATA completion");
             }
@@ -58,7 +59,7 @@ final class RaceDataTask implements YieldingTask {
         }
 
         applyFuture.join();
-        delivery.completeProcessing(packetId);
+        delivery.complete(packet);
         return TaskStep.done();
     }
 }
