@@ -1,9 +1,12 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.geometry.Orientation;
+import javafx.geometry.Rectangle2D;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.stage.Screen;
+import javafx.stage.WindowEvent;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
@@ -20,6 +23,7 @@ import java.util.function.Consumer;
 
 import software.coley.bentofx.Bento;
 import software.coley.bentofx.building.DockBuilding;
+import software.coley.bentofx.control.DragDropStage;
 import software.coley.bentofx.dockable.Dockable;
 import software.coley.bentofx.layout.container.DockContainerBranch;
 import software.coley.bentofx.layout.container.DockContainerLeaf;
@@ -394,6 +398,13 @@ final class EngineeringWorkbench {
         };
         bento.stageBuilding().setApplySourceAsOwner(false);
         bento.stageBuilding().setApplyMousePosition(true);
+        bento.stageBuilding().setStageFactory(sourceStage -> {
+            DragDropStage stage = new DragDropStage(true);
+            stage.addEventHandler(
+                    WindowEvent.WINDOW_SHOWN,
+                    event -> clampDetachedStage(stage));
+            return stage;
+        });
         bento.stageBuilding().setSceneFactory(
                 (sourceScene, content, width, height) ->
                         new Scene(
@@ -406,6 +417,66 @@ final class EngineeringWorkbench {
                                 .withDragDrop());
         bentos.add(bento);
         return bento;
+    }
+
+    private static void clampDetachedStage(DragDropStage stage) {
+        Rectangle2D bounds = detachedScreenBounds(stage);
+
+        double width = detachedExtent(
+                stage.getWidth(),
+                DETACHED_MIN_WIDTH,
+                DETACHED_MAX_WIDTH,
+                bounds.getWidth());
+        double height = detachedExtent(
+                stage.getHeight(),
+                DETACHED_MIN_HEIGHT,
+                DETACHED_MAX_HEIGHT,
+                bounds.getHeight());
+
+        stage.setWidth(width);
+        stage.setHeight(height);
+        stage.setX(detachedPosition(
+                stage.getX(),
+                width,
+                bounds.getMinX(),
+                bounds.getMaxX()));
+        stage.setY(detachedPosition(
+                stage.getY(),
+                height,
+                bounds.getMinY(),
+                bounds.getMaxY()));
+    }
+
+    private static Rectangle2D detachedScreenBounds(DragDropStage stage) {
+        List<Screen> screens = Screen.getScreensForRectangle(
+                stage.getX(),
+                stage.getY(),
+                1.0,
+                1.0);
+        return (screens.isEmpty() ? Screen.getPrimary() : screens.get(0))
+                .getVisualBounds();
+    }
+
+    static double detachedExtent(
+            double actual,
+            double minimum,
+            double maximum,
+            double available) {
+        double upper = Math.max(1.0, Math.min(maximum, available));
+        double lower = Math.min(minimum, upper);
+        return Math.max(lower, Math.min(upper, actual));
+    }
+
+    static double detachedPosition(
+            double position,
+            double extent,
+            double minimum,
+            double maximum) {
+        double latest = Math.max(minimum, maximum - extent);
+        if (!Double.isFinite(position)) {
+            return minimum;
+        }
+        return Math.max(minimum, Math.min(latest, position));
     }
 
     static double detachedWidth(double sourceWidth) {
