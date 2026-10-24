@@ -197,6 +197,22 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void keepsNodeLifecycleUnknownUntilLifecycleRecordArrives() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+
+        simulator.accept(
+                DefaultUpstreamData.ping(
+                        NODE_A,
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        "hb-unknown"),
+                RECEIVED);
+
+        assertEquals("UNKNOWN", simulator.systems().get(0).lifecycleState());
+        assertNull(simulator.systems().get(0).locationId());
+    }
+
+    @Test
     void heartbeatIsVisibleAndAnsweredWithCorrelation() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
 
@@ -243,6 +259,7 @@ final class CentralSystemSimulatorTest {
                 RECEIVED);
         assertEquals("OPEN", location(simulator, 7).state());
         assertEquals("A", location(simulator, 7).nodeId());
+        assertEquals("OPEN", simulator.systems().get(0).lifecycleState());
         assertEquals(Integer.valueOf(7), simulator.systems().get(0).locationId());
 
         simulator.accept(
@@ -250,6 +267,7 @@ final class CentralSystemSimulatorTest {
                 RECEIVED.plusSeconds(1));
 
         assertEquals("CLOSED", location(simulator, 7).state());
+        assertEquals("CLOSED", simulator.systems().get(0).lifecycleState());
         assertNull(simulator.systems().get(0).locationId());
         assertEquals(2L, simulator.systems().get(0).timingDataHead());
         assertSame(
