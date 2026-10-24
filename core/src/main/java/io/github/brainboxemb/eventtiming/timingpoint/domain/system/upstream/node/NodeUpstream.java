@@ -375,7 +375,7 @@ public final class NodeUpstream extends LifecycleComponent {
 
             try {
                 operation.run();
-                downstreamDelivery.complete(packet.packetId());
+                downstreamDelivery.complete(packet);
             } catch (RuntimeException ex) {
                 downstreamDelivery.cancelPending();
                 throw ex;
