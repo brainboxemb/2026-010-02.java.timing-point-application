@@ -821,7 +821,7 @@ final class CentralSystemSimulator {
         }
     }
 
-    /** Resolves the best source/message timestamp without inventing protocol semantics. */
+    /** Resolves the best available source/message timestamp for engineering inspection. */
     private static Instant messageTime(
             UpstreamData data,
             Instant fallback) {
@@ -830,6 +830,17 @@ final class CentralSystemSimulator {
                     (UpstreamData.Ping) data.message();
             if (ping.time() != null) {
                 return ping.time().instant();
+            }
+        }
+        if (data.family() == UpstreamData.Family.TIMING_DATA) {
+            List<TimingRecord> records =
+                    ((UpstreamData.TimingDataTransfer) data.message())
+                            .records();
+            if (!records.isEmpty()) {
+                TimingRecord last =
+                        records.get(records.size() - 1);
+                return Instant.ofEpochMilli(
+                        last.recordedAtMillis());
             }
         }
         return fallback;
