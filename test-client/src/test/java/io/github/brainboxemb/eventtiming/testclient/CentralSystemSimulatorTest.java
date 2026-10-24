@@ -251,6 +251,57 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void newOpenImplicitlyClosesPreviousLocationForSameNode() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(1, 2, 3));
+
+        simulator.accept(
+                timingData(opened(1L, 1)),
+                RECEIVED);
+        simulator.accept(
+                timingData(opened(2L, 2)),
+                RECEIVED.plusSeconds(1));
+        simulator.accept(
+                timingData(opened(3L, 3)),
+                RECEIVED.plusSeconds(2));
+
+        assertEquals("CLOSED", location(simulator, 1).state());
+        assertEquals(2L, location(simulator, 1).sequence());
+        assertEquals(RECEIVED.plusSeconds(1), location(simulator, 1).changedAt());
+
+        assertEquals("CLOSED", location(simulator, 2).state());
+        assertEquals(3L, location(simulator, 2).sequence());
+        assertEquals(RECEIVED.plusSeconds(2), location(simulator, 2).changedAt());
+
+        assertEquals("OPEN", location(simulator, 3).state());
+        assertEquals(3L, location(simulator, 3).sequence());
+        assertEquals("A", location(simulator, 3).nodeId());
+
+        CentralSystemSimulator.SystemView system =
+                simulator.systems().get(0);
+        assertEquals("OPEN", system.lifecycleState());
+        assertEquals(Integer.valueOf(3), system.locationId());
+    }
+
+    @Test
+    void repeatedOpenForSameLocationDoesNotCloseIt() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(1));
+
+        simulator.accept(
+                timingData(opened(1L, 1)),
+                RECEIVED);
+        simulator.accept(
+                timingData(opened(2L, 1)),
+                RECEIVED.plusSeconds(1));
+
+        assertEquals("OPEN", location(simulator, 1).state());
+        assertEquals(2L, location(simulator, 1).sequence());
+        assertEquals(RECEIVED.plusSeconds(1), location(simulator, 1).changedAt());
+        assertEquals(Integer.valueOf(1), simulator.systems().get(0).locationId());
+    }
+
+    @Test
     void derivesOpenAndClosedLocationFromReceivedLogBookRecords() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7, 8));
 
