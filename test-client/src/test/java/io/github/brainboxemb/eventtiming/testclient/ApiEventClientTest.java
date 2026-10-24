@@ -108,8 +108,8 @@ class ApiEventClientTest {
                 + "\"occurredAt\":\"2026-10-01T12:00:02Z\","
                 + "\"payload\":{"
                 + "\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
-                + "\"packetId\":0,"
-                + "\"message\":{\"type\":\"PING\",\"data\":{"
+                + "\"seqNr\":0,"
+                + "\"msg\":{\"type\":\"PING\",\"data\":{"
                 + "\"op\":\"REQ\",\"mode\":\"HB\","
                 + "\"time\":\"2026-10-01T12:00:01.123456789Z\","
                 + "\"pingId\":\"hb-1\"}}"
@@ -147,7 +147,7 @@ class ApiEventClientTest {
         assertEquals(receivedAt, event.receivedAt());
         assertEquals(
                 "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
-                        + "\"packetId\":0,\"message\":{\"type\":\"PING\","
+                        + "\"seqNr\":0,\"msg\":{\"type\":\"PING\","
                         + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\","
                         + "\"time\":\"2026-10-01T12:00:01.123456789Z\","
                         + "\"pingId\":\"hb-1\"}}}",
