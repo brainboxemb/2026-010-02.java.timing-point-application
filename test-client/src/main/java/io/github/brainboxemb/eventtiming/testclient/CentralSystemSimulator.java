@@ -86,7 +86,7 @@ final class CentralSystemSimulator {
     private final Clock clock;
     private final Map<String, NodeState> nodes = new LinkedHashMap<>();
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
-    private final List<MessageView> messages = new ArrayList<>();
+    private final Deque<MessageView> messages = new ArrayDeque<>(MAX_MESSAGE_HISTORY);
     private final List<TimingRecord> timingRecords = new ArrayList<>();
 
     private boolean connected;
@@ -808,7 +808,7 @@ final class CentralSystemSimulator {
             Instant messageTime,
             Instant receivedAt,
             String rawPayloadJson) {
-        messages.add(
+        messages.addLast(
                 new MessageView(
                         nextMessageOrdinal++,
                         direction,
@@ -817,7 +817,7 @@ final class CentralSystemSimulator {
                         data,
                         rawPayloadJson));
         if (messages.size() > MAX_MESSAGE_HISTORY) {
-            messages.remove(0);
+            messages.removeFirst();
         }
     }
 
