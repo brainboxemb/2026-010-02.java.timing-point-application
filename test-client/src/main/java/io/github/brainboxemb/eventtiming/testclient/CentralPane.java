@@ -116,19 +116,34 @@ final class CentralPane {
         systemTree.setShowRoot(true);
         systemTree.getStyleClass().add("systems-tree");
         systemTree.setCellFactory(view -> new javafx.scene.control.TreeCell<>() {
+            private final Tooltip detail = new Tooltip();
+
+            {
+                setOnMouseEntered(event -> refreshTooltip());
+            }
+
             @Override
             protected void updateItem(String value, boolean empty) {
                 super.updateItem(value, empty);
                 setText(empty ? null : value);
-                if (empty || value == null) {
+                refreshTooltip();
+            }
+
+            private void refreshTooltip() {
+                if (isEmpty() || getItem() == null) {
                     setTooltip(null);
                     return;
                 }
 
                 CentralSystemSimulator.SystemView system =
                         systemTreeViews.get(getTreeItem());
-                setTooltip(new Tooltip(
-                        system == null ? value : systemDetailText(system)));
+                if (system == null) {
+                    setTooltip(null);
+                    return;
+                }
+
+                detail.setText(systemDetailText(system));
+                setTooltip(detail);
             }
         });
     }
