@@ -8,9 +8,6 @@ import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.SplitPane;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.ToggleGroup;
 
 import java.util.ArrayList;
@@ -30,10 +27,10 @@ import software.coley.bentofx.layout.container.DockContainerRootBranch;
 /**
  * BentoFX composition for the SI-02 Engineering Desktop Client.
  *
- * <p>The main work area is split into two semantic perspectives for the selected
- * TimingNode: the direct Node/API viewpoint and the Central simulator viewpoint.
- * Each perspective owns an independent Bento layout. Device Log, Terminal and
- * Client Log remain shared engineering tools below both perspectives.</p>
+ * <p>The left column keeps the three always-useful engineering diagnostics visible:
+ * Device Log, Terminal and Client Log. The right side contains ordinary BentoFX tabs
+ * for the selected-node Node and Central perspectives. Each perspective tab owns an
+ * independent nested Bento layout and can therefore be detached as one window.</p>
  */
 final class EngineeringWorkbench {
     private static final int WORKBENCH_DRAG_GROUP = 1;
@@ -49,10 +46,9 @@ final class EngineeringWorkbench {
     private final Map<DockContainerBranch, List<DockContainerLeaf>> homeOrdering =
             new LinkedHashMap<>();
 
-    private final Tab nodePerspective = new Tab("Node");
-    private final Tab centralPerspective = new Tab("Central");
-    private final TabPane perspectives = new TabPane();
-    private final SplitPane root = new SplitPane();
+    private final DockContainerRootBranch root;
+    private final Dockable nodePerspective;
+    private final Dockable centralPerspective;
 
     EngineeringWorkbench(
             Node apiSystems,
@@ -77,9 +73,7 @@ final class EngineeringWorkbench {
         this.allRegistrations = java.util.Objects.requireNonNull(allRegistrations);
         this.setAllRegistrations = java.util.Objects.requireNonNull(setAllRegistrations);
 
-        nodePerspective.setClosable(false);
-        centralPerspective.setClosable(false);
-        nodePerspective.setContent(createNodePerspective(
+        Node nodePerspectiveContent = createNodePerspective(
                 apiSystems,
                 timingNode,
                 apiInfo,
@@ -89,23 +83,78 @@ final class EngineeringWorkbench {
                 registrations,
                 logBook,
                 rawData,
-                events));
-        centralPerspective.setContent(createCentralPerspective(
+                events);
+        Node centralPerspectiveContent = createCentralPerspective(
                 centralNodes,
                 centralLocations,
                 centralMessages,
-                centralRaceData));
+                centralRaceData);
 
-        perspectives.getTabs().setAll(nodePerspective, centralPerspective);
-        perspectives.setSide(Side.TOP);
-        perspectives.getStyleClass().add("engineering-perspectives");
+        Bento outerBento = createBento();
+        DockBuilding builder = outerBento.dockBuilding();
+        root = builder.root("engineering-root");
 
-        Node sharedTools = createSharedTools(deviceLog, terminal, clientLog);
+        DockContainerBranch leftColumn = builder.branch("engineering-tools-column");
+        DockContainerBranch rightColumn = builder.branch("perspective-column");
+        DockContainerLeaf deviceLogLeaf = builder.leaf("device-log");
+        DockContainerLeaf terminalLeaf = builder.leaf("terminal");
+        DockContainerLeaf clientLogLeaf = builder.leaf("client-log");
+        DockContainerLeaf perspectiveLeaf = builder.leaf("perspectives");
 
-        root.setOrientation(Orientation.VERTICAL);
-        root.getItems().setAll(perspectives, sharedTools);
-        root.setDividerPositions(0.78);
-        root.getStyleClass().add("engineering-workbench-root");
+        root.setOrientation(Orientation.HORIZONTAL);
+        leftColumn.setOrientation(Orientation.VERTICAL);
+        rightColumn.setOrientation(Orientation.HORIZONTAL);
+
+        root.addContainers(leftColumn, rightColumn);
+        leftColumn.addContainers(deviceLogLeaf, terminalLeaf, clientLogLeaf);
+        rightColumn.addContainers(perspectiveLeaf);
+
+        registerHomeOrder(leftColumn, deviceLogLeaf, terminalLeaf, clientLogLeaf);
+        registerHomeOrder(rightColumn, perspectiveLeaf);
+
+        configureLeaf(deviceLogLeaf);
+        configureLeaf(terminalLeaf);
+        configureLeaf(clientLogLeaf);
+        configureLeaf(perspectiveLeaf);
+
+        // Preserve both main columns as canonical docking homes while tabs are detached.
+        leftColumn.setPruneWhenEmpty(false);
+        rightColumn.setPruneWhenEmpty(false);
+
+        root.setDividerPositions(0.27);
+        leftColumn.setDividerPositions(0.34, 0.67);
+
+        deviceLogLeaf.addDockable(
+                dockable(builder, deviceLogLeaf,
+                        new WorkbenchPanel(
+                                "device-log",
+                                "Device Log",
+                                deviceLog)));
+        terminalLeaf.addDockable(
+                dockable(builder, terminalLeaf,
+                        new WorkbenchPanel("terminal", "Terminal", terminal)));
+        clientLogLeaf.addDockable(
+                dockable(builder, clientLogLeaf,
+                        new WorkbenchPanel(
+                                "client-log",
+                                "Client Log",
+                                clientLog)));
+
+        nodePerspective = dockable(
+                builder,
+                perspectiveLeaf,
+                new WorkbenchPanel(
+                        "node-perspective",
+                        "Node",
+                        nodePerspectiveContent));
+        centralPerspective = dockable(
+                builder,
+                perspectiveLeaf,
+                new WorkbenchPanel(
+                        "central-perspective",
+                        "Central",
+                        centralPerspectiveContent));
+        perspectiveLeaf.addDockables(nodePerspective, centralPerspective);
     }
 
     Node root() {
@@ -113,8 +162,8 @@ final class EngineeringWorkbench {
     }
 
     void setPerspectiveNodeId(String nodeId) {
-        nodePerspective.setText(perspectiveTitle("Node", nodeId));
-        centralPerspective.setText(perspectiveTitle("Central", nodeId));
+        nodePerspective.setTitle(perspectiveTitle("Node", nodeId));
+        centralPerspective.setTitle(perspectiveTitle("Central", nodeId));
     }
 
     static String perspectiveTitle(String perspective, String nodeId) {
@@ -263,36 +312,6 @@ final class EngineeringWorkbench {
         return centralRoot;
     }
 
-    private Node createSharedTools(
-            Node deviceLog,
-            Node terminal,
-            Node clientLog) {
-        Bento bento = createBento();
-        DockBuilding builder = bento.dockBuilding();
-        DockContainerRootBranch sharedRoot = builder.root("shared-tools-root");
-        DockContainerLeaf sharedLeaf = builder.leaf("shared-tools");
-
-        sharedRoot.setOrientation(Orientation.HORIZONTAL);
-        sharedRoot.addContainers(sharedLeaf);
-        registerHomeOrder(sharedRoot, sharedLeaf);
-        configureLeaf(sharedLeaf);
-
-        sharedLeaf.addDockables(
-                dockable(builder, sharedLeaf,
-                        new WorkbenchPanel(
-                                "device-log",
-                                "Device Log",
-                                deviceLog)),
-                dockable(builder, sharedLeaf,
-                        new WorkbenchPanel("terminal", "Terminal", terminal)),
-                dockable(builder, sharedLeaf,
-                        new WorkbenchPanel(
-                                "client-log",
-                                "Client Log",
-                                clientLog)));
-        return sharedRoot;
-    }
-
     private Bento createBento() {
         Bento bento = new Bento() {
             @Override
@@ -428,7 +447,7 @@ final class EngineeringWorkbench {
         }
     }
 
-    /** Restores one detached or rearranged panel to its original perspective/tool area. */
+    /** Restores one detached or rearranged panel to its original dock area. */
     void dockBack(String id) {
         Dockable panel = dockables.get(id);
         DockContainerLeaf home = homeLeaves.get(id);

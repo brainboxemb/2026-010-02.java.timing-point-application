@@ -389,13 +389,3 @@
     -fx-font-size: 12px;
 }
 
-/* Top-level semantic viewpoints. Keep these visually stronger than nested Bento tabs. */
-.engineering-perspectives {
-    -fx-tab-min-height: 26px;
-}
-.engineering-perspectives > .tab-header-area > .headers-region > .tab .tab-label {
-    -fx-font-weight: bold;
-}
-.engineering-perspectives > .tab-header-area {
-    -fx-padding: 0 0 1px 0;
-}

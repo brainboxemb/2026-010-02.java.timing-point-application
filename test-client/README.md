@@ -229,29 +229,29 @@ drag/double-click, Snap Layouts or DPI correctness; verify interactively.
 The Engineering Client uses BentoFX for workbench composition. Functional panes remain
 ordinary JavaFX nodes and do not depend on BentoFX APIs.
 
-The main area is now organized by **perspective** for the selected TimingNode:
+The default composition keeps target/client-wide diagnostics permanently available in
+the left column and limits the selected-node perspectives to the right side:
 
 ```text
-[ Node A ] [ Central A ]
-----------------------------------------------
-Node A perspective
-  Systems | TimingNode / API / Registration /
-            Simulation / Scripts
-  Registrations
-  LogBook
-  Raw Data / Events
-
-Central A perspective
-  Nodes / Locations
-  Messages
-  RaceData
-----------------------------------------------
-Shared tools: Device Log / Terminal / Client Log
+shared diagnostics                     selected-node perspectives
+------------------------------          ------------------------------------------
+Device Log                              [ Node A ] [ Central A ]
+------------------------------          |
+Terminal                                | Node A: Systems / controls / history /
+------------------------------          |         Raw Data / Events
+Client Log                              |
+                                        | Central A: Nodes / Locations /
+                                        |            Messages / RaceData
 ```
 
-The perspective titles follow the API-selected NodeId. Before SI-02 knows a node they
-read simply **Node** and **Central**. The two perspectives own independent Bento layouts;
-moving or resizing Central windows therefore does not disturb the Node-side workspace.
+Device Log, Terminal and Client Log each own a separate vertically stacked Bento dock,
+so all three can remain visible at once and be resized independently.
+
+**Node A** and **Central A** are ordinary BentoFX dock tabs in one right-side leaf, not a
+separate JavaFX TabPane. Their titles follow the API-selected NodeId. Before SI-02 knows
+a node they read simply **Node** and **Central**. Each tab contains its own nested Bento
+workspace, so the whole Node or Central perspective can be dragged out into a floating
+window and moved to another monitor while its internal dock layout remains intact.
 
 The Node perspective is the direct SI-01/API viewpoint. **Events** is deliberately a
 transport inspector: every WebSocket frame is one row with explicit **IN**
@@ -274,9 +274,6 @@ message.
 In **Registrations**, RegistrationId is the primary identity column. TeamId is a separate
 optional/interpreted value and may be unresolved (`-`); SI-02 never substitutes TeamId
 for RegistrationId. Revoke remains tied to the original RegistrationId/ADD source record.
-
-Device Log, Terminal and Client Log are target/client-wide engineering tools and remain
-shared below both perspectives rather than being duplicated per viewpoint.
 
 The compact toolbar vertically aligns **Host**, the target IP and all link buttons. The
 main **Connect** action opens ordinary Events, Terminal and Device Log. **Central** remains
