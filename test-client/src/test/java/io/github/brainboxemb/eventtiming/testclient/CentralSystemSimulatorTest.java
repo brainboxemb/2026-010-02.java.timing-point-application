@@ -211,7 +211,14 @@ final class CentralSystemSimulatorTest {
                         .get(0);
 
         simulator.disconnected();
-        List<UpstreamData> retry = simulator.connected();
+        simulator.connected();
+
+        List<UpstreamData> retry =
+                simulator.accept(
+                        upPacket(
+                                7L,
+                                DefaultUpstreamData.createSequenceNotification(1L)),
+                        RECEIVED.plusSeconds(1));
 
         assertEquals(1, retry.size());
         assertSame(outstanding, retry.get(0));
