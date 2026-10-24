@@ -547,9 +547,9 @@ public class NodeUpstreamTest {
     }
 
     @Test
-    public void timingDataReqSendsAtMost256RecordsPerBatch() {
+    public void timingDataReqSendsAtMost16RecordsPerBatch() {
         List<TimingRecord> records =
-                timingData("A", 257);
+                timingData("A", 17);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components node =
@@ -573,16 +573,16 @@ public class NodeUpstreamTest {
                     (UpstreamData.TimingDataTransfer)
                             stream.takeSent();
 
-            assertEquals(256, first.records().size());
+            assertEquals(UpstreamData.MAX_TIMING_DATA_RECORDS, first.records().size());
             assertEquals(
                     1L,
                     first.records().get(0).sequenceNumber());
             assertEquals(
-                    256L,
-                    first.records().get(255).sequenceNumber());
+                    16L,
+                    first.records().get(15).sequenceNumber());
             assertEquals(1, second.records().size());
             assertEquals(
-                    257L,
+                    17L,
                     second.records().get(0).sequenceNumber());
             assertEquals(0, stream.sentCount());
         } finally {
@@ -594,7 +594,7 @@ public class NodeUpstreamTest {
     @Test
     public void timingDataSynchronizationStopsAtCapturedHeadWhenLogBookGrowsBetweenBatches() {
         List<TimingRecord> records =
-                timingData("A", 257);
+                timingData("A", 17);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components node =
@@ -623,13 +623,13 @@ public class NodeUpstreamTest {
                     (UpstreamData.TimingDataTransfer)
                             stream.takeSent();
 
-            assertEquals(256, first.records().size());
+            assertEquals(UpstreamData.MAX_TIMING_DATA_RECORDS, first.records().size());
             assertEquals(1, second.records().size());
             assertEquals(
-                    257L,
+                    17L,
                     second.records().get(0).sequenceNumber());
             assertEquals(
-                    258L,
+                    18L,
                     node.node().logBook().process(
                             LogBookQueries.timingDataHead(),
                             LogBookQuery.ReadConsistency.CURRENT)
