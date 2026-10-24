@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Show compact Central node liveness directly in `C|Nodes`: render rows as `A [5] · H -30s · CNT 1157`, use `[-]` for known CLOSED and `[?]` for unknown location/lifecycle, refresh heartbeat age every 10 seconds, cap it at 999 seconds, and use the received TimingData/LogBook head as `CNT`.
+- Show compact Central node liveness directly in `C|Nodes`: render rows as `A [05] · H -30s · CNT 1157`, use `[--]` for known CLOSED and `[??]` for unknown location/lifecycle, refresh heartbeat age every 10 seconds, cap it at 999 seconds, and use the received TimingData/LogBook head as `CNT`.
 
 - Fix the Central location projection so a NODE_OPEN for a new LocationId implicitly closes the same NodeId's previously active location even when no explicit NODE_CLOSE record exists; the new OPEN sequence/time becomes the inferred close transition, leaving at most one interpreted OPEN location per node.
 
