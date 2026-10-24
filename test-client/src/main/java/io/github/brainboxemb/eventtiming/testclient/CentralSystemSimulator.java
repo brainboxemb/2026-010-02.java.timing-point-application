@@ -22,7 +22,7 @@ import java.util.Map;
  * ordered source per NodeId.</p>
  */
 final class CentralSystemSimulator {
-    record SystemView(
+    record NodeView(
             String nodeId,
             boolean connected,
             Instant lastHeartbeat,
@@ -43,7 +43,7 @@ final class CentralSystemSimulator {
     }
 
     private final List<Integer> configuredLocationIds;
-    private final Map<String, SystemState> systems = new LinkedHashMap<>();
+    private final Map<String, NodeState> nodes = new LinkedHashMap<>();
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
     private boolean connected;
 
@@ -73,7 +73,7 @@ final class CentralSystemSimulator {
      */
     void resetTargetState() {
         connected = false;
-        systems.clear();
+        nodes.clear();
         locations.clear();
         restoreConfiguredLocations();
     }
@@ -110,12 +110,12 @@ final class CentralSystemSimulator {
             throw new IllegalArgumentException("RACE_DATA change lists must not be null");
         }
 
-        SystemState system =
-                systems.computeIfAbsent(
+        NodeState node =
+                nodes.computeIfAbsent(
                         nodeId.value(),
-                        ignored -> new SystemState(nodeId.value()));
+                        ignored -> new NodeState(nodeId.value()));
 
-        long sequence = system.raceDataHead + 1L;
+        long sequence = node.raceDataHead + 1L;
         UpstreamData.RaceData raceData =
                 DefaultUpstreamData.raceData(
                         nodeId,
@@ -123,8 +123,8 @@ final class CentralSystemSimulator {
                         teamAssignmentChanges,
                         stageStartTimeChanges);
 
-        system.raceDataHead = sequence;
-        system.raceDataHistory.put(Long.valueOf(sequence), raceData);
+        node.raceDataHead = sequence;
+        node.raceDataHistory.put(Long.valueOf(sequence), raceData);
         return raceData;
     }
 
@@ -140,19 +140,19 @@ final class CentralSystemSimulator {
         }
 
         String nodeId = data.timingNodeId().value();
-        SystemState system = systems.computeIfAbsent(nodeId, SystemState::new);
+        NodeState node = nodes.computeIfAbsent(nodeId, NodeState::new);
 
         return switch (data.family()) {
-            case PING -> handlePing(system, (UpstreamData.Ping) data, receivedAt);
-            case SYNC -> handleSync(system, (UpstreamData.Sync) data);
-            case REQ -> handleReq(system, (UpstreamData.Req) data);
+            case PING -> handlePing(node, (UpstreamData.Ping) data, receivedAt);
+            case SYNC -> handleSync(node, (UpstreamData.Sync) data);
+            case REQ -> handleReq(node, (UpstreamData.Req) data);
             case ACK -> {
-                handleAck(system, (UpstreamData.Ack) data);
+                handleAck(node, (UpstreamData.Ack) data);
                 yield Collections.emptyList();
             }
             case TIMING_DATA -> {
                 handleTimingData(
-                        system,
+                        node,
                         (UpstreamData.TimingDataTransfer) data,
                         receivedAt);
                 yield Collections.emptyList();
@@ -161,10 +161,10 @@ final class CentralSystemSimulator {
         };
     }
 
-    List<SystemView> systems() {
-        List<SystemView> result = new ArrayList<>(systems.size());
-        for (SystemState state : systems.values()) {
-            result.add(new SystemView(
+    List<NodeView> nodes() {
+        List<NodeView> result = new ArrayList<>(nodes.size());
+        for (NodeState state : nodes.values()) {
+            result.add(new NodeView(
                     state.nodeId,
                     connected,
                     state.lastHeartbeat,
@@ -192,11 +192,11 @@ final class CentralSystemSimulator {
     }
 
     private List<UpstreamData> handlePing(
-            SystemState system,
+            NodeState node,
             UpstreamData.Ping ping,
             Instant receivedAt) {
         if (ping.operation() == UpstreamData.PingOperation.REQ) {
-            system.lastHeartbeat = receivedAt;
+            node.lastHeartbeat = receivedAt;
             return List.of(
                     DefaultUpstreamData.ping(
                             ping.timingNodeId(),
@@ -214,7 +214,7 @@ final class CentralSystemSimulator {
      * with its own independent source head and requests any missing TimingData suffix.</p>
      */
     private List<UpstreamData> handleSync(
-            SystemState system,
+            NodeState node,
             UpstreamData.Sync sync) {
         if (sync.stream() != UpstreamData.Stream.TIMING_DATA) {
             throw new UnsupportedOperationException(
@@ -226,28 +226,28 @@ final class CentralSystemSimulator {
                 DefaultUpstreamData.sync(
                         sync.timingNodeId(),
                         UpstreamData.Stream.RACE_DATA,
-                        system.raceDataHead));
+                        node.raceDataHead));
 
         long remoteHead = sync.sequence();
-        if (remoteHead > system.timingDataHead) {
+        if (remoteHead > node.timingDataHead) {
             replies.add(
                     DefaultUpstreamData.req(
                             sync.timingNodeId(),
                             UpstreamData.Stream.TIMING_DATA,
-                            system.timingDataHead + 1L));
-        } else if (remoteHead < system.timingDataHead) {
+                            node.timingDataHead + 1L));
+        } else if (remoteHead < node.timingDataHead) {
             throw new IllegalStateException(
                     "SI-01 TIMING_DATA source head "
                             + remoteHead
                             + " is behind Central receive head "
-                            + system.timingDataHead);
+                            + node.timingDataHead);
         }
         return List.copyOf(replies);
     }
 
     /** Replays retained Central-owned RACE_DATA from the requested inclusive sequence. */
     private List<UpstreamData> handleReq(
-            SystemState system,
+            NodeState node,
             UpstreamData.Req request) {
         if (request.stream() != UpstreamData.Stream.RACE_DATA) {
             throw new UnsupportedOperationException(
@@ -255,22 +255,22 @@ final class CentralSystemSimulator {
         }
 
         long fromSequence = request.fromSequence();
-        if (fromSequence > system.raceDataHead) {
+        if (fromSequence > node.raceDataHead) {
             return Collections.emptyList();
         }
 
         List<UpstreamData> replay = new ArrayList<>();
         for (long sequence = fromSequence;
-                sequence <= system.raceDataHead;
+                sequence <= node.raceDataHead;
                 sequence++) {
             UpstreamData.RaceData retained =
-                    system.raceDataHistory.get(Long.valueOf(sequence));
+                    node.raceDataHistory.get(Long.valueOf(sequence));
             if (retained == null) {
                 throw new IllegalStateException(
                         "Missing retained RACE_DATA sequence "
                                 + sequence
                                 + " for "
-                                + system.nodeId);
+                                + node.nodeId);
             }
             replay.add(retained);
         }
@@ -279,7 +279,7 @@ final class CentralSystemSimulator {
 
     /** Applies one cumulative RACE_DATA acknowledgement from SI-01. */
     private void handleAck(
-            SystemState system,
+            NodeState node,
             UpstreamData.Ack acknowledgement) {
         if (acknowledgement.stream() != UpstreamData.Stream.RACE_DATA) {
             throw new UnsupportedOperationException(
@@ -287,74 +287,74 @@ final class CentralSystemSimulator {
         }
 
         long sequence = acknowledgement.sequence();
-        if (sequence > system.raceDataHead) {
+        if (sequence > node.raceDataHead) {
             throw new IllegalStateException(
                     "RACE_DATA ACK "
                             + sequence
                             + " exceeds Central source head "
-                            + system.raceDataHead);
+                            + node.raceDataHead);
         }
-        if (sequence > system.raceDataAcknowledged) {
-            system.raceDataAcknowledged = sequence;
+        if (sequence > node.raceDataAcknowledged) {
+            node.raceDataAcknowledged = sequence;
         }
     }
 
     private void handleTimingData(
-            SystemState system,
+            NodeState node,
             UpstreamData.TimingDataTransfer transfer,
             Instant receivedAt) {
         for (TimingRecord record : transfer.records()) {
             long sequence = record.sequenceNumber();
-            if (sequence <= system.timingDataHead) {
+            if (sequence <= node.timingDataHead) {
                 continue;
             }
-            if (sequence != system.timingDataHead + 1L) {
+            if (sequence != node.timingDataHead + 1L) {
                 throw new IllegalArgumentException(
                         "TIMING_DATA sequence gap for "
-                                + system.nodeId
+                                + node.nodeId
                                 + ": expected "
-                                + (system.timingDataHead + 1L)
+                                + (node.timingDataHead + 1L)
                                 + " but got "
                                 + sequence);
             }
 
-            system.timingDataHead = sequence;
-            system.lastRecord = record;
-            applyLifecycle(system, record, receivedAt);
+            node.timingDataHead = sequence;
+            node.lastRecord = record;
+            applyLifecycle(node, record, receivedAt);
         }
     }
 
     private void applyLifecycle(
-            SystemState system,
+            NodeState node,
             TimingRecord record,
             Instant receivedAt) {
         if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
             closePreviousLocationOnMove(
-                    system,
+                    node,
                     record.locationId(),
                     record.sequenceNumber(),
                     receivedAt);
 
-            system.lifecycleState = "OPEN";
-            system.locationId = Integer.valueOf(record.locationId());
+            node.lifecycleState = "OPEN";
+            node.locationId = Integer.valueOf(record.locationId());
             LocationState location = locations.computeIfAbsent(
                     record.locationId(),
                     LocationState::new);
             location.state = "OPEN";
-            location.nodeId = system.nodeId;
+            location.nodeId = node.nodeId;
             location.sequence = record.sequenceNumber();
             location.changedAt = receivedAt;
         } else if (record.kind() == TimingRecord.Kind.NODE_CLOSE) {
-            system.lifecycleState = "CLOSED";
-            if (system.locationId != null
-                    && system.locationId.intValue() == record.locationId()) {
-                system.locationId = null;
+            node.lifecycleState = "CLOSED";
+            if (node.locationId != null
+                    && node.locationId.intValue() == record.locationId()) {
+                node.locationId = null;
             }
             LocationState location = locations.computeIfAbsent(
                     record.locationId(),
                     LocationState::new);
             location.state = "CLOSED";
-            location.nodeId = system.nodeId;
+            location.nodeId = node.nodeId;
             location.sequence = record.sequenceNumber();
             location.changedAt = receivedAt;
         }
@@ -368,11 +368,11 @@ final class CentralSystemSimulator {
      * NODE_CLOSE record was emitted between both OPEN records.</p>
      */
     private void closePreviousLocationOnMove(
-            SystemState system,
+            NodeState node,
             int nextLocationId,
             long sequence,
             Instant changedAt) {
-        Integer previousLocationId = system.locationId;
+        Integer previousLocationId = node.locationId;
         if (previousLocationId == null
                 || previousLocationId.intValue() == nextLocationId) {
             return;
@@ -382,12 +382,12 @@ final class CentralSystemSimulator {
                 previousLocationId.intValue(),
                 LocationState::new);
         if (previous.nodeId != null
-                && !previous.nodeId.equals(system.nodeId)) {
+                && !previous.nodeId.equals(node.nodeId)) {
             return;
         }
 
         previous.state = "CLOSED";
-        previous.nodeId = system.nodeId;
+        previous.nodeId = node.nodeId;
         previous.sequence = sequence;
         previous.changedAt = changedAt;
     }
@@ -400,7 +400,7 @@ final class CentralSystemSimulator {
         }
     }
 
-    private static final class SystemState {
+    private static final class NodeState {
         private final String nodeId;
         private final Map<Long, UpstreamData.RaceData> raceDataHistory =
                 new LinkedHashMap<>();
@@ -412,7 +412,7 @@ final class CentralSystemSimulator {
         private Integer locationId;
         private TimingRecord lastRecord;
 
-        private SystemState(String nodeId) {
+        private NodeState(String nodeId) {
             this.nodeId = nodeId;
         }
     }

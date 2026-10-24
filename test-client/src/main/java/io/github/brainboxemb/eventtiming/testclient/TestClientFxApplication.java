@@ -147,7 +147,6 @@ public final class TestClientFxApplication extends Application {
         apiPane.setLogBookCountListener(workbench::setLogBookCount);
         apiPane.setRegistrationScopeListener(workbench::setRegistrationScope);
         apiPane.setSystemHost(system.host());
-        centralPane.setSystemHost(system.host());
         workbench.setClientLogLevel(clientLog.level());
 
         MenuItem resetLayout = new MenuItem("Reset layout");
@@ -256,7 +255,7 @@ public final class TestClientFxApplication extends Application {
             VBox deviceLogPanel, VBox terminalPanel, VBox clientLogPanel, VBox eventsPanel) {
         return new EngineeringWorkbench(
                 apiPane.systemsPane(),
-                centralPane.systemsPane(),
+                centralPane.nodesPane(),
                 centralPane.locationsPane(),
                 centralPane.raceDataPane(),
                 apiPane.timingNodePane(),
@@ -1044,7 +1043,6 @@ public final class TestClientFxApplication extends Application {
             setLogConnected(false, "CONNECT");
             setApiState("CHECK");
             apiPane.setSystemHost(system.host());
-            centralPane.setSystemHost(system.host());
             apiPane.disconnected(true);
             feedback.setText("Target changed to " + system.host());
             clientLog.info("Engineering Client target changed to " + system.host());

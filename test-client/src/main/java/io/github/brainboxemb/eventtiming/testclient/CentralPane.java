@@ -1,29 +1,24 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
-import javafx.scene.control.TreeItem;
-import javafx.scene.control.TreeView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 import java.time.Instant;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 
-/** JavaFX projection and operator controls for the Central System Simulator state. */
+/** JavaFX projections and operator controls for the Central System Simulator state. */
 final class CentralPane {
     interface RaceDataActions {
         long setTeamAssignment(String nodeId, String registrationId, String teamId);
@@ -34,11 +29,8 @@ final class CentralPane {
     private final CentralSystemSimulator simulator;
     private final RaceDataActions raceDataActions;
     private final Label connectionState = new Label("CENTRAL UPSTREAM NOT CONNECTED");
-    private final TreeItem<String> systemRoot = new TreeItem<>("System · -");
-    private final TreeView<String> systemTree = new TreeView<>(systemRoot);
-    private final Map<TreeItem<String>, CentralSystemSimulator.SystemView> systemTreeViews =
-            new IdentityHashMap<>();
-    private final TableView<CentralSystemSimulator.LocationView> locations = new TableView<>();
+    private final ListView<CentralSystemSimulator.NodeView> nodes = new ListView<>();
+    private final ListView<CentralSystemSimulator.LocationView> locations = new ListView<>();
     private final ComboBox<String> raceNode = new ComboBox<>();
     private final TextField raceRegistration = new TextField();
     private final TextField raceTeam = new TextField();
@@ -47,10 +39,9 @@ final class CentralPane {
     private final Label raceHead = new Label("0");
     private final Label raceAck = new Label("0");
     private final Label raceFeedback = new Label("Central upstream not connected");
-    private final VBox systemsPane;
+    private final VBox nodesPane;
     private final VBox locationsPane;
     private final VBox raceDataPane;
-    private String systemHost = "-";
 
     CentralPane(
             CentralSystemSimulator simulator,
@@ -64,22 +55,23 @@ final class CentralPane {
         this.simulator = simulator;
         this.raceDataActions = raceDataActions;
 
-        configureSystems();
+        configureNodes();
         configureLocations();
         configureRaceData();
 
         connectionState.getStyleClass().add("sync-state");
-        systemsPane = new VBox(6, connectionState, systemTree);
-        systemsPane.getStyleClass().add("engineering-explorer-pane");
+        nodesPane = new VBox(6, connectionState, nodes);
+        nodesPane.getStyleClass().add("engineering-explorer-pane");
         locationsPane = new VBox(locations);
+        locationsPane.getStyleClass().add("engineering-explorer-pane");
         raceDataPane = createRaceDataPane();
-        VBox.setVgrow(systemTree, Priority.ALWAYS);
+        VBox.setVgrow(nodes, Priority.ALWAYS);
         VBox.setVgrow(locations, Priority.ALWAYS);
         refresh();
     }
 
-    javafx.scene.Node systemsPane() {
-        return systemsPane;
+    javafx.scene.Node nodesPane() {
+        return nodesPane;
     }
 
     javafx.scene.Node locationsPane() {
@@ -88,11 +80,6 @@ final class CentralPane {
 
     javafx.scene.Node raceDataPane() {
         return raceDataPane;
-    }
-
-    void setSystemHost(String host) {
-        systemHost = host == null || host.isBlank() ? "-" : host.trim();
-        refreshSystems(simulator.systems());
     }
 
     void refresh() {
@@ -104,18 +91,16 @@ final class CentralPane {
         connectionState.setVisible(!connected);
         connectionState.setManaged(!connected);
 
-        List<CentralSystemSimulator.SystemView> systemViews = simulator.systems();
-        refreshSystems(systemViews);
+        List<CentralSystemSimulator.NodeView> nodeViews = simulator.nodes();
+        nodes.setItems(FXCollections.observableArrayList(nodeViews));
         locations.setItems(FXCollections.observableArrayList(simulator.locations()));
-        refreshRaceNodes(systemViews);
+        refreshRaceNodes(nodeViews);
         refreshRaceDataState();
     }
 
-    private void configureSystems() {
-        systemRoot.setExpanded(true);
-        systemTree.setShowRoot(true);
-        systemTree.getStyleClass().add("systems-tree");
-        systemTree.setCellFactory(view -> new javafx.scene.control.TreeCell<>() {
+    private void configureNodes() {
+        nodes.setPlaceholder(new Label("No Central nodes observed"));
+        nodes.setCellFactory(view -> new ListCell<>() {
             private final Tooltip detail = new Tooltip();
 
             {
@@ -123,98 +108,70 @@ final class CentralPane {
             }
 
             @Override
-            protected void updateItem(String value, boolean empty) {
+            protected void updateItem(
+                    CentralSystemSimulator.NodeView value,
+                    boolean empty) {
                 super.updateItem(value, empty);
-                setText(empty ? null : value);
+                setText(empty || value == null ? null : compactNodeText(value));
                 refreshTooltip();
             }
 
             private void refreshTooltip() {
-                if (isEmpty() || getItem() == null) {
+                CentralSystemSimulator.NodeView value = getItem();
+                if (isEmpty() || value == null) {
                     setTooltip(null);
                     return;
                 }
-
-                CentralSystemSimulator.SystemView system =
-                        systemTreeViews.get(getTreeItem());
-                if (system == null) {
-                    setTooltip(null);
-                    return;
-                }
-
-                detail.setText(systemDetailText(system));
+                detail.setText(nodeDetailText(value));
                 setTooltip(detail);
             }
         });
     }
 
-    private void refreshSystems(List<CentralSystemSimulator.SystemView> systemViews) {
-        String title = "System · " + systemHost;
-        if (!java.util.Objects.equals(systemRoot.getValue(), title)) {
-            systemRoot.setValue(title);
-        }
-
-        Map<String, TreeItem<String>> existing = new java.util.HashMap<>();
-        systemTreeViews.forEach((item, system) ->
-                existing.put(system.nodeId(), item));
-
-        systemTreeViews.clear();
-        List<TreeItem<String>> children = new java.util.ArrayList<>();
-        for (CentralSystemSimulator.SystemView system : systemViews) {
-            TreeItem<String> item =
-                    existing.getOrDefault(system.nodeId(), new TreeItem<>());
-            String label = compactSystemText(system);
-            if (!java.util.Objects.equals(item.getValue(), label)) {
-                item.setValue(label);
+    private void configureLocations() {
+        locations.setPlaceholder(new Label("No configured or observed locations"));
+        locations.setCellFactory(view -> new ListCell<>() {
+            @Override
+            protected void updateItem(
+                    CentralSystemSimulator.LocationView value,
+                    boolean empty) {
+                super.updateItem(value, empty);
+                setText(empty || value == null ? null : compactLocationText(value));
             }
-            systemTreeViews.put(item, system);
-            children.add(item);
-        }
-
-        if (!systemRoot.getChildren().equals(children)) {
-            systemRoot.getChildren().setAll(children);
-        }
-        systemRoot.setExpanded(true);
+        });
     }
 
-    static String compactSystemText(CentralSystemSimulator.SystemView system) {
-        StringBuilder text = new StringBuilder(system.nodeId())
+    static String compactNodeText(CentralSystemSimulator.NodeView node) {
+        StringBuilder text = new StringBuilder(node.nodeId())
                 .append(" · ")
-                .append(system.lifecycleState());
-        if (system.locationId() != null) {
-            text.append(" · Location ").append(system.locationId());
+                .append(node.lifecycleState());
+        if (node.locationId() != null) {
+            text.append(" · Location ").append(node.locationId());
         }
         return text.toString();
     }
 
-    static String systemDetailText(CentralSystemSimulator.SystemView system) {
-        return "Node " + system.nodeId()
-                + "\nLink " + (system.connected() ? "CONNECTED" : "STALE")
-                + "\nHeartbeat " + instant(system.lastHeartbeat())
-                + "\nTiming head " + system.timingDataHead()
-                + "\nRace head " + system.raceDataHead()
-                + "\nRace ACK " + system.raceDataAcknowledged()
+    static String nodeDetailText(CentralSystemSimulator.NodeView node) {
+        return "Node " + node.nodeId()
+                + "\nLink " + (node.connected() ? "CONNECTED" : "STALE")
+                + "\nHeartbeat " + instant(node.lastHeartbeat())
+                + "\nTiming head " + node.timingDataHead()
+                + "\nRace head " + node.raceDataHead()
+                + "\nRace ACK " + node.raceDataAcknowledged()
                 + "\nLocation "
-                + (system.locationId() == null ? "—" : system.locationId())
-                + "\nLast LogBook " + lastRecord(system);
+                + (node.locationId() == null ? "—" : node.locationId())
+                + "\nLast LogBook " + lastRecord(node);
     }
 
-    private void configureLocations() {
-        TableColumn<CentralSystemSimulator.LocationView, String> location =
-                textColumn("Location", value -> Integer.toString(value.locationId()));
-        TableColumn<CentralSystemSimulator.LocationView, String> state =
-                textColumn("State", CentralSystemSimulator.LocationView::state);
-        TableColumn<CentralSystemSimulator.LocationView, String> node =
-                textColumn("Node", value -> value.nodeId() == null ? "—" : value.nodeId());
-        TableColumn<CentralSystemSimulator.LocationView, String> sequence =
-                textColumn("Last seq", value ->
-                        value.sequence() == 0L ? "—" : Long.toString(value.sequence()));
-        TableColumn<CentralSystemSimulator.LocationView, String> changed =
-                textColumn("Changed", value -> instant(value.changedAt()));
-
-        locations.getColumns().setAll(location, state, node, sequence, changed);
-        locations.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        locations.setPlaceholder(new Label("No configured or observed locations"));
+    static String compactLocationText(CentralSystemSimulator.LocationView location) {
+        StringBuilder text = new StringBuilder()
+                .append(location.locationId())
+                .append(" · ")
+                .append(location.state());
+        if (location.nodeId() != null) {
+            text.append(" · ").append(location.nodeId());
+        }
+        return text.toString();
     }
 
     private void configureRaceData() {
@@ -282,10 +239,10 @@ final class CentralPane {
         }
     }
 
-    private void refreshRaceNodes(List<CentralSystemSimulator.SystemView> systemViews) {
+    private void refreshRaceNodes(List<CentralSystemSimulator.NodeView> nodeViews) {
         String selected = raceNode.getValue();
-        List<String> nodeIds = systemViews.stream()
-                .map(CentralSystemSimulator.SystemView::nodeId)
+        List<String> nodeIds = nodeViews.stream()
+                .map(CentralSystemSimulator.NodeView::nodeId)
                 .toList();
         raceNode.setItems(FXCollections.observableArrayList(nodeIds));
 
@@ -300,7 +257,7 @@ final class CentralPane {
 
     private void refreshRaceDataState() {
         String selected = raceNode.getValue();
-        CentralSystemSimulator.SystemView view = simulator.systems().stream()
+        CentralSystemSimulator.NodeView view = simulator.nodes().stream()
                 .filter(value -> value.nodeId().equals(selected))
                 .findFirst()
                 .orElse(null);
@@ -309,7 +266,7 @@ final class CentralPane {
         raceAck.setText(view == null ? "0" : Long.toString(view.raceDataAcknowledged()));
 
         boolean enabled = simulator.isConnected() && view != null;
-        raceNode.setDisable(!simulator.isConnected() || simulator.systems().isEmpty());
+        raceNode.setDisable(!simulator.isConnected() || simulator.nodes().isEmpty());
         raceRegistration.setDisable(!enabled);
         raceTeam.setDisable(!enabled);
         raceSet.setDisable(!enabled);
@@ -321,16 +278,7 @@ final class CentralPane {
         }
     }
 
-    private static <T> TableColumn<T, String> textColumn(
-            String title,
-            java.util.function.Function<T, String> value) {
-        TableColumn<T, String> column = new TableColumn<>(title);
-        column.setCellValueFactory(cell ->
-                new ReadOnlyStringWrapper(value.apply(cell.getValue())));
-        return column;
-    }
-
-    private static String lastRecord(CentralSystemSimulator.SystemView value) {
+    private static String lastRecord(CentralSystemSimulator.NodeView value) {
         TimingRecord record = value.lastRecord();
         if (record == null) {
             return "—";

@@ -90,7 +90,7 @@ final class CentralSystemSimulatorTest {
                                         "A0001",
                                         "T001")),
                         List.of()));
-        assertTrue(simulator.systems().isEmpty());
+        assertTrue(simulator.nodes().isEmpty());
 
         simulator.connected();
         assertEquals(
@@ -110,7 +110,7 @@ final class CentralSystemSimulatorTest {
 
         assertEquals(1L, first.sequence());
         assertEquals(2L, second.sequence());
-        assertEquals(2L, simulator.systems().get(0).raceDataHead());
+        assertEquals(2L, simulator.nodes().get(0).raceDataHead());
 
         List<UpstreamData> replay = simulator.accept(
                 DefaultUpstreamData.req(
@@ -160,7 +160,7 @@ final class CentralSystemSimulatorTest {
                         2L),
                 RECEIVED);
 
-        assertEquals(2L, simulator.systems().get(0).raceDataAcknowledged());
+        assertEquals(2L, simulator.nodes().get(0).raceDataAcknowledged());
 
         List<UpstreamData> replay = simulator.accept(
                 DefaultUpstreamData.req(
@@ -177,7 +177,7 @@ final class CentralSystemSimulatorTest {
                         UpstreamData.Stream.RACE_DATA,
                         1L),
                 RECEIVED.plusSeconds(2));
-        assertEquals(2L, simulator.systems().get(0).raceDataAcknowledged());
+        assertEquals(2L, simulator.nodes().get(0).raceDataAcknowledged());
     }
 
     @Test
@@ -208,8 +208,8 @@ final class CentralSystemSimulatorTest {
                         "hb-unknown"),
                 RECEIVED);
 
-        assertEquals("UNKNOWN", simulator.systems().get(0).lifecycleState());
-        assertNull(simulator.systems().get(0).locationId());
+        assertEquals("UNKNOWN", simulator.nodes().get(0).lifecycleState());
+        assertNull(simulator.nodes().get(0).locationId());
     }
 
     @Test
@@ -229,7 +229,7 @@ final class CentralSystemSimulatorTest {
         assertSame(UpstreamData.PingOperation.ANS, answer.operation());
         assertSame(UpstreamData.PingMode.HB, answer.mode());
         assertEquals("hb-3", answer.pingId());
-        assertEquals(RECEIVED, simulator.systems().get(0).lastHeartbeat());
+        assertEquals(RECEIVED, simulator.nodes().get(0).lastHeartbeat());
     }
 
     @Test
@@ -243,7 +243,7 @@ final class CentralSystemSimulatorTest {
 
         simulator.resetTargetState();
 
-        assertTrue(simulator.systems().isEmpty());
+        assertTrue(simulator.nodes().isEmpty());
         assertEquals("UNKNOWN", location(simulator, 7).state());
         assertEquals("UNKNOWN", location(simulator, 8).state());
         assertNull(location(simulator, 7).nodeId());
@@ -277,8 +277,8 @@ final class CentralSystemSimulatorTest {
         assertEquals(3L, location(simulator, 3).sequence());
         assertEquals("A", location(simulator, 3).nodeId());
 
-        CentralSystemSimulator.SystemView system =
-                simulator.systems().get(0);
+        CentralSystemSimulator.NodeView system =
+                simulator.nodes().get(0);
         assertEquals("OPEN", system.lifecycleState());
         assertEquals(Integer.valueOf(3), system.locationId());
     }
@@ -298,7 +298,7 @@ final class CentralSystemSimulatorTest {
         assertEquals("OPEN", location(simulator, 1).state());
         assertEquals(2L, location(simulator, 1).sequence());
         assertEquals(RECEIVED.plusSeconds(1), location(simulator, 1).changedAt());
-        assertEquals(Integer.valueOf(1), simulator.systems().get(0).locationId());
+        assertEquals(Integer.valueOf(1), simulator.nodes().get(0).locationId());
     }
 
     @Test
@@ -310,20 +310,20 @@ final class CentralSystemSimulatorTest {
                 RECEIVED);
         assertEquals("OPEN", location(simulator, 7).state());
         assertEquals("A", location(simulator, 7).nodeId());
-        assertEquals("OPEN", simulator.systems().get(0).lifecycleState());
-        assertEquals(Integer.valueOf(7), simulator.systems().get(0).locationId());
+        assertEquals("OPEN", simulator.nodes().get(0).lifecycleState());
+        assertEquals(Integer.valueOf(7), simulator.nodes().get(0).locationId());
 
         simulator.accept(
                 timingData(closed(2L, 7)),
                 RECEIVED.plusSeconds(1));
 
         assertEquals("CLOSED", location(simulator, 7).state());
-        assertEquals("CLOSED", simulator.systems().get(0).lifecycleState());
-        assertNull(simulator.systems().get(0).locationId());
-        assertEquals(2L, simulator.systems().get(0).timingDataHead());
+        assertEquals("CLOSED", simulator.nodes().get(0).lifecycleState());
+        assertNull(simulator.nodes().get(0).locationId());
+        assertEquals(2L, simulator.nodes().get(0).timingDataHead());
         assertSame(
                 TimingRecord.Kind.NODE_CLOSE,
-                simulator.systems().get(0).lastRecord().kind());
+                simulator.nodes().get(0).lastRecord().kind());
         assertEquals("UNKNOWN", location(simulator, 8).state());
     }
 

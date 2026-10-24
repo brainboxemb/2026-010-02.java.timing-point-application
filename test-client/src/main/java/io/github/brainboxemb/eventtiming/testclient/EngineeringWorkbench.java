@@ -57,7 +57,7 @@ final class EngineeringWorkbench {
 
     EngineeringWorkbench(
             Node apiSystems,
-            Node centralSystems,
+            Node centralNodes,
             Node centralLocations,
             Node centralRaceData,
             Node timingNode,
@@ -150,17 +150,17 @@ final class EngineeringWorkbench {
                 dockable(builder, systemsLeaf,
                         new WorkbenchPanel("api-systems", "A|Systems", apiSystems)),
                 dockable(builder, systemsLeaf,
-                        new WorkbenchPanel("central-systems", "C|Systems", centralSystems)),
+                        new WorkbenchPanel("central-nodes", "C|Nodes", centralNodes)),
                 dockable(builder, systemsLeaf,
-                        new WorkbenchPanel("central-locations", "C|Locations", centralLocations)),
-                dockable(builder, systemsLeaf,
-                        new WorkbenchPanel("central-race-data", "C|RaceData", centralRaceData)));
+                        new WorkbenchPanel("central-locations", "C|Locations", centralLocations)));
 
         controls.addDockables(
                 dockable(builder, controls, new WorkbenchPanel("timing-node", "TimingNode", timingNode)),
                 dockable(builder, controls, new WorkbenchPanel("api-info", "API", apiInfo)),
                 dockable(builder, controls, new WorkbenchPanel("registration", "Registration", registration)),
                 dockable(builder, controls, new WorkbenchPanel("simulation", "Simulation", simulation)),
+                dockable(builder, controls,
+                        new WorkbenchPanel("central-race-data", "C|RaceData", centralRaceData)),
                 dockable(builder, controls, new WorkbenchPanel("scripts", "Scripts", scripts)));
 
         deviceLogLeaf.addDockable(
