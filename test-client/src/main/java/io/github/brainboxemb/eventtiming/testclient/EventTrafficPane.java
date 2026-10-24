@@ -100,15 +100,14 @@ final class EventTrafficPane {
     }
 
     void recordOutbound(
-            UpstreamTraffic outbound) {
-        if (outbound == null) {
-            throw new IllegalArgumentException("outbound must not be null");
-        }
+            Instant sentAt,
+            String type,
+            String rawPayload) {
         add(new Entry(
                 Direction.OUT,
-                outbound.sentAt(),
-                outbound.type(),
-                outbound.rawPayload()));
+                sentAt,
+                type,
+                rawPayload));
     }
 
     private void add(Entry entry) {
