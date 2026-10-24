@@ -42,7 +42,7 @@ final class DownstreamDelivery {
      *
      * @return true only when the semantic message must be processed
      */
-    boolean begin(UpstreamData packet) {
+    synchronized boolean begin(UpstreamData packet) {
         failIfInvalidArgument(packet != null, "packet must not be null");
         failIfInvalidArgument(
                 packet.direction() == UpstreamData.Direction.DN_PACKET,
@@ -75,7 +75,7 @@ final class DownstreamDelivery {
     }
 
     /** Commits one successfully processed downstream packet and emits RECV when possible. */
-    void complete(long packetId) {
+    synchronized void complete(long packetId) {
         failIfIllegalState(
                 processingPacketId == packetId,
                 "DN_PACKET completion does not match pending packet");
@@ -86,13 +86,23 @@ final class DownstreamDelivery {
     }
 
     /** Drops one failed/incomplete packet without advancing the accepted position. */
-    void cancelPending() {
+    synchronized void cancelPending() {
         processingPacketId = 0L;
     }
 
     /** Returns the last successfully processed normal downstream packet id. */
-    long lastProcessedPacketId() {
+    synchronized long lastProcessedPacketId() {
         return lastProcessedPacketId;
+    }
+
+    /**
+     * Requests a full current-state resend while this runtime has not processed any
+     * normal downstream packet yet.
+     */
+    synchronized void requestFullStateIfUninitialized() {
+        if (lastProcessedPacketId == 0L) {
+            sendReceivePosition();
+        }
     }
 
     private void sendReceivePosition() {
