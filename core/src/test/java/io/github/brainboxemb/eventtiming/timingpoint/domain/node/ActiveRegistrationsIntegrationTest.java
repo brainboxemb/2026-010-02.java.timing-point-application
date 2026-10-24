@@ -62,15 +62,16 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(new TeamId("0001"), initialTeams.get(0));
 
             stream.receive(
-                    DefaultUpstreamData.raceData(
+                    DefaultUpstreamData.createDnPacket(
                             new NodeId("A"),
-                            new LocationId(1),
                             1L,
-                            Collections.singletonList(
-                                    DefaultUpstreamData.teamAssignmentSet(
-                                            "R0001",
-                                            "0042")),
-                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+                            DefaultUpstreamData.createRaceData(
+                                    new LocationId(1),
+                                    Collections.singletonList(
+                                            DefaultUpstreamData.createTeamAssignmentSet(
+                                                    "R0001",
+                                                    "0042")),
+                                    Collections.<UpstreamData.StageStartTimeChange>emptyList())));
             stream.takeSent();
 
             awaitUniqueTeamCount(components.nodeService(), 2);
@@ -195,18 +196,19 @@ public class ActiveRegistrationsIntegrationTest {
                     components.node().open(new LocationId(1)));
 
             stream.receive(
-                    DefaultUpstreamData.raceData(
+                    DefaultUpstreamData.createDnPacket(
                             new NodeId("A"),
-                            new LocationId(1),
                             1L,
-                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                            Arrays.asList(
-                                    DefaultUpstreamData.stageStartSet(
-                                            "A0001",
-                                            java.time.LocalTime.NOON),
-                                    DefaultUpstreamData.stageStartSet(
-                                            "A0002",
-                                            java.time.LocalTime.NOON))));
+                            DefaultUpstreamData.createRaceData(
+                                    new LocationId(1),
+                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                                    Arrays.asList(
+                                            DefaultUpstreamData.createStageStartSet(
+                                                    "A0001",
+                                                    java.time.LocalTime.NOON),
+                                            DefaultUpstreamData.createStageStartSet(
+                                                    "A0002",
+                                                    java.time.LocalTime.NOON)))));
             stream.takeSent();
 
             List<ActiveRegistrations.Registration> rows = new ArrayList<>();
@@ -217,18 +219,19 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(1, rows.get(1).rank());
 
             stream.receive(
-                    DefaultUpstreamData.raceData(
+                    DefaultUpstreamData.createDnPacket(
                             new NodeId("A"),
-                            new LocationId(1),
                             2L,
-                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                            Collections.singletonList(
-                                    DefaultUpstreamData.stageStartSet(
-                                            "A0001",
-                                            java.time.LocalTime.of(
-                                                    12,
-                                                    0,
-                                                    15)))));
+                            DefaultUpstreamData.createRaceData(
+                                    new LocationId(1),
+                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                                    Collections.singletonList(
+                                            DefaultUpstreamData.createStageStartSet(
+                                                    "A0001",
+                                                    java.time.LocalTime.of(
+                                                            12,
+                                                            0,
+                                                            15))))));
             stream.takeSent();
 
             assertEquals(5000L, rows.get(0).elapsedMillis());
