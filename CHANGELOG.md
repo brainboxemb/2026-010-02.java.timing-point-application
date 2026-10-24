@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Add the first SI-02 Central System Simulator workbench slice: keep the direct API view as `A|Systems`, add independent `C|Systems` and `C|Locations`, make the existing `ApiEventClient` the single full-duplex `role=upstream` ST-2 session, decode/encode the shared typed IF-06 `UpstreamData` contract, request missing TIMING_DATA from the simulator's next sequence after SYNC, answer heartbeat PING requests, show the latest received LogBook record per observed node, derive Location OPEN/CLOSED from NODE_INFO history, and allow initial Central LocationIds through `central.locationIds`.
+- Add the first SI-02 Central System Simulator workbench slice: keep the direct API view as `A|Systems`, add independent `C|Systems` and `C|Locations`, use the existing `ApiEventClient` for both ordinary Events and an explicitly selected full-duplex `role=upstream` ST-2 session so a normal API/Event connection never implies Central availability, decode/encode the shared typed IF-06 `UpstreamData` contract, request missing TIMING_DATA from the simulator's next sequence after SYNC, answer heartbeat PING requests, show the latest received LogBook record per observed node, derive Location OPEN/CLOSED from NODE_INFO history, and allow initial Central LocationIds through `central.locationIds`.
+
+- Extend the SI-02 Central System Simulator with per-NodeId RACE_DATA source state: allocate ordered sequence numbers, retain immutable sent changes for REQ replay across reconnect, advertise the RACE_DATA source head when SI-01 sends TIMING_DATA SYNC, consume cumulative RACE_DATA ACK, expose source/ACK heads in `C|Systems`, and clear both protocol streams only when the target Host identity changes.
 
 
 - Preserve IF-06 stage-start knowledge as compact UTC longs instead of inventing dates: time-only values remain `HHmmsscc`, dated values use `yyyyMMddHHmmsscc`, `ClockTimeSource` supplies the configurable civil-time zone, and `StageTiming` resolves time-only midnight rollover only when runtime is unambiguous and below 12 hours.
