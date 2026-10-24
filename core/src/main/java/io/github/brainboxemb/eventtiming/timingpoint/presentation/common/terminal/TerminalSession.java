@@ -1026,12 +1026,14 @@ public final class TerminalSession {
                 .append(
                         UTC_MILLIS_FORMAT.format(
                                 Instant.ofEpochMilli(
-                                        record.effectiveTimeMillis())))
-                .append(" recTime=")
-                .append(
-                        UTC_MILLIS_FORMAT.format(
-                                Instant.ofEpochMilli(
-                                        record.recordedAtMillis())));
+                                        record.effectiveTimeMillis())));
+        if (record.hasRecordedAtMillis()) {
+            line.append(" recTime=")
+                    .append(
+                            UTC_MILLIS_FORMAT.format(
+                                    Instant.ofEpochMilli(
+                                            record.recordedAtMillis())));
+        }
 
         if (record.tagSource() != null) {
             line.append(" tagSrc=")

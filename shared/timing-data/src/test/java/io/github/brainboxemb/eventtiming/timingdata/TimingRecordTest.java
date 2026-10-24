@@ -31,12 +31,29 @@ public class TimingRecordTest {
         assertEquals(12, record.locationId());
         assertEquals(1790798499123L, record.effectiveTimeMillis());
         assertEquals(1790798500000L, record.recordedAtMillis());
+        org.junit.Assert.assertTrue(record.hasRecordedAtMillis());
         assertEquals(registrationId.packedValue(), record.registrationId());
         assertSame(TimingRecord.Kind.AUTOMATIC_REGISTRATION, record.kind());
         assertSame(TimingRecord.Action.ADD, record.action());
         assertSame(TimingRecord.TagSource.API, record.tagSource());
         assertSame(TimingRecord.AutomaticTimeSource.NODE, record.automaticTimeSource());
         assertNull(record.manualTimeSource());
+    }
+
+    @Test
+    public void missingRecordedAtUsesExplicitScalarAbsenceMarker() {
+        TimingRecord record =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1L,
+                        12,
+                        1790798499120L,
+                        TimingRecord.NO_RECORDED_AT_MILLIS);
+
+        org.junit.Assert.assertFalse(record.hasRecordedAtMillis());
+        assertEquals(
+                TimingRecord.NO_RECORDED_AT_MILLIS,
+                record.recordedAtMillis());
     }
 
     @Test

@@ -249,6 +249,7 @@ public class ApiClientTest {
         assertNull(page.records().get(0).registrationId());
         assertEquals("NODE_INFO", page.records().get(0).recordType());
         assertEquals(List.of("OPEN"), page.records().get(0).codes());
+        assertNull(page.records().get(0).recordedAt());
         assertTrue(page.records().get(0).rawJson().contains("\"seqNr\":1"));
         assertEquals("N0002", page.records().get(1).registrationId());
         assertEquals(
@@ -417,8 +418,7 @@ public class ApiClientTest {
                 + "\"locId\":24,"
                 + "\"recType\":\"NODE_INFO\","
                 + "\"time\":\"2026-10-01T11:59:59Z\","
-                + "\"code\":[\"" + code + "\"],"
-                + "\"recTime\":\"2026-10-01T11:59:59.125Z\""
+                + "\"code\":[\"" + code + "\"]"
                 + "}";
     }
 

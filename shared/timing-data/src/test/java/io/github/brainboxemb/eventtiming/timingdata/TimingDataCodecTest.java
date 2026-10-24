@@ -56,6 +56,24 @@ public class TimingDataCodecTest {
         assertEquals(RECORDED, failure.recordedAt());
     }
 
+    @Test
+    public void unsupportedRecordTypeMayOmitRecordedAtMetadata() {
+        TimingRecord.RecordKey key =
+                new TimingRecord.RecordKey('A', 7L);
+
+        TimingDataCodec.CodecException failure =
+                TimingDataCodec.CodecException.unsupportedRecordType(
+                        1,
+                        key,
+                        new TimingDataTypes.LocationId(12),
+                        "FUTURE_RECORD",
+                        EFFECTIVE,
+                        null,
+                        "unsupported record type");
+
+        assertNull(failure.recordedAt());
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void unsupportedRecordTypeRequiresKey() {
         TimingDataCodec.CodecException.unsupportedRecordType(

@@ -95,9 +95,6 @@ public interface TimingDataCodec {
             if (effectiveTime == null) {
                 throw new IllegalArgumentException("effectiveTime must not be null");
             }
-            if (recordedAt == null) {
-                throw new IllegalArgumentException("recordedAt must not be null");
-            }
             return new CodecException(
                     Reason.UNSUPPORTED_RECORD_TYPE,
                     message,

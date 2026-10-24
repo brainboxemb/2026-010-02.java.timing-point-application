@@ -394,7 +394,7 @@ public final class ApiClient {
                 requiredText(root, "time"),
                 optionalText(root, "regId"),
                 requiredTextArray(root, "code"),
-                requiredText(root, "recTime"),
+                optionalText(root, "recTime"),
                 root.toString());
     }
 
