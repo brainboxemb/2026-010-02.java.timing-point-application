@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make Central Messages a true IF-06 message inspector: retain the raw IF-06 payload separately from the IF-03 event envelope for inbound and outbound rows, show that retained payload on selection instead of re-encoding the semantic value, and keep multi-record TIMING_DATA positions to the sequence range only while single-record messages may show the compact IF-05 record type.
+
 - Improve Engineering Client Central Messages timing: retain semantic/source message time separately from local receive time, use PING.time when available, capture receive time at the WebSocket boundary, show separate Time/Received columns, default to compact UTC time-only formatting with at most millisecond precision, and allow switching to a date+time view.
 
 - Standardize normal operational INFO logging across registration, durable LogBook persistence and upstream delivery: use stable `Registration accepted`, `LogBook persisted`, `Upstream queued`, `Upstream sent`, `Upstream connected` and `Upstream disconnected` prefixes; summarize TIMING_DATA once per actual message batch (sequence range + record count) without logging the full encoded payload.

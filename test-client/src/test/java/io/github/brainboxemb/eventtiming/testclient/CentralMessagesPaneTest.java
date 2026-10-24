@@ -173,7 +173,7 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
-    void timingDataPositionKeepsHomogeneousBatchTypeAndMixedBatchCompact() {
+    void timingDataPositionShowsOnlySequenceRangeForAnyBatch() {
         long millis = TIME.toEpochMilli();
         TimingRecord first =
                 TimingRecord.createNodeOpened(
@@ -198,7 +198,7 @@ final class CentralMessagesPaneTest {
                         millis);
 
         assertEquals(
-                "NODE_OPEN #1186..1187",
+                "#1186..1187",
                 CentralMessagesPane.positionText(
                         DefaultUpstreamData.timingData(
                                 NODE_A,

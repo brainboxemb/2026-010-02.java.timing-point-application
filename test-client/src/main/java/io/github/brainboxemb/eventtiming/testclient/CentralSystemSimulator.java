@@ -35,7 +35,23 @@ final class CentralSystemSimulator {
             MessageDirection direction,
             Instant messageTime,
             Instant receivedAt,
-            UpstreamData data) {
+            UpstreamData data,
+            String rawPayloadJson) {
+
+        MessageView(
+                long ordinal,
+                MessageDirection direction,
+                Instant messageTime,
+                Instant receivedAt,
+                UpstreamData data) {
+            this(
+                    ordinal,
+                    direction,
+                    messageTime,
+                    receivedAt,
+                    data,
+                    ApiEventClient.encodeUpstreamData(data));
+        }
     }
 
     record NodeView(
@@ -175,7 +191,11 @@ final class CentralSystemSimulator {
     List<UpstreamData> accept(
             UpstreamData data,
             Instant receivedAt) {
-        return accept(data, receivedAt, receivedAt);
+        return accept(
+                data,
+                receivedAt,
+                receivedAt,
+                ApiEventClient.encodeUpstreamData(data));
     }
 
     /**
@@ -187,7 +207,8 @@ final class CentralSystemSimulator {
     List<UpstreamData> accept(
             UpstreamData data,
             Instant eventTime,
-            Instant receivedAt) {
+            Instant receivedAt,
+            String rawPayloadJson) {
         if (data == null) {
             throw new IllegalArgumentException("data must not be null");
         }
@@ -197,12 +218,16 @@ final class CentralSystemSimulator {
         if (receivedAt == null) {
             throw new IllegalArgumentException("receivedAt must not be null");
         }
+        if (rawPayloadJson == null || rawPayloadJson.isBlank()) {
+            throw new IllegalArgumentException("rawPayloadJson must not be blank");
+        }
 
         recordMessage(
                 MessageDirection.IN,
                 data,
                 messageTime(data, eventTime),
-                receivedAt);
+                receivedAt,
+                rawPayloadJson);
 
         String nodeId = data.timingNodeId().value();
         NodeState node = nodes.computeIfAbsent(nodeId, NodeState::new);
@@ -233,18 +258,34 @@ final class CentralSystemSimulator {
      * independent retained source history and is therefore not affected when old journal
      * rows are evicted.</p>
      */
-    void recordSent(UpstreamData data, Instant sentAt) {
+    void recordSent(
+            UpstreamData data,
+            Instant sentAt) {
+        recordSent(
+                data,
+                sentAt,
+                ApiEventClient.encodeUpstreamData(data));
+    }
+
+    void recordSent(
+            UpstreamData data,
+            Instant sentAt,
+            String rawPayloadJson) {
         if (data == null) {
             throw new IllegalArgumentException("data must not be null");
         }
         if (sentAt == null) {
             throw new IllegalArgumentException("sentAt must not be null");
         }
+        if (rawPayloadJson == null || rawPayloadJson.isBlank()) {
+            throw new IllegalArgumentException("rawPayloadJson must not be blank");
+        }
         recordMessage(
                 MessageDirection.OUT,
                 data,
                 messageTime(data, sentAt),
-                null);
+                null,
+                rawPayloadJson);
     }
 
     List<MessageView> messages() {
@@ -255,14 +296,16 @@ final class CentralSystemSimulator {
             MessageDirection direction,
             UpstreamData data,
             Instant messageTime,
-            Instant receivedAt) {
+            Instant receivedAt,
+            String rawPayloadJson) {
         messages.add(
                 new MessageView(
                         nextMessageOrdinal++,
                         direction,
                         messageTime,
                         receivedAt,
-                        data));
+                        data,
+                        rawPayloadJson));
         if (messages.size() > MAX_MESSAGE_HISTORY) {
             messages.remove(0);
         }

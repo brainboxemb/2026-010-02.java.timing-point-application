@@ -8,6 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -128,6 +129,14 @@ class ApiEventClientTest {
                 Instant.parse("2026-10-01T12:00:01.123456789Z"),
                 ping.time().instant());
         assertEquals(receivedAt, event.receivedAt());
+        assertEquals(
+                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
+                        + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\","
+                        + "\"time\":\"2026-10-01T12:00:01.123456789Z\","
+                        + "\"pingId\":\"hb-1\"}}",
+                event.rawPayloadJson());
+        assertFalse(event.rawPayloadJson().contains("\"eventType\""));
+        assertEquals(json, event.rawJson());
         assertEquals("A", ping.timingNodeId().value());
     }
 

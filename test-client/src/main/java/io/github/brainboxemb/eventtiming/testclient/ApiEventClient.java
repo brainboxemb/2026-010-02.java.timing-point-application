@@ -64,8 +64,24 @@ public final class ApiEventClient implements AutoCloseable {
             Instant occurredAt,
             Instant receivedAt,
             UpstreamData upstreamData,
+            String rawPayloadJson,
             String rawJson)
             implements ApiEvent {
+
+        UpstreamDataEvent(
+                String eventType,
+                Instant occurredAt,
+                Instant receivedAt,
+                UpstreamData upstreamData,
+                String rawJson) {
+            this(
+                    eventType,
+                    occurredAt,
+                    receivedAt,
+                    upstreamData,
+                    ApiEventClient.encodeUpstreamData(upstreamData),
+                    rawJson);
+        }
     }
 
     public record UnknownEvent(
@@ -227,13 +243,16 @@ public final class ApiEventClient implements AutoCloseable {
 
         if ("UPSTREAM_DATA".equals(eventType)) {
             try {
+                String rawPayloadJson =
+                        JSON.writeValueAsString(payload);
                 UpstreamData decoded = UPSTREAM_CODEC.decode(
-                        JSON.writeValueAsBytes(payload));
+                        rawPayloadJson.getBytes(StandardCharsets.UTF_8));
                 return new UpstreamDataEvent(
                         eventType,
                         occurredAt,
                         receivedAt == null ? occurredAt : receivedAt,
                         decoded,
+                        rawPayloadJson,
                         rawJson);
             } catch (UpstreamDataCodec.CodecException ex) {
                 throw new IllegalArgumentException(
