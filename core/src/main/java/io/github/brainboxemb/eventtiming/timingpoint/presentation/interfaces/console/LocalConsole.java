@@ -51,6 +51,30 @@ public final class LocalConsole implements Runnable {
             LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
             Runnable shutdown,
+            Runnable restart,
+            Reader input,
+            Writer output) {
+        if (input == null) {
+            throw new IllegalArgumentException("input must not be null");
+        }
+        if (output == null) {
+            throw new IllegalArgumentException("output must not be null");
+        }
+        this.session = new TerminalSession(
+                presentationGateway,
+                loggingLevelControl,
+                consolePromptControl,
+                shutdown,
+                restart);
+        this.input = input;
+        this.output = output;
+    }
+
+    public LocalConsole(
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
+            Runnable shutdown,
             Reader input,
             Writer output) {
         if (input == null) {

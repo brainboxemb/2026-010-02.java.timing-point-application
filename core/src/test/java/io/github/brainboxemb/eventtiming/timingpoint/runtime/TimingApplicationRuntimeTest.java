@@ -26,6 +26,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.Simulati
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,6 +56,36 @@ import static org.junit.Assert.fail;
 public class TimingApplicationRuntimeTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void composedLocalConsoleCanRequestApplicationRestart()
+            throws Exception {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve("reboot-terminal-timing-data.jsonl");
+        StringWriter output = new StringWriter();
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
+                        identity(),
+                        config(file),
+                        null,
+                        null,
+                        new StringReader("reboot\n"),
+                        output);
+        application.activate();
+        try {
+            assertEquals(
+                    TimingApplicationRuntime.ExitRequest.RESTART,
+                    application.awaitShutdownRequest());
+        } finally {
+            application.deactivate();
+        }
+
+        assertTrue(output.toString().contains("Rebooting application."));
+    }
 
     @Test
     public void composesConfiguredAntennasAcrossTwoSystems() {

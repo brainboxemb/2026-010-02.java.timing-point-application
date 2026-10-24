@@ -40,6 +40,11 @@ public final class TimingApplicationRuntime {
         INACTIVE
     }
 
+    public enum ExitRequest {
+        STOP,
+        RESTART
+    }
+
     private final BuildIdentity buildIdentity;
     private final TimingNodeList timingNodes;
     private final ApplicationConfiguration configuration;
@@ -49,7 +54,7 @@ public final class TimingApplicationRuntime {
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
-    private final ShutdownSignal shutdownSignal;
+    private final ApplicationExitSignal exitSignal;
 
     private State state = State.NEW;
 
@@ -63,7 +68,7 @@ public final class TimingApplicationRuntime {
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
-            ShutdownSignal shutdownSignal) {
+            ApplicationExitSignal exitSignal) {
         this.buildIdentity = buildIdentity;
         this.timingNodes = timingNodes;
         this.configuration = configuration;
@@ -73,7 +78,7 @@ public final class TimingApplicationRuntime {
         this.simulationRunner = simulationRunner;
         this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
-        this.shutdownSignal = shutdownSignal;
+        this.exitSignal = exitSignal;
     }
 
     /**
@@ -318,9 +323,9 @@ public final class TimingApplicationRuntime {
         return state;
     }
 
-    public void awaitShutdownRequest()
+    public ExitRequest awaitShutdownRequest()
             throws InterruptedException {
-        shutdownSignal.awaitRequest();
+        return exitSignal.awaitRequest();
     }
 
     public String smokeOutput() {
@@ -334,7 +339,7 @@ public final class TimingApplicationRuntime {
      * stops system components in reverse order), then Runtime-owned executors.
      */
     public synchronized void deactivate() {
-        shutdownSignal.request();
+        exitSignal.requestStop();
 
         if (state != State.INACTIVE) {
             Throwable firstFailure = null;

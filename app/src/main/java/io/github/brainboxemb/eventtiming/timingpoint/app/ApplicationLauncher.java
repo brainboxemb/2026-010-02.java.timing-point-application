@@ -112,18 +112,26 @@ final class ApplicationLauncher {
             PrintStream out,
             PrintStream err) {
         try {
-            final Config config;
-            try {
-                config = YamlLoader.load(configPath);
-            } catch (IOException | RuntimeException ex) {
-                // No configured log sink exists yet, so keep the build identity
-                // visible when loading configuration fails.
-                printLines(
-                        out,
-                        startupIdentityLines(buildIdentity));
-                throw ex;
-            }
-            runConfiguredApplication(buildIdentity, configPath, config, out);
+            boolean restart;
+            do {
+                final Config config;
+                try {
+                    config = YamlLoader.load(configPath);
+                } catch (IOException | RuntimeException ex) {
+                    // No configured log sink exists yet, so keep the build identity
+                    // visible when loading configuration fails.
+                    printLines(
+                            out,
+                            startupIdentityLines(buildIdentity));
+                    throw ex;
+                }
+                restart =
+                        runConfiguredApplication(
+                                buildIdentity,
+                                configPath,
+                                config,
+                                out);
+            } while (restart);
             return 0;
         } catch (IOException | RuntimeException ex) {
             err.println(
@@ -140,7 +148,7 @@ final class ApplicationLauncher {
      * Starts cross-cutting logging before the reusable runtime and tears those
      * resources down after the TimingApplicationRuntime process returns.
      */
-    private static void runConfiguredApplication(
+    private static boolean runConfiguredApplication(
             BuildIdentity buildIdentity,
             Path configPath,
             Config config,
@@ -179,10 +187,11 @@ final class ApplicationLauncher {
                 loggingServer.start();
             }
 
-            runTimingApplication(
-                    buildIdentity,
-                    config,
-                    logging);
+            return runTimingApplication(
+                            buildIdentity,
+                            config,
+                            logging)
+                    == TimingApplicationRuntime.ExitRequest.RESTART;
         } finally {
             if (loggingServer != null) {
                 loggingServer.close();
@@ -199,7 +208,7 @@ final class ApplicationLauncher {
      * <p>Main owns only process concerns. TimingApplicationRuntime composition owns all
      * concrete Presentation adapters and their activation/deactivation order.</p>
      */
-    private static void runTimingApplication(
+    private static TimingApplicationRuntime.ExitRequest runTimingApplication(
             BuildIdentity buildIdentity,
             Config config,
             Logging logging) {
@@ -222,11 +231,13 @@ final class ApplicationLauncher {
         runtime.addShutdownHook(
                 shutdownHook);
 
+        TimingApplicationRuntime.ExitRequest request =
+                TimingApplicationRuntime.ExitRequest.STOP;
         try {
             application.activate();
 
             try {
-                application.awaitShutdownRequest();
+                request = application.awaitShutdownRequest();
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }
@@ -239,6 +250,7 @@ final class ApplicationLauncher {
 
         System.out.println(
                 application.smokeOutput());
+        return request;
     }
 
     private static void removeShutdownHook(

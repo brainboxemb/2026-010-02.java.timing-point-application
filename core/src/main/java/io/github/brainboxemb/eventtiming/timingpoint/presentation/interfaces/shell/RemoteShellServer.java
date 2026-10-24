@@ -55,6 +55,28 @@ public final class RemoteShellServer implements AutoCloseable {
             int port,
             PresentationGateway presentationGateway,
             LoggingLevelControl loggingLevelControl,
+            Runnable shutdown,
+            Runnable restart) {
+        if (bindAddress == null || bindAddress.trim().isEmpty()) {
+            throw new IllegalArgumentException("bindAddress must not be blank");
+        }
+        if (port < 0 || port > 65535) {
+            throw new IllegalArgumentException("port must be between 0 and 65535");
+        }
+        this.bindAddress = bindAddress.trim();
+        this.port = port;
+        this.session = new TerminalSession(
+                presentationGateway,
+                loggingLevelControl,
+                shutdown,
+                restart);
+    }
+
+    public RemoteShellServer(
+            String bindAddress,
+            int port,
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
             Runnable shutdown) {
         if (bindAddress == null || bindAddress.trim().isEmpty()) {
             throw new IllegalArgumentException("bindAddress must not be blank");
