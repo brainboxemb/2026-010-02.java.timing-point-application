@@ -297,7 +297,7 @@ final class CentralMessagesPane {
     private void rebuildRows(Long selectedOrdinal, boolean keepFollowing) {
         rebuildingRows = true;
         try {
-            rows.setAll(visibleRows(
+            updateVisibleRows(visibleRows(
                     messages,
                     directionFilter.getValue(),
                     nodeFilter.getValue(),
@@ -312,6 +312,26 @@ final class CentralMessagesPane {
             }
         } finally {
             rebuildingRows = false;
+        }
+    }
+
+    /**
+     * Applies incremental changes to keep JavaFX's virtualized viewport stable while
+     * a historical message is being inspected. A journal rollover removes old rows.
+     */
+    private void updateVisibleRows(List<MessageRow> next) {
+        int common = 0;
+        int existingMessages = Math.max(0, rows.size() - 1);
+        int nextMessages = Math.max(0, next.size() - 1);
+        while (common < Math.min(existingMessages, nextMessages)
+                && rows.get(common).equals(next.get(common))) {
+            common++;
+        }
+        if (common == existingMessages && nextMessages >= existingMessages) {
+            rows.addAll(existingMessages, next.subList(common, nextMessages));
+        } else if (!rows.equals(next)) {
+            // Filters and bounded history rollover are not plain tail appends.
+            rows.setAll(next);
         }
     }
 
@@ -452,7 +472,6 @@ final class CentralMessagesPane {
             MessageRow row = rows.get(index);
             if (!row.followEnd() && row.message().ordinal() == ordinal) {
                 table.getSelectionModel().select(index);
-                table.scrollTo(index);
                 return;
             }
         }
