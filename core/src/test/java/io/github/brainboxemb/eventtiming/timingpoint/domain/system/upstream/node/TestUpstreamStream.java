@@ -7,8 +7,8 @@ import java.util.Queue;
 
 /** Small semantic send seam used by upstream protocol-helper unit tests. */
 final class TestUpstreamStream {
-    private final Queue<UpstreamData> outbound =
-            new ArrayDeque<UpstreamData>();
+    private final Queue<UpstreamData.Message> outbound =
+            new ArrayDeque<UpstreamData.Message>();
     private boolean available = true;
 
     boolean isAvailable() {
@@ -21,7 +21,7 @@ final class TestUpstreamStream {
     }
 
     void send(
-            UpstreamData message) {
+            UpstreamData.Message message) {
         if (message == null) {
             throw new IllegalArgumentException(
                     "message must not be null");
@@ -29,12 +29,11 @@ final class TestUpstreamStream {
         outbound.add(message);
     }
 
-    UpstreamData takeSent() {
-        UpstreamData data =
-                outbound.poll();
+    UpstreamData.Message takeSent() {
+        UpstreamData.Message data = outbound.poll();
         if (data == null) {
             throw new IllegalStateException(
-                    "no outbound UpstreamData available");
+                    "no outbound UpstreamData message available");
         }
         return data;
     }
