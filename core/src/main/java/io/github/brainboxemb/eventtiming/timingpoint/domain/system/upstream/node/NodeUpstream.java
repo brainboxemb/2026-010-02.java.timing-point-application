@@ -85,7 +85,6 @@ public final class NodeUpstream extends LifecycleComponent {
                         timeSource);
         this.downstreamDelivery =
                 new DownstreamDelivery(
-                        nodeId,
                         this::isAvailable,
                         this::sendMessage);
         this.timingDataSync =
@@ -130,7 +129,7 @@ public final class NodeUpstream extends LifecycleComponent {
         inputTask.cancel();
         timingDataLiveTask.cancel();
         timingDataSync.sessionUnavailable();
-        downstreamDelivery.cancelProcessing();
+        downstreamDelivery.cancelPending();
         taskRunner.close();
     }
 
@@ -265,7 +264,7 @@ public final class NodeUpstream extends LifecycleComponent {
                             (UpstreamData.Ping) packet.message()));
         }
 
-        if (!downstreamDelivery.beginProcessing(packet)) {
+        if (!downstreamDelivery.begin(packet)) {
             return oneStepTask(() -> { });
         }
 
@@ -283,7 +282,7 @@ public final class NodeUpstream extends LifecycleComponent {
                         this::isAvailable,
                         timingDataSync,
                         (UpstreamData.TimingDataRequest) packet.message(),
-                        () -> downstreamDelivery.completeProcessing(packet.packetId()),
+                        () -> downstreamDelivery.complete(packet),
                         this::wakeLiveTimingData);
 
             case SEQ:
@@ -291,11 +290,11 @@ public final class NodeUpstream extends LifecycleComponent {
                         () -> {
                             timingDataSync.handleSequence(
                                     (UpstreamData.Sequence) packet.message());
-                            downstreamDelivery.completeProcessing(packet.packetId());
+                            downstreamDelivery.complete(packet);
                         });
 
             default:
-                downstreamDelivery.cancelProcessing();
+                downstreamDelivery.cancelPending();
                 throw new UnsupportedOperationException(
                         "Inbound IF-06 message is not implemented by NodeUpstream: "
                                 + packet.family());
@@ -336,12 +335,13 @@ public final class NodeUpstream extends LifecycleComponent {
     /** Clears continuation state after one failed inbound packet operation. */
     private void cancelPacketState() {
         timingDataSync.cancelReplay();
-        downstreamDelivery.cancelProcessing();
+        downstreamDelivery.cancelPending();
     }
 
     /** Handles a connection fact from this node's fixed upstream stream. */
     public void connectionAvailable() {
         queueTimingDataSequenceNotification();
+        queueDownstreamReady();
         queueHeartbeat();
         wakeQueuedInput();
     }
@@ -351,7 +351,7 @@ public final class NodeUpstream extends LifecycleComponent {
         inputTask.cancel();
         timingDataLiveTask.cancel();
         timingDataSync.sessionUnavailable();
-        downstreamDelivery.cancelProcessing();
+        downstreamDelivery.cancelPending();
     }
 
     /** Handles a post-commit TimingData wake; the LogBook remains the source. */
@@ -400,5 +400,12 @@ public final class NodeUpstream extends LifecycleComponent {
         taskRunner.executeOrWarn(
                 timingDataSync::sendSourceHeadNotification,
                 "TIMING_DATA SEQ NTF");
+    }
+
+    /** Announces readiness for a full current downstream state on a fresh delivery state. */
+    private void queueDownstreamReady() {
+        taskRunner.executeOrWarn(
+                downstreamDelivery::requestFullStateIfUninitialized,
+                "downstream RECV 0");
     }
 }
