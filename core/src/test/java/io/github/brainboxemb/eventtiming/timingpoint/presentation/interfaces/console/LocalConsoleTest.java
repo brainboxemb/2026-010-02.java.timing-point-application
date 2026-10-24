@@ -93,6 +93,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains(
                 "config:<NodeId> tag-processing set <field=value>..."));
         assertFalse(text.contains("auto-reg"));
+        assertTrue(text.contains("reboot                       Restart the application"));
         assertTrue(text.contains("quit                         Stop the application"));
         assertTrue(text.contains("exit                         Alias for quit"));
         assertTrue(text.contains("event-timing-app"));
