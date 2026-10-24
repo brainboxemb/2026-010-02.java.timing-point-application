@@ -330,7 +330,7 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
-    void raceDataPositionUsesPacketNrentityNotSourceSequence() {
+    void raceDataPositionUsesPacketNrNotSourceSequence() {
         UpstreamData packet =
                 DefaultUpstreamData.createDnPacket(
                         NODE_A,
