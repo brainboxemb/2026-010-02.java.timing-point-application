@@ -501,14 +501,17 @@ editor. The Engineering Client still does not expose arbitrary TagObservation in
 TagProcessor/filter mutation or StageStartTimes/NextUpTeams editors. The first narrow
 Central RACE_DATA editor is now available separately as **C|RaceData**.
 
-The left explorer now deliberately contains three distinct views. **A|Systems** is the
+The left explorer now deliberately contains four independent views. **A|Systems** is the
 direct IF-03/API view of SI-01. **C|Systems** becomes connected only while the explicit
 Central role is active and is built only from typed `UPSTREAM_DATA` received by that
-full-duplex `/api/v1/events?role=upstream` session. It shows each observed NodeId,
-heartbeat activity, received TimingData head, Central RACE_DATA source/ACK heads and the
-latest LogBook record. **C|Locations**
-is the Central interpretation of configured/discovered LocationIds; NODE_INFO OPEN/CLOSE
-records drive its state. **C|RaceData** selects an observed Central NodeId and sends only
+full-duplex `/api/v1/events?role=upstream` session. Like A|Systems it is a compact
+TreeView intended for the narrow explorer column: the root shows the target system and
+each child shows only NodeId, interpreted OPEN/CLOSED/UNKNOWN lifecycle and LocationId
+when known. Heartbeat, TimingData head, RACE_DATA source/ACK heads and the latest LogBook
+record remain available on the node tooltip instead of occupying permanent table columns.
+**C|Locations** is the Central interpretation of configured/discovered LocationIds;
+NODE_INFO OPEN/CLOSE records drive its state. **C|RaceData** selects an observed Central
+NodeId and sends only
 RegistrationId-to-TeamId SET/DEL changes for now. Each operator action creates the next
 Central-owned RACE_DATA sequence, shows the source head and cumulative ACK, and is rejected
 unless the explicit Central `role=upstream` session is active. Stage-start editing remains
