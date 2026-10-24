@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -77,6 +78,7 @@ public class RaceDataSyncTest {
     private static UpstreamData.RaceData raceData(long sequence) {
         return DefaultUpstreamData.raceData(
                 new NodeId("A"),
+                new LocationId(1),
                 sequence,
                 Collections.singletonList(
                         DefaultUpstreamData.teamAssignmentSet(
