@@ -14,8 +14,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Owns normal Central-to-node packet delivery state for one NodeUpstream.
  *
  * <p>Only one normal DN_PACKET can be processed at a time. A duplicate packet is not
- * applied again; the last accepted packet id is reported again through RECV. A gap is
- * likewise not processed and reports the last accepted packet id, including zero when
+ * applied again; the last accepted packet number is reported again through RECV. A gap is
+ * likewise not processed and reports the last accepted packet number, including zero when
  * the node needs the Central side to rebuild current downstream state.</p>
  */
 final class DownstreamDelivery {
@@ -102,7 +102,7 @@ final class DownstreamDelivery {
         processingPacketNr = 0L;
     }
 
-    /** Returns the last successfully processed normal downstream packet id. */
+    /** Returns the last successfully processed normal downstream packet number. */
     synchronized long lastProcessedPacketNr() {
         return lastProcessedPacketNr;
     }
