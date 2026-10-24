@@ -135,8 +135,8 @@ final class TimingApplicationAssembler {
                             presentationNodes,
                             configurationControl,
                             simulationRunner);
-            ShutdownSignal shutdownSignal =
-                    new ShutdownSignal();
+            ApplicationExitSignal shutdownSignal =
+                    new ApplicationExitSignal();
             PresentationRuntime presentation =
                     new PresentationRuntime(
                             config.presentation(),
