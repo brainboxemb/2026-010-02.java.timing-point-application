@@ -65,7 +65,7 @@ final class CentralSystemSimulator {
             Instant lastHeartbeat,
             long timingDataHead,
             long lastDnPacketAcknowledged,
-            Long outstandingDnPacketId,
+            Long outstandingDnPacketNr,
             String lifecycleState,
             Integer locationId,
             TimingRecord lastRecord) {
@@ -332,7 +332,7 @@ final class CentralSystemSimulator {
                             state.outstanding == null
                                     ? null
                                     : Long.valueOf(
-                                            state.outstanding.packetId()),
+                                            state.outstanding.packetNr()),
                             state.lifecycleState,
                             state.locationId,
                             state.lastRecord));
@@ -417,32 +417,32 @@ final class CentralSystemSimulator {
     private List<UpstreamData> handleReceive(
             NodeState node,
             UpstreamData.Receive receive) {
-        long receivedPacketId = receive.receivedPacketId();
+        long receivedPacketNr = receive.receivedPacketNr();
 
-        if (receivedPacketId == 0L) {
+        if (receivedPacketNr == 0L) {
             resetDownstreamState(node);
             return sendNextNormalPacketIfPossible(node);
         }
 
         if (node.outstanding == null) {
-            if (receivedPacketId == node.lastDnPacketAcknowledged) {
+            if (receivedPacketNr == node.lastDnPacketAcknowledged) {
                 return Collections.emptyList();
             }
             throw new IllegalStateException(
                     "RECV "
-                            + receivedPacketId
+                            + receivedPacketNr
                             + " has no matching outstanding DN_PACKET for "
                             + node.nodeId);
         }
 
-        long outstandingId = node.outstanding.packetId();
-        if (receivedPacketId < outstandingId) {
+        long outstandingId = node.outstanding.packetNr();
+        if (receivedPacketNr < outstandingId) {
             return List.of(node.outstanding);
         }
-        if (receivedPacketId > outstandingId) {
+        if (receivedPacketNr > outstandingId) {
             throw new IllegalStateException(
                     "RECV "
-                            + receivedPacketId
+                            + receivedPacketNr
                             + " exceeds outstanding DN_PACKET "
                             + outstandingId);
         }
@@ -450,7 +450,7 @@ final class CentralSystemSimulator {
         applyAcknowledgedPacket(
                 node,
                 node.outstanding);
-        node.lastDnPacketAcknowledged = receivedPacketId;
+        node.lastDnPacketAcknowledged = receivedPacketNr;
         node.outstanding = null;
         return sendNextNormalPacketIfPossible(node);
     }
@@ -466,7 +466,7 @@ final class CentralSystemSimulator {
         node.outstanding = null;
         node.pendingMessages.clear();
         node.lastDnPacketAcknowledged = 0L;
-        node.nextDnPacketId = 1L;
+        node.nextDnPacketNr = 1L;
         node.acknowledgedTeams.clear();
         node.acknowledgedStageStarts.clear();
     }
@@ -517,7 +517,7 @@ final class CentralSystemSimulator {
         UpstreamData packet =
                 DefaultUpstreamData.createDnPacket(
                         new NodeId(node.nodeId),
-                        nextDnPacketId(node),
+                        nextDnPacketNr(node),
                         message);
         node.outstanding = packet;
         return List.of(packet);
@@ -719,15 +719,15 @@ final class CentralSystemSimulator {
         }
     }
 
-    private static long nextDnPacketId(NodeState node) {
-        if (node.nextDnPacketId <= 0L) {
+    private static long nextDnPacketNr(NodeState node) {
+        if (node.nextDnPacketNr <= 0L) {
             throw new IllegalStateException(
                     "DN_PACKET id space exhausted for "
                             + node.nodeId);
         }
 
-        long result = node.nextDnPacketId;
-        node.nextDnPacketId =
+        long result = node.nextDnPacketNr;
+        node.nextDnPacketNr =
                 result == Long.MAX_VALUE
                         ? 0L
                         : result + 1L;
@@ -865,7 +865,7 @@ final class CentralSystemSimulator {
 
         private Instant lastHeartbeat;
         private long timingDataHead;
-        private long nextDnPacketId = 1L;
+        private long nextDnPacketNr = 1L;
         private long lastDnPacketAcknowledged;
         private UpstreamData outstanding;
         private String lifecycleState = "UNKNOWN";
