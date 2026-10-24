@@ -23,12 +23,51 @@ final class CentralPaneTest {
                         Integer.valueOf(5),
                         null);
 
-        String compact = CentralPane.compactNodeText(node);
+        String compact = CentralPane.compactNodeText(
+                node,
+                Instant.parse("2026-10-24T09:00:30Z"));
 
-        assertEquals("A · OPEN · Location 5", compact);
+        assertEquals("A · OPEN · Location 5 · H -30s", compact);
         assertFalse(compact.contains("Timing"));
         assertFalse(compact.contains("Race"));
         assertFalse(compact.contains("\n"));
+    }
+
+    @Test
+    void heartbeatAgeIsUnavailableBeforeFirstHeartbeat() {
+        CentralSystemSimulator.NodeView node =
+                new CentralSystemSimulator.NodeView(
+                        "A",
+                        true,
+                        null,
+                        0L,
+                        0L,
+                        0L,
+                        "UNKNOWN",
+                        null,
+                        null);
+
+        assertEquals(
+                "A · UNKNOWN · H ---",
+                CentralPane.compactNodeText(
+                        node,
+                        Instant.parse("2026-10-24T09:00:30Z")));
+    }
+
+    @Test
+    void heartbeatAgeIsClampedToNarrowExplorerRange() {
+        Instant now = Instant.parse("2026-10-24T09:20:00Z");
+
+        assertEquals(
+                "H -999s",
+                CentralPane.heartbeatAgeText(
+                        Instant.parse("2026-10-24T08:00:00Z"),
+                        now));
+        assertEquals(
+                "H -0s",
+                CentralPane.heartbeatAgeText(
+                        Instant.parse("2026-10-24T09:20:05Z"),
+                        now));
     }
 
     @Test
