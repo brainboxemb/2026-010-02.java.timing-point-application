@@ -29,6 +29,7 @@ final class CentralSystemSimulator {
             long timingDataHead,
             long raceDataHead,
             long raceDataAcknowledged,
+            String lifecycleState,
             Integer locationId,
             TimingRecord lastRecord) {
     }
@@ -170,6 +171,7 @@ final class CentralSystemSimulator {
                     state.timingDataHead,
                     state.raceDataHead,
                     state.raceDataAcknowledged,
+                    state.lifecycleState,
                     state.locationId,
                     state.lastRecord));
         }
@@ -327,6 +329,7 @@ final class CentralSystemSimulator {
             TimingRecord record,
             Instant receivedAt) {
         if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
+            system.lifecycleState = "OPEN";
             system.locationId = Integer.valueOf(record.locationId());
             LocationState location = locations.computeIfAbsent(
                     record.locationId(),
@@ -336,6 +339,7 @@ final class CentralSystemSimulator {
             location.sequence = record.sequenceNumber();
             location.changedAt = receivedAt;
         } else if (record.kind() == TimingRecord.Kind.NODE_CLOSE) {
+            system.lifecycleState = "CLOSED";
             if (system.locationId != null
                     && system.locationId.intValue() == record.locationId()) {
                 system.locationId = null;
@@ -366,6 +370,7 @@ final class CentralSystemSimulator {
         private long timingDataHead;
         private long raceDataHead;
         private long raceDataAcknowledged;
+        private String lifecycleState = "UNKNOWN";
         private Integer locationId;
         private TimingRecord lastRecord;
 

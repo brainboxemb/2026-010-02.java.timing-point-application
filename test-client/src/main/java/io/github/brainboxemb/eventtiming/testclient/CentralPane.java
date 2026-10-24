@@ -10,13 +10,18 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 import java.time.Instant;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** JavaFX projection and operator controls for the Central System Simulator state. */
 final class CentralPane {
@@ -28,8 +33,11 @@ final class CentralPane {
 
     private final CentralSystemSimulator simulator;
     private final RaceDataActions raceDataActions;
-    private final Label connectionState = new Label("NOT CONNECTED");
-    private final TableView<CentralSystemSimulator.SystemView> systems = new TableView<>();
+    private final Label connectionState = new Label("CENTRAL UPSTREAM NOT CONNECTED");
+    private final TreeItem<String> systemRoot = new TreeItem<>("System · -");
+    private final TreeView<String> systemTree = new TreeView<>(systemRoot);
+    private final Map<TreeItem<String>, CentralSystemSimulator.SystemView> systemTreeViews =
+            new IdentityHashMap<>();
     private final TableView<CentralSystemSimulator.LocationView> locations = new TableView<>();
     private final ComboBox<String> raceNode = new ComboBox<>();
     private final TextField raceRegistration = new TextField();
@@ -42,6 +50,7 @@ final class CentralPane {
     private final VBox systemsPane;
     private final VBox locationsPane;
     private final VBox raceDataPane;
+    private String systemHost = "-";
 
     CentralPane(
             CentralSystemSimulator simulator,
@@ -60,10 +69,11 @@ final class CentralPane {
         configureRaceData();
 
         connectionState.getStyleClass().add("sync-state");
-        systemsPane = new VBox(4, connectionState, systems);
+        systemsPane = new VBox(6, connectionState, systemTree);
+        systemsPane.getStyleClass().add("engineering-explorer-pane");
         locationsPane = new VBox(locations);
         raceDataPane = createRaceDataPane();
-        VBox.setVgrow(systems, Priority.ALWAYS);
+        VBox.setVgrow(systemTree, Priority.ALWAYS);
         VBox.setVgrow(locations, Priority.ALWAYS);
         refresh();
     }
@@ -80,41 +90,113 @@ final class CentralPane {
         return raceDataPane;
     }
 
+    void setSystemHost(String host) {
+        systemHost = host == null || host.isBlank() ? "-" : host.trim();
+        refreshSystems(simulator.systems());
+    }
+
     void refresh() {
+        boolean connected = simulator.isConnected();
         connectionState.setText(
-                simulator.isConnected()
+                connected
                         ? "CENTRAL UPSTREAM CONNECTED"
                         : "CENTRAL UPSTREAM NOT CONNECTED");
+        connectionState.setVisible(!connected);
+        connectionState.setManaged(!connected);
+
         List<CentralSystemSimulator.SystemView> systemViews = simulator.systems();
-        systems.setItems(FXCollections.observableArrayList(systemViews));
+        refreshSystems(systemViews);
         locations.setItems(FXCollections.observableArrayList(simulator.locations()));
         refreshRaceNodes(systemViews);
         refreshRaceDataState();
     }
 
     private void configureSystems() {
-        TableColumn<CentralSystemSimulator.SystemView, String> node =
-                textColumn("Node", CentralSystemSimulator.SystemView::nodeId);
-        TableColumn<CentralSystemSimulator.SystemView, String> link =
-                textColumn("Link", value -> value.connected() ? "CONNECTED" : "STALE");
-        TableColumn<CentralSystemSimulator.SystemView, String> heartbeat =
-                textColumn("Heartbeat", value -> instant(value.lastHeartbeat()));
-        TableColumn<CentralSystemSimulator.SystemView, String> head =
-                textColumn("Timing head", value -> Long.toString(value.timingDataHead()));
-        TableColumn<CentralSystemSimulator.SystemView, String> raceHeadColumn =
-                textColumn("Race head", value -> Long.toString(value.raceDataHead()));
-        TableColumn<CentralSystemSimulator.SystemView, String> raceAckColumn =
-                textColumn("Race ack", value -> Long.toString(value.raceDataAcknowledged()));
-        TableColumn<CentralSystemSimulator.SystemView, String> location =
-                textColumn("Location", value ->
-                        value.locationId() == null ? "—" : value.locationId().toString());
-        TableColumn<CentralSystemSimulator.SystemView, String> last =
-                textColumn("Last LogBook", CentralPane::lastRecord);
+        systemRoot.setExpanded(true);
+        systemTree.setShowRoot(true);
+        systemTree.getStyleClass().add("systems-tree");
+        systemTree.setCellFactory(view -> new javafx.scene.control.TreeCell<>() {
+            private final Tooltip detail = new Tooltip();
 
-        systems.getColumns().setAll(
-                node, link, heartbeat, head, raceHeadColumn, raceAckColumn, location, last);
-        systems.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        systems.setPlaceholder(new Label("No upstream systems observed"));
+            {
+                setOnMouseEntered(event -> refreshTooltip());
+            }
+
+            @Override
+            protected void updateItem(String value, boolean empty) {
+                super.updateItem(value, empty);
+                setText(empty ? null : value);
+                refreshTooltip();
+            }
+
+            private void refreshTooltip() {
+                if (isEmpty() || getItem() == null) {
+                    setTooltip(null);
+                    return;
+                }
+
+                CentralSystemSimulator.SystemView system =
+                        systemTreeViews.get(getTreeItem());
+                if (system == null) {
+                    setTooltip(null);
+                    return;
+                }
+
+                detail.setText(systemDetailText(system));
+                setTooltip(detail);
+            }
+        });
+    }
+
+    private void refreshSystems(List<CentralSystemSimulator.SystemView> systemViews) {
+        String title = "System · " + systemHost;
+        if (!java.util.Objects.equals(systemRoot.getValue(), title)) {
+            systemRoot.setValue(title);
+        }
+
+        Map<String, TreeItem<String>> existing = new java.util.HashMap<>();
+        systemTreeViews.forEach((item, system) ->
+                existing.put(system.nodeId(), item));
+
+        systemTreeViews.clear();
+        List<TreeItem<String>> children = new java.util.ArrayList<>();
+        for (CentralSystemSimulator.SystemView system : systemViews) {
+            TreeItem<String> item =
+                    existing.getOrDefault(system.nodeId(), new TreeItem<>());
+            String label = compactSystemText(system);
+            if (!java.util.Objects.equals(item.getValue(), label)) {
+                item.setValue(label);
+            }
+            systemTreeViews.put(item, system);
+            children.add(item);
+        }
+
+        if (!systemRoot.getChildren().equals(children)) {
+            systemRoot.getChildren().setAll(children);
+        }
+        systemRoot.setExpanded(true);
+    }
+
+    static String compactSystemText(CentralSystemSimulator.SystemView system) {
+        StringBuilder text = new StringBuilder(system.nodeId())
+                .append(" · ")
+                .append(system.lifecycleState());
+        if (system.locationId() != null) {
+            text.append(" · Location ").append(system.locationId());
+        }
+        return text.toString();
+    }
+
+    static String systemDetailText(CentralSystemSimulator.SystemView system) {
+        return "Node " + system.nodeId()
+                + "\nLink " + (system.connected() ? "CONNECTED" : "STALE")
+                + "\nHeartbeat " + instant(system.lastHeartbeat())
+                + "\nTiming head " + system.timingDataHead()
+                + "\nRace head " + system.raceDataHead()
+                + "\nRace ACK " + system.raceDataAcknowledged()
+                + "\nLocation "
+                + (system.locationId() == null ? "—" : system.locationId())
+                + "\nLast LogBook " + lastRecord(system);
     }
 
     private void configureLocations() {
