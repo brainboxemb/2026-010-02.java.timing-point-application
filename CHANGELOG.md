@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reorganize SI-02 into top-level `Node <id>` and `Central <id>` perspectives with independent Bento workspaces and shared Device Log/Terminal/Client Log tools. Replace the Events raw text log with an IN/OUT WebSocket traffic inspector, add a separate Central semantic IF-06 Messages inspector with bounded journal state independent from RACE_DATA replay history, and make RegistrationId the primary Registrations identity while retaining optional TeamId separately.
+
 - Replace the SI-02 Events raw TextArea with a structured WebSocket traffic inspector: one row per frame, explicit IN/OUT direction, semantic/event type and timestamp, exact selected payload, direction/type filters, and tracked outbound Central PING/REQ/RACE_DATA traffic without artificial blank lines. Make RegistrationId the primary Registrations identity column while retaining optional interpreted TeamId separately.
 
 - Right-align the compact C|Nodes heartbeat age and `CNT` values with leading spaces (`H -  9s`, `CNT   9`) so rapidly changing numbers stay visually aligned in the narrow explorer.
