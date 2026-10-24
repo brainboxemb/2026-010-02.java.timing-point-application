@@ -98,12 +98,14 @@ public class WebSocketEndpointTest {
     }
 
     @Test
-    public void upstreamRoleWebSocketCarriesRaceDataAndAckBidirectionally()
+    public void upstreamRoleWebSocketCarriesPacketProtocolBidirectionally()
             throws Exception {
         NodeId nodeId = new NodeId("A");
         EngineerApiConnector connector = new EngineerApiConnector();
         UpstreamStream stream = new UpstreamStream(nodeId, connector);
-        new UpstreamGateway(connector, Collections.singletonMap(nodeId, stream));
+        new UpstreamGateway(
+                connector,
+                Collections.singletonMap(nodeId, stream));
 
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
@@ -120,27 +122,20 @@ public class WebSocketEndpointTest {
                         PresentationGatewayFixture.configurationControl(
                                 nodeId));
 
-        LifecycleTestSupport.activate(
-                components.node());
-        LifecycleTestSupport.activate(
-                components.nodeUpstream());
+        LifecycleTestSupport.activate(components.node());
+        LifecycleTestSupport.activate(components.nodeUpstream());
 
         WebSocketEndpoint server =
                 new WebSocketEndpoint(
                         "127.0.0.1",
                         0,
                         presentation,
-                        Collections.singletonList(
-                                connector),
+                        Collections.singletonList(connector),
                         EVENT_CLOCK);
         server.start();
 
-        TestClient normal =
-                connect(
-                        server.boundPort());
-        TestClient upstream =
-                connectUpstream(
-                        server.boundPort());
+        TestClient normal = connect(server.boundPort());
+        TestClient upstream = connectUpstream(server.boundPort());
         try {
             assertSnapshot(
                     normal.awaitMessage(),
@@ -153,98 +148,61 @@ public class WebSocketEndpointTest {
                     "CLOSED",
                     "null");
 
-            String firstInitialMessage =
-                    upstream.awaitMessage();
-            String secondInitialMessage =
-                    upstream.awaitMessage();
+            String first = upstream.awaitMessage();
+            String second = upstream.awaitMessage();
+            String third = upstream.awaitMessage();
+            String initial =
+                    String.valueOf(first)
+                            + "\n"
+                            + String.valueOf(second)
+                            + "\n"
+                            + String.valueOf(third);
 
-            String initialSync =
-                    firstInitialMessage.contains(
-                            "\"type\":\"SYNC\"")
-                            ? firstInitialMessage
-                            : secondInitialMessage;
-            String initialHeartbeat =
-                    firstInitialMessage.contains(
-                            "\"type\":\"PING\"")
-                            ? firstInitialMessage
-                            : secondInitialMessage;
+            assertTrue(initial.contains("\"eventType\":\"UPSTREAM_DATA\""));
+            assertTrue(initial.contains("\"type\":\"UP_PACKET\""));
+            assertTrue(initial.contains("\"type\":\"RECV\""));
+            assertTrue(initial.contains("\"receivedPacketId\":0"));
+            assertTrue(initial.contains("\"type\":\"SEQ\""));
+            assertTrue(initial.contains("\"op\":\"NTF\""));
+            assertTrue(initial.contains("\"seq\":0"));
+            assertTrue(initial.contains("\"type\":\"PING\""));
+            assertTrue(initial.contains("\"packetId\":0"));
+            assertTrue(initial.contains("\"op\":\"REQ\""));
+            assertTrue(initial.contains("\"mode\":\"HB\""));
 
-            assertTrue(
-                    initialSync.contains(
-                            "\"eventType\":\"UPSTREAM_DATA\""));
-            assertTrue(
-                    initialSync.contains(
-                            "\"type\":\"SYNC\""));
-            assertTrue(
-                    initialSync.contains(
-                            "\"stream\":\"TIMING_DATA\""));
-            assertTrue(
-                    initialSync.contains(
-                            "\"seq\":0"));
-
-            assertTrue(
-                    initialHeartbeat.contains(
-                            "\"eventType\":\"UPSTREAM_DATA\""));
-            assertTrue(
-                    initialHeartbeat.contains(
-                            "\"type\":\"PING\""));
-            assertTrue(
-                    initialHeartbeat.contains(
-                            "\"op\":\"REQ\""));
-            assertTrue(
-                    initialHeartbeat.contains(
-                            "\"mode\":\"HB\""));
-
-            UpstreamData.RaceData raceData =
-                    DefaultUpstreamData.raceData(
+            UpstreamData racePacket =
+                    DefaultUpstreamData.createDnPacket(
                             nodeId,
-                            new LocationId(1),
                             1L,
-                            Collections.singletonList(
-                                    DefaultUpstreamData.teamAssignmentSet(
-                                            "R0001",
-                                            "0042")),
-                            Collections.<UpstreamData.StageStartTimeChange>emptyList());
+                            DefaultUpstreamData.createRaceData(
+                                    new LocationId(1),
+                                    Collections.singletonList(
+                                            DefaultUpstreamData.createTeamAssignmentSet(
+                                                    "R0001",
+                                                    "0042")),
+                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
-            upstream.send(
-                    upstreamJson(
-                            raceData));
+            upstream.send(upstreamJson(racePacket));
 
-            String ackEvent =
-                    upstream.awaitMessage();
-            assertNotNull(ackEvent);
-            assertTrue(
-                    ackEvent.contains(
-                            "\"eventType\":\"UPSTREAM_DATA\""));
-            assertTrue(
-                    ackEvent.contains(
-                            "\"type\":\"ACK\""));
-            assertTrue(
-                    ackEvent.contains(
-                            "\"nodeId\":\"A\""));
-            assertTrue(
-                    ackEvent.contains(
-                            "\"stream\":\"RACE_DATA\""));
-            assertTrue(
-                    ackEvent.contains(
-                            "\"seq\":1"));
+            String recvEvent = upstream.awaitMessage();
+            assertNotNull(recvEvent);
+            assertTrue(recvEvent.contains("\"eventType\":\"UPSTREAM_DATA\""));
+            assertTrue(recvEvent.contains("\"type\":\"UP_PACKET\""));
+            assertTrue(recvEvent.contains("\"type\":\"RECV\""));
+            assertTrue(recvEvent.contains("\"receivedPacketId\":1"));
 
             assertEquals(
                     new TeamId("0042"),
                     components.raceData().teamIdFor(
                             new RegistrationId("R0001")));
 
-            // Generic event clients never receive upstream protocol traffic.
-            assertNull(
-                    normal.pollMessage(250));
+            assertNull(normal.pollMessage(250));
         } finally {
             upstream.closeBlocking();
             normal.closeBlocking();
             server.close();
-            LifecycleTestSupport.deactivate(
-                    components.nodeUpstream());
-            LifecycleTestSupport.deactivate(
-                    components.node());
+            LifecycleTestSupport.deactivate(components.nodeUpstream());
+            LifecycleTestSupport.deactivate(components.node());
         }
     }
 
