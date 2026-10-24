@@ -840,7 +840,7 @@ final class CentralSystemSimulator {
                 TimingRecord last =
                         records.get(records.size() - 1);
                 return Instant.ofEpochMilli(
-                        last.recordedAtMillis());
+                        last.effectiveTimeMillis());
             }
         }
         return fallback;
