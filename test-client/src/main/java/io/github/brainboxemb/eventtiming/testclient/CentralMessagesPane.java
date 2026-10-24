@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Pos;
 import javafx.scene.control.ComboBox;
@@ -25,8 +26,10 @@ final class CentralMessagesPane {
     private static final String ALL = "ALL";
 
     private final CentralSystemSimulator simulator;
+    private final ObservableList<CentralSystemSimulator.MessageView> messages =
+            FXCollections.observableArrayList();
     private final FilteredList<CentralSystemSimulator.MessageView> visible =
-            new FilteredList<>(FXCollections.observableArrayList());
+            new FilteredList<>(messages);
     private final ComboBox<String> directionFilter = new ComboBox<>();
     private final ComboBox<String> nodeFilter = new ComboBox<>();
     private final ComboBox<String> typeFilter = new ComboBox<>();
@@ -98,14 +101,14 @@ final class CentralMessagesPane {
         String selectedNode = nodeFilter.getValue();
         String selectedType = typeFilter.getValue();
 
-        List<CentralSystemSimulator.MessageView> messages = simulator.messages();
-        visible.getSource().setAll(messages);
+        List<CentralSystemSimulator.MessageView> snapshot = simulator.messages();
+        messages.setAll(snapshot);
 
         Set<String> nodes = new LinkedHashSet<>();
         nodes.add(ALL);
         Set<String> types = new LinkedHashSet<>();
         types.add(ALL);
-        for (CentralSystemSimulator.MessageView message : messages) {
+        for (CentralSystemSimulator.MessageView message : snapshot) {
             nodes.add(message.data().timingNodeId().value());
             types.add(message.data().family().name());
         }
