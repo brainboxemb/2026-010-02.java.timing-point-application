@@ -242,7 +242,7 @@ final class CentralMessagesPaneTest {
         String[] lines = displayed.split("\\R");
 
         assertEquals(4, lines.length);
-        assertTrue(lines[0].endsWith("\\\"data\\\":["));
+        assertTrue(lines[0].endsWith("\"data\":["));
         assertTrue(lines[1].trim().startsWith("{"));
         assertTrue(lines[1].trim().endsWith("},"));
         assertTrue(lines[2].trim().startsWith("{"));
