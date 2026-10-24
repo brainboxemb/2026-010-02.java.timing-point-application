@@ -63,8 +63,6 @@ public final class TestClientFxApplication extends Application {
     private final Tooltip connectTargetTooltip = new Tooltip();
     private final Button connectTarget = new Button("Connect");
 
-    private final TextArea eventLog = new TextArea();
-
     private final TextArea terminal = new TextArea();
     private final TextField terminalInput = new TextField();
     private final Button terminalSend = new Button("Send");
@@ -92,6 +90,7 @@ public final class TestClientFxApplication extends Application {
     private ApiPane apiPane;
     private CentralSystemSimulator centralSimulator;
     private CentralPane centralPane;
+    private EventTrafficPane eventTrafficPane;
     private EngineeringWorkbench workbench;
     private BorderPane workbenchRoot;
     private Image windowIcon;
@@ -456,13 +455,8 @@ public final class TestClientFxApplication extends Application {
     }
 
     private VBox eventsPane() {
-        eventLog.setEditable(false);
-        eventLog.setWrapText(false);
-        eventLog.getStyleClass().add("engineering-raw-data");
-        VBox pane = new VBox(eventLog);
-        pane.setPadding(new Insets(4));
-        VBox.setVgrow(eventLog, Priority.ALWAYS);
-        return pane;
+        eventTrafficPane = new EventTrafficPane();
+        return eventTrafficPane.pane();
     }
 
     private VBox terminalPane() {
@@ -733,6 +727,8 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void showEvent(ApiEventClient.ApiEvent event) {
+        eventTrafficPane.recordInbound(event);
+
         // Feed the presentation model but show only unmodified source JSON.
         // Duplicating four status labels here is redundant with Systems.
         if (event instanceof ApiEventClient.StatusEvent statusEvent) {
@@ -746,8 +742,7 @@ public final class TestClientFxApplication extends Application {
                         : centralSimulator.accept(
                                 upstreamEvent.upstreamData(),
                                 upstreamReceiveTime(upstreamEvent))) {
-                    system.eventClient()
-                            .sendUpstreamData(reply)
+                    sendUpstreamDataWithTraffic(reply)
                             .whenComplete((ignored, error) -> {
                                 if (error != null) {
                                     Platform.runLater(() -> {
@@ -770,12 +765,6 @@ public final class TestClientFxApplication extends Application {
             }
         }
 
-        if (!eventLog.getText().isEmpty()) {
-            eventLog.appendText(System.lineSeparator());
-        }
-        eventLog.appendText(event.rawJson());
-        eventLog.appendText(System.lineSeparator());
-        eventLog.positionCaret(eventLog.getLength());
     }
 
     private long sendCentralTeamAssignmentSet(
@@ -812,8 +801,7 @@ public final class TestClientFxApplication extends Application {
 
     private long sendCentralRaceData(UpstreamData.RaceData raceData) {
         try {
-            system.eventClient()
-                    .sendUpstreamData(raceData)
+            sendUpstreamDataWithTraffic(raceData)
                     .whenComplete((ignored, error) -> {
                         if (error != null) {
                             Platform.runLater(() -> {
@@ -841,6 +829,17 @@ public final class TestClientFxApplication extends Application {
                         + " queued for node "
                         + raceData.timingNodeId().value());
         return raceData.sequence();
+    }
+
+    private CompletableFuture<Void> sendUpstreamDataWithTraffic(
+            UpstreamData data) {
+        String rawPayload = ApiEventClient.encodeUpstreamData(data);
+        CompletableFuture<Void> send = system.eventClient().sendUpstreamData(data);
+        eventTrafficPane.recordOutbound(
+                java.time.Instant.now(),
+                data.family().name(),
+                rawPayload);
+        return send;
     }
 
     private void requireCentralUpstreamRole() {
