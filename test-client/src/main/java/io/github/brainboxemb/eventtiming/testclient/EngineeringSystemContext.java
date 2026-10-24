@@ -12,6 +12,7 @@ import java.net.URI;
 final class EngineeringSystemContext implements AutoCloseable {
     private final ClientConfig config;
     private final ApiEventClient eventClient = new ApiEventClient();
+    private final HttpTrafficJournal httpTraffic = new HttpTrafficJournal();
     private final RemoteShellClient shellClient = new RemoteShellClient();
     private final LiveLogClient liveLogClient = new LiveLogClient();
 
@@ -34,7 +35,11 @@ final class EngineeringSystemContext implements AutoCloseable {
     }
 
     ApiClient apiClient() {
-        return new ApiClient(apiEndpoint());
+        return new ApiClient(apiEndpoint(), httpTraffic::record);
+    }
+
+    HttpTrafficJournal httpTraffic() {
+        return httpTraffic;
     }
 
     ApiEventClient eventClient() {
