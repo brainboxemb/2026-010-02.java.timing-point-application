@@ -64,6 +64,7 @@ public class ActiveRegistrationsIntegrationTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
@@ -196,6 +197,7 @@ public class ActiveRegistrationsIntegrationTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                             Arrays.asList(
@@ -217,6 +219,7 @@ public class ActiveRegistrationsIntegrationTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             2L,
                             Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                             Collections.singletonList(
