@@ -1,5 +1,7 @@
 # Changelog
 
+- Make the existing IF-05 UTC record timestamps explicit in upstream verification and single-record TIMING_DATA INFO summaries: `time` remains effective UTC and `recTime` remains recorded-at UTC; no new IF-06 timing representation is introduced.
+
 - Add terminal `reboot`: request a full application RESTART distinct from `quit`/`exit` STOP, cleanly deactivate the current runtime and process-level presentation/logging resources, reload the YAML configuration, and compose/activate a new SI-01 application in the same JVM.
 
 - Keep Central IF-06 `UPSTREAM_DATA` traffic out of the Node Events viewer; add a Node HTTP inspector backed by a separate bounded diagnostic journal so LogBook baseline/synchronisation and other IF-03 request/response calls are visible with method, path, status and exact payloads.
