@@ -18,6 +18,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,6 +33,20 @@ import java.util.function.Function;
 /** Wide semantic IF-06 message inspector for the Central System Simulator. */
 final class CentralMessagesPane {
     private static final String ALL = "ALL";
+    private static final String TIME_ONLY = "Time";
+    private static final String DATE_AND_TIME = "Date + time";
+    private static final DateTimeFormatter TIME_FORMAT =
+            new DateTimeFormatterBuilder()
+                    .appendPattern("HH:mm:ss")
+                    .appendFraction(ChronoField.NANO_OF_SECOND, 0, 3, true)
+                    .toFormatter(Locale.ROOT)
+                    .withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter DATE_TIME_FORMAT =
+            new DateTimeFormatterBuilder()
+                    .appendPattern("uuuu-MM-dd HH:mm:ss")
+                    .appendFraction(ChronoField.NANO_OF_SECOND, 0, 3, true)
+                    .toFormatter(Locale.ROOT)
+                    .withZone(ZoneOffset.UTC);
 
     record MessageRow(
             CentralSystemSimulator.MessageView message,
@@ -59,8 +78,11 @@ final class CentralMessagesPane {
     private final ComboBox<String> directionFilter = new ComboBox<>();
     private final ComboBox<String> nodeFilter = new ComboBox<>();
     private final ComboBox<String> typeFilter = new ComboBox<>();
+    private final ComboBox<String> timeView = new ComboBox<>();
     private final Button endButton = new Button("End");
     private final TableView<MessageRow> table = new TableView<>(rows);
+    private TableColumn<MessageRow, String> messageTimeColumn;
+    private TableColumn<MessageRow, String> receivedTimeColumn;
     private final TextArea rawMessage = new TextArea();
     private final VBox pane;
 
@@ -85,9 +107,14 @@ final class CentralMessagesPane {
         typeFilter.setValue(ALL);
         typeFilter.setPrefWidth(155);
 
+        timeView.getItems().setAll(TIME_ONLY, DATE_AND_TIME);
+        timeView.setValue(TIME_ONLY);
+        timeView.setPrefWidth(125);
+
         directionFilter.setOnAction(event -> applyFilter());
         nodeFilter.setOnAction(event -> applyFilter());
         typeFilter.setOnAction(event -> applyFilter());
+        timeView.setOnAction(event -> applyTimeView());
 
         endButton.setTooltip(new Tooltip("Follow new Central messages at the end"));
         endButton.setOnAction(event -> selectFollowEnd());
@@ -113,6 +140,8 @@ final class CentralMessagesPane {
                 nodeFilter,
                 new Label("Type"),
                 typeFilter,
+                new Label("Time view"),
+                timeView,
                 spacer,
                 endButton);
         filters.setAlignment(Pos.CENTER_LEFT);
@@ -187,12 +216,22 @@ final class CentralMessagesPane {
                         value -> messageValue(
                                 value,
                                 message -> positionText(message.data())));
-        TableColumn<MessageRow, String> time =
+        messageTimeColumn =
                 column(
                         "Time",
                         value -> messageValue(
                                 value,
-                                message -> message.timestamp().toString()));
+                                message -> formatTime(
+                                        message.messageTime(),
+                                        showDate())));
+        receivedTimeColumn =
+                column(
+                        "Received",
+                        value -> messageValue(
+                                value,
+                                message -> formatTime(
+                                        message.receivedAt(),
+                                        showDate())));
         TableColumn<MessageRow, String> summary =
                 column(
                         "Summary",
@@ -207,13 +246,45 @@ final class CentralMessagesPane {
         node.setPrefWidth(70);
         type.setPrefWidth(120);
         position.setPrefWidth(190);
-        time.setPrefWidth(205);
         summary.setPrefWidth(420);
+        applyTimeColumnWidths();
 
-        table.getColumns().setAll(direction, node, type, position, time, summary);
+        table.getColumns().setAll(
+                direction,
+                node,
+                type,
+                position,
+                messageTimeColumn,
+                receivedTimeColumn,
+                summary);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPlaceholder(new Label("No matching Central messages"));
         table.getStyleClass().add("engineering-traffic-table");
+    }
+
+    /** Refreshes table formatting and widths after the time-view choice changes. */
+    private void applyTimeView() {
+        applyTimeColumnWidths();
+        table.refresh();
+    }
+
+    /** Keeps the default time-only table compact while allowing the date view to expand. */
+    private void applyTimeColumnWidths() {
+        double width =
+                showDate()
+                        ? 190.0
+                        : 115.0;
+        if (messageTimeColumn != null) {
+            messageTimeColumn.setPrefWidth(width);
+        }
+        if (receivedTimeColumn != null) {
+            receivedTimeColumn.setPrefWidth(width);
+        }
+    }
+
+    /** Returns whether the selected presentation includes the UTC calendar date. */
+    private boolean showDate() {
+        return DATE_AND_TIME.equals(timeView.getValue());
     }
 
     private void applyFilter() {
@@ -336,6 +407,21 @@ final class CentralMessagesPane {
                         || message.data().family().name().equals(typeValue));
     }
 
+    /**
+     * Formats Central message times in UTC without exposing sub-millisecond noise.
+     *
+     * <p>The underlying Instant is retained unchanged; only the table presentation is compacted.</p>
+     */
+    static String formatTime(
+            Instant instant,
+            boolean includeDate) {
+        if (instant == null) {
+            return "—";
+        }
+        return (includeDate ? DATE_TIME_FORMAT : TIME_FORMAT)
+                .format(instant);
+    }
+
     static String directionText(CentralSystemSimulator.MessageView message) {
         return message.direction() == CentralSystemSimulator.MessageDirection.IN
                 ? "IN ←"
@@ -402,11 +488,36 @@ final class CentralMessagesPane {
 
     private static String timingDataPosition(UpstreamData.TimingDataTransfer transfer) {
         List<TimingRecord> records = transfer.records();
-        long first = records.get(0).sequenceNumber();
-        long last = records.get(records.size() - 1).sequenceNumber();
-        return first == last
-                ? "TIMING_DATA #" + first
-                : "TIMING_DATA #" + first + ".." + last;
+        TimingRecord firstRecord = records.get(0);
+        TimingRecord lastRecord = records.get(records.size() - 1);
+        long first = firstRecord.sequenceNumber();
+        long last = lastRecord.sequenceNumber();
+
+        String recordType = timingRecordType(firstRecord.kind());
+        boolean sameType = true;
+        for (int index = 1; index < records.size(); index++) {
+            if (records.get(index).kind() != firstRecord.kind()) {
+                sameType = false;
+                break;
+            }
+        }
+
+        if (first == last) {
+            return recordType + " #" + first;
+        }
+        return sameType
+                ? recordType + " #" + first + ".." + last
+                : "#" + first + ".." + last;
+    }
+
+    /** Returns the compact IF-05 record type already used by operator-facing LogBook output. */
+    private static String timingRecordType(TimingRecord.Kind kind) {
+        return switch (kind) {
+            case AUTOMATIC_REGISTRATION -> "AUTO_REG";
+            case MANUAL_REGISTRATION -> "MAN_REG";
+            case NODE_OPEN -> "NODE_OPEN";
+            case NODE_CLOSE -> "NODE_CLOSE";
+        };
     }
 
     private static String raceDataSummary(UpstreamData.RaceData raceData) {

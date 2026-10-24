@@ -101,36 +101,65 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void semanticMessageJournalTracksInboundAndOutboundDirections() {
+    void semanticMessageJournalSeparatesMessageAndReceiveTimes() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+        Instant inboundMessageTime =
+                RECEIVED.minusMillis(40);
+        Instant inboundEventTime =
+                RECEIVED.minusMillis(10);
+        Instant inboundReceivedAt =
+                RECEIVED;
         UpstreamData.Ping inbound =
                 DefaultUpstreamData.ping(
                         NODE_A,
                         UpstreamData.PingOperation.REQ,
                         UpstreamData.PingMode.HB,
-                        "hb-journal");
+                        "hb-journal",
+                        new io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp(
+                                inboundMessageTime));
+
+        Instant outboundMessageTime =
+                RECEIVED.plusMillis(2);
         UpstreamData.Ping outbound =
                 DefaultUpstreamData.ping(
                         NODE_A,
                         UpstreamData.PingOperation.ANS,
                         UpstreamData.PingMode.HB,
-                        "hb-journal");
+                        "hb-journal",
+                        new io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp(
+                                outboundMessageTime));
 
-        simulator.accept(inbound, RECEIVED);
-        simulator.recordSent(outbound, RECEIVED.plusMillis(5));
+        simulator.accept(
+                inbound,
+                inboundEventTime,
+                inboundReceivedAt);
+        simulator.recordSent(
+                outbound,
+                RECEIVED.plusMillis(5));
 
         List<CentralSystemSimulator.MessageView> messages = simulator.messages();
         assertEquals(2, messages.size());
+
+        CentralSystemSimulator.MessageView received =
+                messages.get(0);
         assertSame(
                 CentralSystemSimulator.MessageDirection.IN,
-                messages.get(0).direction());
-        assertSame(inbound, messages.get(0).data());
+                received.direction());
+        assertSame(inbound, received.data());
+        assertEquals(inboundMessageTime, received.messageTime());
+        assertEquals(inboundReceivedAt, received.receivedAt());
+
+        CentralSystemSimulator.MessageView sent =
+                messages.get(1);
         assertSame(
                 CentralSystemSimulator.MessageDirection.OUT,
-                messages.get(1).direction());
-        assertSame(outbound, messages.get(1).data());
-        assertEquals(1L, messages.get(0).ordinal());
-        assertEquals(2L, messages.get(1).ordinal());
+                sent.direction());
+        assertSame(outbound, sent.data());
+        assertEquals(outboundMessageTime, sent.messageTime());
+        assertNull(sent.receivedAt());
+
+        assertEquals(1L, received.ordinal());
+        assertEquals(2L, sent.ordinal());
     }
 
     @Test

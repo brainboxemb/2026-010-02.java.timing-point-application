@@ -1,7 +1,9 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -30,6 +32,7 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.OUT,
                         TIME,
+                        null,
                         sync);
 
         assertTrue(CentralMessagesPane.matches(message, "ALL", "ALL", "ALL"));
@@ -52,6 +55,7 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.IN,
                         TIME,
+                        TIME.plusMillis(4),
                         ping);
 
         java.util.List<CentralMessagesPane.MessageRow> rows =
@@ -80,6 +84,7 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.IN,
                         TIME,
+                        TIME.plusMillis(4),
                         ping);
 
         java.util.List<CentralMessagesPane.MessageRow> rows =
@@ -91,6 +96,27 @@ final class CentralMessagesPaneTest {
 
         assertEquals(1, rows.size());
         assertTrue(rows.get(0).followEnd());
+    }
+
+    @Test
+    void formatsTimeCompactlyAtMillisecondPrecision() {
+        Instant precise =
+                Instant.parse("2026-10-24T14:29:46.798293700Z");
+
+        assertEquals(
+                "14:29:46.798",
+                CentralMessagesPane.formatTime(precise, false));
+        assertEquals(
+                "2026-10-24 14:29:46.798",
+                CentralMessagesPane.formatTime(precise, true));
+        assertEquals(
+                "14:29:46",
+                CentralMessagesPane.formatTime(
+                        Instant.parse("2026-10-24T14:29:46Z"),
+                        false));
+        assertEquals(
+                "—",
+                CentralMessagesPane.formatTime(null, false));
     }
 
     @Test
@@ -119,6 +145,70 @@ final class CentralMessagesPaneTest {
         assertEquals(
                 "acknowledge contiguous receive head",
                 CentralMessagesPane.summaryText(ack));
+    }
+
+    @Test
+    void timingDataPositionUsesRecordTypeInsteadOfRepeatingMessageType() {
+        long millis = TIME.toEpochMilli();
+        TimingRecord automatic =
+                TimingRecord.createAutomaticRegistration(
+                        'A',
+                        1186L,
+                        1,
+                        millis,
+                        millis,
+                        new RegistrationId("A0001").packedValue(),
+                        TimingRecord.Action.ADD,
+                        TimingRecord.TagSource.API,
+                        TimingRecord.AutomaticTimeSource.API);
+
+        UpstreamData.TimingDataTransfer transfer =
+                DefaultUpstreamData.timingData(
+                        NODE_A,
+                        java.util.List.of(automatic));
+
+        assertEquals(
+                "AUTO_REG #1186",
+                CentralMessagesPane.positionText(transfer));
+    }
+
+    @Test
+    void timingDataPositionKeepsHomogeneousBatchTypeAndMixedBatchCompact() {
+        long millis = TIME.toEpochMilli();
+        TimingRecord first =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1186L,
+                        1,
+                        millis,
+                        millis);
+        TimingRecord second =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1187L,
+                        1,
+                        millis,
+                        millis);
+        TimingRecord mixed =
+                TimingRecord.createNodeClosed(
+                        'A',
+                        1188L,
+                        1,
+                        millis,
+                        millis);
+
+        assertEquals(
+                "NODE_OPEN #1186..1187",
+                CentralMessagesPane.positionText(
+                        DefaultUpstreamData.timingData(
+                                NODE_A,
+                                java.util.List.of(first, second))));
+        assertEquals(
+                "#1186..1188",
+                CentralMessagesPane.positionText(
+                        DefaultUpstreamData.timingData(
+                                NODE_A,
+                                java.util.List.of(first, second, mixed))));
     }
 
     @Test
@@ -157,12 +247,14 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.IN,
                         TIME,
+                        TIME.plusMillis(4),
                         ping);
         CentralSystemSimulator.MessageView outbound =
                 new CentralSystemSimulator.MessageView(
                         2L,
                         CentralSystemSimulator.MessageDirection.OUT,
                         TIME,
+                        null,
                         ping);
 
         assertEquals("IN ←", CentralMessagesPane.directionText(inbound));

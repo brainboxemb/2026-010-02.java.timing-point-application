@@ -62,6 +62,7 @@ public final class ApiEventClient implements AutoCloseable {
     public record UpstreamDataEvent(
             String eventType,
             Instant occurredAt,
+            Instant receivedAt,
             UpstreamData upstreamData,
             String rawJson)
             implements ApiEvent {
@@ -189,6 +190,18 @@ public final class ApiEventClient implements AutoCloseable {
     }
 
     static ApiEvent parseEvent(String rawJson) throws IOException {
+        return parseEvent(rawJson, null);
+    }
+
+    /**
+     * Parses one IF-03 event and retains the local receipt time for UPSTREAM_DATA.
+     *
+     * <p>The single-argument overload is kept for deterministic parser tests and uses
+     * occurredAt as the receive-time fallback.</p>
+     */
+    static ApiEvent parseEvent(
+            String rawJson,
+            Instant receivedAt) throws IOException {
         JsonNode root = JSON.readTree(rawJson);
         String eventType = ApiClient.requiredText(root, "eventType");
         Instant occurredAt = Instant.parse(
@@ -219,6 +232,7 @@ public final class ApiEventClient implements AutoCloseable {
                 return new UpstreamDataEvent(
                         eventType,
                         occurredAt,
+                        receivedAt == null ? occurredAt : receivedAt,
                         decoded,
                         rawJson);
             } catch (UpstreamDataCodec.CodecException ex) {
@@ -295,7 +309,8 @@ public final class ApiEventClient implements AutoCloseable {
                 String rawJson = text.toString();
                 text.setLength(0);
                 try {
-                    listener.onEvent(parseEvent(rawJson));
+                    Instant receivedAt = Instant.now();
+                    listener.onEvent(parseEvent(rawJson, receivedAt));
                 } catch (Exception ex) {
                     listener.onError(message(ex));
                 }
