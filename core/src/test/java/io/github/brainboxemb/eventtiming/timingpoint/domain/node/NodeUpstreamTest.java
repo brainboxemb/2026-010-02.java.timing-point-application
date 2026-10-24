@@ -62,6 +62,7 @@ public class NodeUpstreamTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
@@ -93,6 +94,7 @@ public class NodeUpstreamTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
@@ -102,6 +104,7 @@ public class NodeUpstreamTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             2L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
@@ -142,6 +145,7 @@ public class NodeUpstreamTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
@@ -687,6 +691,7 @@ public class NodeUpstreamTest {
             stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
