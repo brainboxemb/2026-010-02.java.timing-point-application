@@ -158,6 +158,7 @@ final class TimingPane {
                     String selectedId = treeNodeIds.get(selectedItem);
                     if (selectedId != null && !selectedId.equals(model.selectedNodeId())) {
                         model.selectNode(selectedId);
+                        reportSelectedNode();
                         loadSelectedLogBook();
                     }
                 });
@@ -303,6 +304,7 @@ final class TimingPane {
             String selected = node.getValue();
             if (selected != null && !selected.equals(model.selectedNodeId())) {
                 model.selectNode(selected);
+                reportSelectedNode();
                 loadSelectedLogBook();
             }
         });
