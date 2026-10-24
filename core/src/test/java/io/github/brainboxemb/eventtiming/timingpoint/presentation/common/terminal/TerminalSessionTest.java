@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGat
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.time.ZoneId;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
@@ -20,6 +21,32 @@ import static org.junit.Assert.assertTrue;
 
 /** Verifies terminal operator-time and help semantics independently of the host time zone. */
 public class TerminalSessionTest {
+
+    @Test
+    public void rebootRequestsRestartWithoutRequestingStop() throws Exception {
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        AtomicBoolean restarted = new AtomicBoolean(false);
+        StringWriter output = new StringWriter();
+
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity())) {
+            TerminalSession session =
+                    new TerminalSession(
+                            fixture.handler(),
+                            null,
+                            () -> stopped.set(true),
+                            () -> restarted.set(true));
+
+            session.run(
+                    new StringReader("reboot\n"),
+                    output,
+                    "ready");
+        }
+
+        assertTrue(output.toString().contains("Rebooting application."));
+        assertTrue(restarted.get());
+        assertTrue(!stopped.get());
+    }
 
     @Test
     public void compactTimeIsLocalUnlessExplicitlySuffixedUtc() throws Exception {
