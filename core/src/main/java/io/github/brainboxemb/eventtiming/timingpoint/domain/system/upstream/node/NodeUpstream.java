@@ -339,8 +339,8 @@ public final class NodeUpstream extends LifecycleComponent {
 
     /** Handles a connection fact from this node's fixed upstream stream. */
     public void connectionAvailable() {
-        queueTimingDataSequenceNotification();
         queueDownstreamReady();
+        queueTimingDataSequenceNotification();
         queueHeartbeat();
         wakeQueuedInput();
     }
