@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.testclient;
 import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
@@ -27,13 +28,18 @@ import software.coley.bentofx.layout.container.DockContainerRootBranch;
 /**
  * BentoFX composition for the SI-02 Engineering Desktop Client.
  *
- * <p>The left column keeps the three always-useful engineering diagnostics visible:
- * Device Log, Terminal and Client Log. The right side contains ordinary BentoFX tabs
- * for the selected-node Node and Central perspectives. Each perspective tab owns an
- * independent nested Bento layout and can therefore be detached as one window.</p>
+ * <p>The left side owns engineering navigation, controls and always-visible diagnostics.
+ * The right side is reserved for detachable viewer workspaces such as Node A and
+ * Central A. Viewer workspaces are ordinary Bento dockables so later Node B / Central B
+ * viewers can share the same right-side tab area.</p>
  */
 final class EngineeringWorkbench {
     private static final int WORKBENCH_DRAG_GROUP = 1;
+
+    private static final double DETACHED_MIN_WIDTH = 480.0;
+    private static final double DETACHED_MAX_WIDTH = 960.0;
+    private static final double DETACHED_MIN_HEIGHT = 320.0;
+    private static final double DETACHED_MAX_HEIGHT = 640.0;
 
     private final BooleanSupplier allRegistrations;
     private final Consumer<Boolean> setAllRegistrations;
@@ -47,8 +53,8 @@ final class EngineeringWorkbench {
             new LinkedHashMap<>();
 
     private final DockContainerRootBranch root;
-    private final Dockable nodePerspective;
-    private final Dockable centralPerspective;
+    private final Dockable nodeViewer;
+    private final Dockable centralViewer;
 
     EngineeringWorkbench(
             Node apiSystems,
@@ -73,56 +79,100 @@ final class EngineeringWorkbench {
         this.allRegistrations = java.util.Objects.requireNonNull(allRegistrations);
         this.setAllRegistrations = java.util.Objects.requireNonNull(setAllRegistrations);
 
-        Node nodePerspectiveContent = createNodePerspective(
-                apiSystems,
+        Node nodeControls = createNodeControls(
                 timingNode,
                 apiInfo,
                 registration,
                 simulation,
-                scripts,
+                scripts);
+        Node centralControls = createCentralControls(centralRaceData);
+        Node nodeViewerContent = createNodeViewer(
                 registrations,
                 logBook,
                 rawData,
                 events);
-        Node centralPerspectiveContent = createCentralPerspective(
-                centralNodes,
-                centralLocations,
-                centralMessages,
-                centralRaceData);
+        Node centralViewerContent = createCentralViewer(centralMessages);
 
         Bento outerBento = createBento();
         DockBuilding builder = outerBento.dockBuilding();
         root = builder.root("engineering-root");
 
-        DockContainerBranch leftColumn = builder.branch("engineering-tools-column");
-        DockContainerBranch rightColumn = builder.branch("perspective-column");
+        DockContainerBranch leftColumn = builder.branch("left-column");
+        DockContainerBranch leftTop = builder.branch("left-top");
+        DockContainerLeaf explorerLeaf = builder.leaf("explorer");
+        DockContainerLeaf controlsLeaf = builder.leaf("controls");
         DockContainerLeaf deviceLogLeaf = builder.leaf("device-log");
         DockContainerLeaf terminalLeaf = builder.leaf("terminal");
         DockContainerLeaf clientLogLeaf = builder.leaf("client-log");
-        DockContainerLeaf perspectiveLeaf = builder.leaf("perspectives");
+        DockContainerBranch rightColumn = builder.branch("viewer-column");
+        DockContainerLeaf viewerLeaf = builder.leaf("viewers");
 
         root.setOrientation(Orientation.HORIZONTAL);
         leftColumn.setOrientation(Orientation.VERTICAL);
+        leftTop.setOrientation(Orientation.HORIZONTAL);
         rightColumn.setOrientation(Orientation.HORIZONTAL);
 
         root.addContainers(leftColumn, rightColumn);
-        leftColumn.addContainers(deviceLogLeaf, terminalLeaf, clientLogLeaf);
-        rightColumn.addContainers(perspectiveLeaf);
+        leftColumn.addContainers(
+                leftTop,
+                deviceLogLeaf,
+                terminalLeaf,
+                clientLogLeaf);
+        leftTop.addContainers(explorerLeaf, controlsLeaf);
+        rightColumn.addContainers(viewerLeaf);
 
-        registerHomeOrder(leftColumn, deviceLogLeaf, terminalLeaf, clientLogLeaf);
-        registerHomeOrder(rightColumn, perspectiveLeaf);
+        registerHomeOrder(leftTop, explorerLeaf, controlsLeaf);
+        registerHomeOrder(
+                leftColumn,
+                deviceLogLeaf,
+                terminalLeaf,
+                clientLogLeaf);
+        registerHomeOrder(rightColumn, viewerLeaf);
 
+        configureLeaf(explorerLeaf);
+        configureLeaf(controlsLeaf);
         configureLeaf(deviceLogLeaf);
         configureLeaf(terminalLeaf);
         configureLeaf(clientLogLeaf);
-        configureLeaf(perspectiveLeaf);
+        configureLeaf(viewerLeaf);
 
-        // Preserve both main columns as canonical docking homes while tabs are detached.
+        leftTop.setPruneWhenEmpty(false);
         leftColumn.setPruneWhenEmpty(false);
         rightColumn.setPruneWhenEmpty(false);
 
-        root.setDividerPositions(0.27);
-        leftColumn.setDividerPositions(0.34, 0.67);
+        // Restore the useful pre-perspective proportions.
+        root.setDividerPositions(0.49);
+        leftColumn.setDividerPositions(0.43, 0.64, 0.82);
+        leftTop.setDividerPositions(0.28);
+
+        explorerLeaf.addDockables(
+                dockable(builder, explorerLeaf,
+                        new WorkbenchPanel(
+                                "api-systems",
+                                "A|Systems",
+                                apiSystems)),
+                dockable(builder, explorerLeaf,
+                        new WorkbenchPanel(
+                                "central-nodes",
+                                "C|Nodes",
+                                centralNodes)),
+                dockable(builder, explorerLeaf,
+                        new WorkbenchPanel(
+                                "central-locations",
+                                "C|Locations",
+                                centralLocations)));
+
+        controlsLeaf.addDockables(
+                dockable(builder, controlsLeaf,
+                        new WorkbenchPanel(
+                                "node-controls",
+                                "Node Controls",
+                                nodeControls)),
+                dockable(builder, controlsLeaf,
+                        new WorkbenchPanel(
+                                "central-controls",
+                                "Central Controls",
+                                centralControls)));
 
         deviceLogLeaf.addDockable(
                 dockable(builder, deviceLogLeaf,
@@ -132,7 +182,10 @@ final class EngineeringWorkbench {
                                 deviceLog)));
         terminalLeaf.addDockable(
                 dockable(builder, terminalLeaf,
-                        new WorkbenchPanel("terminal", "Terminal", terminal)));
+                        new WorkbenchPanel(
+                                "terminal",
+                                "Terminal",
+                                terminal)));
         clientLogLeaf.addDockable(
                 dockable(builder, clientLogLeaf,
                         new WorkbenchPanel(
@@ -140,21 +193,21 @@ final class EngineeringWorkbench {
                                 "Client Log",
                                 clientLog)));
 
-        nodePerspective = dockable(
+        nodeViewer = dockable(
                 builder,
-                perspectiveLeaf,
+                viewerLeaf,
                 new WorkbenchPanel(
-                        "node-perspective",
+                        "node-viewer",
                         "Node",
-                        nodePerspectiveContent));
-        centralPerspective = dockable(
+                        nodeViewerContent));
+        centralViewer = dockable(
                 builder,
-                perspectiveLeaf,
+                viewerLeaf,
                 new WorkbenchPanel(
-                        "central-perspective",
+                        "central-viewer",
                         "Central",
-                        centralPerspectiveContent));
-        perspectiveLeaf.addDockables(nodePerspective, centralPerspective);
+                        centralViewerContent));
+        viewerLeaf.addDockables(nodeViewer, centralViewer);
     }
 
     Node root() {
@@ -162,8 +215,8 @@ final class EngineeringWorkbench {
     }
 
     void setPerspectiveNodeId(String nodeId) {
-        nodePerspective.setTitle(perspectiveTitle("Node", nodeId));
-        centralPerspective.setTitle(perspectiveTitle("Central", nodeId));
+        nodeViewer.setTitle(perspectiveTitle("Node", nodeId));
+        centralViewer.setTitle(perspectiveTitle("Central", nodeId));
     }
 
     static String perspectiveTitle(String perspective, String nodeId) {
@@ -175,68 +228,104 @@ final class EngineeringWorkbench {
                 : perspective + " " + nodeId.trim();
     }
 
-    private Node createNodePerspective(
-            Node apiSystems,
+    private Node createNodeControls(
             Node timingNode,
             Node apiInfo,
             Node registration,
             Node simulation,
-            Node scripts,
+            Node scripts) {
+        Bento bento = createBento();
+        DockBuilding builder = bento.dockBuilding();
+        DockContainerRootBranch controlsRoot = builder.root("node-controls-root");
+        DockContainerLeaf controls = builder.leaf("node-controls-tabs");
+
+        controlsRoot.setOrientation(Orientation.HORIZONTAL);
+        controlsRoot.addContainers(controls);
+        configureLeaf(controls);
+
+        controls.addDockables(
+                dockable(builder, controls,
+                        new WorkbenchPanel(
+                                "timing-node",
+                                "TimingNode",
+                                timingNode)),
+                dockable(builder, controls,
+                        new WorkbenchPanel(
+                                "api-info",
+                                "API",
+                                apiInfo)),
+                dockable(builder, controls,
+                        new WorkbenchPanel(
+                                "registration",
+                                "Registration",
+                                registration)),
+                dockable(builder, controls,
+                        new WorkbenchPanel(
+                                "simulation",
+                                "Simulation",
+                                simulation)),
+                dockable(builder, controls,
+                        new WorkbenchPanel(
+                                "scripts",
+                                "Scripts",
+                                scripts)));
+
+        return controlsRoot;
+    }
+
+    private Node createCentralControls(Node centralRaceData) {
+        Bento bento = createBento();
+        DockBuilding builder = bento.dockBuilding();
+        DockContainerRootBranch controlsRoot =
+                builder.root("central-controls-root");
+        DockContainerLeaf controls = builder.leaf("central-controls-tabs");
+
+        controlsRoot.setOrientation(Orientation.HORIZONTAL);
+        controlsRoot.addContainers(controls);
+        configureLeaf(controls);
+
+        controls.addDockable(
+                dockable(builder, controls,
+                        new WorkbenchPanel(
+                                "central-race-data",
+                                "RaceData",
+                                centralRaceData)));
+        return controlsRoot;
+    }
+
+    private Node createNodeViewer(
             Node registrations,
             Node logBook,
             Node rawData,
             Node events) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
-        DockContainerRootBranch nodeRoot = builder.root("node-perspective-root");
-        DockContainerBranch left = builder.branch("node-left");
-        DockContainerBranch right = builder.branch("node-right");
-
-        DockContainerLeaf systemsLeaf = builder.leaf("node-systems");
-        DockContainerLeaf controlsLeaf = builder.leaf("node-controls");
-        DockContainerLeaf registrationsLeaf = builder.leaf("node-registrations");
+        DockContainerRootBranch viewerRoot = builder.root("node-viewer-root");
+        DockContainerBranch content = builder.branch("node-viewer-content");
+        DockContainerLeaf registrationsLeaf =
+                builder.leaf("node-registrations");
         DockContainerLeaf logBookLeaf = builder.leaf("node-logbook");
         DockContainerLeaf detailLeaf = builder.leaf("node-detail");
 
-        nodeRoot.setOrientation(Orientation.HORIZONTAL);
-        left.setOrientation(Orientation.HORIZONTAL);
-        right.setOrientation(Orientation.VERTICAL);
+        viewerRoot.setOrientation(Orientation.VERTICAL);
+        content.setOrientation(Orientation.VERTICAL);
+        viewerRoot.addContainers(content);
+        content.addContainers(
+                registrationsLeaf,
+                logBookLeaf,
+                detailLeaf);
 
-        nodeRoot.addContainers(left, right);
-        left.addContainers(systemsLeaf, controlsLeaf);
-        right.addContainers(registrationsLeaf, logBookLeaf, detailLeaf);
+        registerHomeOrder(
+                content,
+                registrationsLeaf,
+                logBookLeaf,
+                detailLeaf);
 
-        registerHomeOrder(left, systemsLeaf, controlsLeaf);
-        registerHomeOrder(right, registrationsLeaf, logBookLeaf, detailLeaf);
-
-        configureLeaf(systemsLeaf);
-        configureLeaf(controlsLeaf);
         configureLeaf(registrationsLeaf);
         configureLeaf(logBookLeaf);
         configureLeaf(detailLeaf);
-
-        left.setPruneWhenEmpty(false);
-        right.setPruneWhenEmpty(false);
-
-        nodeRoot.setDividerPositions(0.49);
-        left.setDividerPositions(0.28);
-        right.setDividerPositions(0.46, 0.76);
-
-        systemsLeaf.addDockable(
-                dockable(builder, systemsLeaf,
-                        new WorkbenchPanel("api-systems", "Systems", apiSystems)));
-
-        controlsLeaf.addDockables(
-                dockable(builder, controlsLeaf,
-                        new WorkbenchPanel("timing-node", "TimingNode", timingNode)),
-                dockable(builder, controlsLeaf,
-                        new WorkbenchPanel("api-info", "API", apiInfo)),
-                dockable(builder, controlsLeaf,
-                        new WorkbenchPanel("registration", "Registration", registration)),
-                dockable(builder, controlsLeaf,
-                        new WorkbenchPanel("simulation", "Simulation", simulation)),
-                dockable(builder, controlsLeaf,
-                        new WorkbenchPanel("scripts", "Scripts", scripts)));
+        content.setPruneWhenEmpty(false);
+        content.setDividerPositions(0.46, 0.76);
 
         registrationsLeaf.addDockable(
                 dockable(builder, registrationsLeaf,
@@ -246,55 +335,35 @@ final class EngineeringWorkbench {
                                 registrations)));
         logBookLeaf.addDockable(
                 dockable(builder, logBookLeaf,
-                        new WorkbenchPanel("logbook", "LogBook", logBook)));
+                        new WorkbenchPanel(
+                                "logbook",
+                                "LogBook",
+                                logBook)));
         detailLeaf.addDockables(
                 dockable(builder, detailLeaf,
-                        new WorkbenchPanel("raw-data", "Raw Data", rawData)),
+                        new WorkbenchPanel(
+                                "raw-data",
+                                "Raw Data",
+                                rawData)),
                 dockable(builder, detailLeaf,
-                        new WorkbenchPanel("events", "Events", events)));
+                        new WorkbenchPanel(
+                                "events",
+                                "Events",
+                                events)));
 
-        return nodeRoot;
+        return viewerRoot;
     }
 
-    private Node createCentralPerspective(
-            Node centralNodes,
-            Node centralLocations,
-            Node centralMessages,
-            Node centralRaceData) {
+    private Node createCentralViewer(Node centralMessages) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
-        DockContainerRootBranch centralRoot =
-                builder.root("central-perspective-root");
-        DockContainerLeaf explorerLeaf = builder.leaf("central-explorer");
-        DockContainerBranch content = builder.branch("central-content");
+        DockContainerRootBranch viewerRoot =
+                builder.root("central-viewer-root");
         DockContainerLeaf messagesLeaf = builder.leaf("central-messages");
-        DockContainerLeaf raceDataLeaf = builder.leaf("central-race-data");
 
-        centralRoot.setOrientation(Orientation.HORIZONTAL);
-        content.setOrientation(Orientation.VERTICAL);
-        centralRoot.addContainers(explorerLeaf, content);
-        content.addContainers(messagesLeaf, raceDataLeaf);
-
-        registerHomeOrder(centralRoot, explorerLeaf);
-        registerHomeOrder(content, messagesLeaf, raceDataLeaf);
-
-        configureLeaf(explorerLeaf);
+        viewerRoot.setOrientation(Orientation.HORIZONTAL);
+        viewerRoot.addContainers(messagesLeaf);
         configureLeaf(messagesLeaf);
-        configureLeaf(raceDataLeaf);
-
-        content.setPruneWhenEmpty(false);
-
-        centralRoot.setDividerPositions(0.27);
-        content.setDividerPositions(0.67);
-
-        explorerLeaf.addDockables(
-                dockable(builder, explorerLeaf,
-                        new WorkbenchPanel("central-nodes", "Nodes", centralNodes)),
-                dockable(builder, explorerLeaf,
-                        new WorkbenchPanel(
-                                "central-locations",
-                                "Locations",
-                                centralLocations)));
 
         messagesLeaf.addDockable(
                 dockable(builder, messagesLeaf,
@@ -302,14 +371,7 @@ final class EngineeringWorkbench {
                                 "central-messages",
                                 "Messages",
                                 centralMessages)));
-        raceDataLeaf.addDockable(
-                dockable(builder, raceDataLeaf,
-                        new WorkbenchPanel(
-                                "central-race-data",
-                                "RaceData",
-                                centralRaceData)));
-
-        return centralRoot;
+        return viewerRoot;
     }
 
     private Bento createBento() {
@@ -320,7 +382,8 @@ final class EngineeringWorkbench {
                     @Override
                     public DockContainerLeaf leaf(String identifier) {
                         DockContainerLeaf leaf = super.leaf(identifier);
-                        leaf.setMenuFactory(EngineeringWorkbench.this::buildDockMenu);
+                        leaf.setMenuFactory(
+                                EngineeringWorkbench.this::buildDockMenu);
                         return leaf;
                     }
                 };
@@ -328,11 +391,30 @@ final class EngineeringWorkbench {
         };
         bento.stageBuilding().setApplySourceAsOwner(false);
         bento.stageBuilding().setApplyMousePosition(true);
+        bento.stageBuilding().setSceneFactory(
+                (sourceScene, content, width, height) ->
+                        new Scene(
+                                content,
+                                detachedWidth(width),
+                                detachedHeight(height)));
         bento.controlsBuilding().setHeaderFactory(
                 (dockable, parentPane) ->
-                        new CompactBentoHeader(dockable, parentPane).withDragDrop());
+                        new CompactBentoHeader(dockable, parentPane)
+                                .withDragDrop());
         bentos.add(bento);
         return bento;
+    }
+
+    static double detachedWidth(double sourceWidth) {
+        return Math.max(
+                DETACHED_MIN_WIDTH,
+                Math.min(DETACHED_MAX_WIDTH, sourceWidth));
+    }
+
+    static double detachedHeight(double sourceHeight) {
+        return Math.max(
+                DETACHED_MIN_HEIGHT,
+                Math.min(DETACHED_MAX_HEIGHT, sourceHeight));
     }
 
     private void registerHomeOrder(
@@ -353,44 +435,60 @@ final class EngineeringWorkbench {
         ContextMenu menu = new ContextMenu();
         Dockable selected = leaf.getSelectedDockable();
         if (selected != null) {
-            DockContainerLeaf home = homeLeaves.get(selected.getIdentifier());
+            DockContainerLeaf home =
+                    homeLeaves.get(selected.getIdentifier());
             if (home != null && home != selected.getContainer()) {
-                MenuItem dockBack = new MenuItem("Dock selected tab back");
-                dockBack.setOnAction(event -> dockBack(selected.getIdentifier()));
-                menu.getItems().addAll(dockBack, new SeparatorMenuItem());
+                MenuItem dockBack =
+                        new MenuItem("Dock selected tab back");
+                dockBack.setOnAction(
+                        event -> dockBack(selected.getIdentifier()));
+                menu.getItems().addAll(
+                        dockBack,
+                        new SeparatorMenuItem());
             }
         }
 
         boolean registrationsDock = selected != null
                 ? "registrations".equals(selected.getIdentifier())
                 : leaf.getDockables().stream()
-                        .anyMatch(d -> "registrations".equals(d.getIdentifier()));
+                        .anyMatch(d ->
+                                "registrations"
+                                        .equals(d.getIdentifier()));
         if (registrationsDock) {
             ToggleGroup scope = new ToggleGroup();
-            RadioMenuItem current = new RadioMenuItem("Current open location");
-            RadioMenuItem all = new RadioMenuItem("All locations");
+            RadioMenuItem current =
+                    new RadioMenuItem("Current open location");
+            RadioMenuItem all =
+                    new RadioMenuItem("All locations");
             current.setToggleGroup(scope);
             all.setToggleGroup(scope);
             current.setSelected(!allRegistrations.getAsBoolean());
             all.setSelected(allRegistrations.getAsBoolean());
-            current.setOnAction(event -> setAllRegistrations.accept(false));
-            all.setOnAction(event -> setAllRegistrations.accept(true));
+            current.setOnAction(
+                    event -> setAllRegistrations.accept(false));
+            all.setOnAction(
+                    event -> setAllRegistrations.accept(true));
             MenuItem timezone = new MenuItem(
-                    "Times shown in " + java.time.ZoneId.systemDefault().getId());
+                    "Times shown in "
+                            + java.time.ZoneId.systemDefault().getId());
             timezone.setDisable(true);
             menu.getItems().addAll(
-                    current, all, timezone, new SeparatorMenuItem());
+                    current,
+                    all,
+                    timezone,
+                    new SeparatorMenuItem());
         }
 
         Menu tabPosition = new Menu("Tab position");
         ToggleGroup positionGroup = new ToggleGroup();
         for (Side side : Side.values()) {
-            RadioMenuItem item = new RadioMenuItem(switch (side) {
-                case TOP -> "Top";
-                case BOTTOM -> "Bottom";
-                case LEFT -> "Left";
-                case RIGHT -> "Right";
-            });
+            RadioMenuItem item =
+                    new RadioMenuItem(switch (side) {
+                        case TOP -> "Top";
+                        case BOTTOM -> "Bottom";
+                        case LEFT -> "Left";
+                        case RIGHT -> "Right";
+                    });
             item.setToggleGroup(positionGroup);
             item.setSelected(leaf.getSide() == side);
             item.setOnAction(event -> leaf.setSide(side));
@@ -451,9 +549,12 @@ final class EngineeringWorkbench {
     void dockBack(String id) {
         Dockable panel = dockables.get(id);
         DockContainerLeaf home = homeLeaves.get(id);
-        if (panel == null || home == null || panel.getContainer() == home) {
+        if (panel == null
+                || home == null
+                || panel.getContainer() == home) {
             return;
         }
+
         DockContainerLeaf current = panel.getContainer();
         if (current != null) {
             current.removeDockable(panel);
@@ -469,6 +570,7 @@ final class EngineeringWorkbench {
         if (parent == null || home.getParentContainer() == parent) {
             return;
         }
+
         List<DockContainerLeaf> order = homeOrdering.get(parent);
         int targetIndex = order.indexOf(home);
         int insertAt = 0;
