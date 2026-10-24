@@ -46,7 +46,7 @@ public class NodeUpstreamTest {
             assertEquals(
                     1L,
                     ((UpstreamData.Receive) confirmation.message())
-                            .receivedPacketId());
+                            .receivedPacketNr());
         } finally {
             deactivate(node.nodeUpstream());
             deactivate(node.node());
@@ -139,7 +139,7 @@ public class NodeUpstreamTest {
                     notification.operation());
             assertEquals(Long.valueOf(0L), notification.sequence());
 
-            assertEquals(0L, ping.packetId());
+            assertEquals(0L, ping.packetNr());
             assertSame(UpstreamData.Family.PING, ping.family());
         } finally {
             deactivate(node.nodeUpstream());
@@ -160,7 +160,7 @@ public class NodeUpstreamTest {
             stream.takeSent(); // SEQ NTF
             UpstreamData requestPacket = stream.takeSent();
 
-            assertEquals(0L, requestPacket.packetId());
+            assertEquals(0L, requestPacket.packetNr());
             UpstreamData.Ping request =
                     (UpstreamData.Ping) requestPacket.message();
 
@@ -214,7 +214,7 @@ public class NodeUpstreamTest {
                                             "2026-10-13T11:59:00Z"))));
 
             UpstreamData answerPacket = stream.takeSent();
-            assertEquals(0L, answerPacket.packetId());
+            assertEquals(0L, answerPacket.packetNr());
             UpstreamData.Ping answer =
                     (UpstreamData.Ping) answerPacket.message();
             assertSame(
@@ -548,12 +548,12 @@ public class NodeUpstreamTest {
     }
 
     private static UpstreamData racePacket(
-            long packetId,
+            long packetNr,
             String registrationId,
             String teamId) {
         return DefaultUpstreamData.createDnPacket(
                 new NodeId("A"),
-                packetId,
+                packetNr,
                 DefaultUpstreamData.createRaceData(
                         new LocationId(1),
                         Collections.singletonList(
@@ -565,11 +565,11 @@ public class NodeUpstreamTest {
 
     private static UpstreamData timingDataRequestPacket(
             String nodeId,
-            long packetId,
+            long packetNr,
             long fromSequence) {
         return DefaultUpstreamData.createDnPacket(
                 new NodeId(nodeId),
-                packetId,
+                packetNr,
                 DefaultUpstreamData.createTimingDataRequest(fromSequence));
     }
 
@@ -581,12 +581,12 @@ public class NodeUpstreamTest {
 
     private static void assertReceive(
             UpstreamData packet,
-            long receivedPacketId) {
+            long receivedPacketNr) {
         assertSame(UpstreamData.Family.RECV, packet.family());
         assertEquals(
-                receivedPacketId,
+                receivedPacketNr,
                 ((UpstreamData.Receive) packet.message())
-                        .receivedPacketId());
+                        .receivedPacketNr());
     }
 
     private static TimingNodeFixture.Components node(
