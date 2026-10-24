@@ -241,6 +241,7 @@ final class EngineeringWorkbench {
 
         controlsRoot.setOrientation(Orientation.HORIZONTAL);
         controlsRoot.addContainers(controls);
+        registerHomeOrder(controlsRoot, controls);
         configureLeaf(controls);
 
         controls.addDockables(
@@ -282,6 +283,7 @@ final class EngineeringWorkbench {
 
         controlsRoot.setOrientation(Orientation.HORIZONTAL);
         controlsRoot.addContainers(controls);
+        registerHomeOrder(controlsRoot, controls);
         configureLeaf(controls);
 
         controls.addDockable(
@@ -363,6 +365,7 @@ final class EngineeringWorkbench {
 
         viewerRoot.setOrientation(Orientation.HORIZONTAL);
         viewerRoot.addContainers(messagesLeaf);
+        registerHomeOrder(viewerRoot, messagesLeaf);
         configureLeaf(messagesLeaf);
 
         messagesLeaf.addDockable(
