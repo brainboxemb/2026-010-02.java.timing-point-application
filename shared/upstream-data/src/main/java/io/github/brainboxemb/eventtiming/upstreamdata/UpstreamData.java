@@ -26,13 +26,13 @@ public final class UpstreamData {
 
     private final Direction direction;
     private final NodeId timingNodeId;
-    private final long packetId;
+    private final long packetNr;
     private final Message message;
 
     public UpstreamData(
             Direction direction,
             NodeId timingNodeId,
-            long packetId,
+            long packetNr,
             Message message) {
         if (direction == null) {
             throw new IllegalArgumentException("direction must not be null");
@@ -43,16 +43,16 @@ public final class UpstreamData {
         if (message == null) {
             throw new IllegalArgumentException("message must not be null");
         }
-        if (packetId < 0L) {
-            throw new IllegalArgumentException("packetId must be zero or positive");
+        if (packetNr < 0L) {
+            throw new IllegalArgumentException("packetNr must be zero or positive");
         }
 
         if (message.family() == Family.PING) {
-            if (packetId != 0L) {
-                throw new IllegalArgumentException("PING requires packetId 0");
+            if (packetNr != 0L) {
+                throw new IllegalArgumentException("PING requires packetNr 0");
             }
-        } else if (packetId == 0L) {
-            throw new IllegalArgumentException("packetId 0 is reserved for PING");
+        } else if (packetNr == 0L) {
+            throw new IllegalArgumentException("packetNr 0 is reserved for PING");
         }
 
         requireDirection(direction, message.family());
@@ -60,7 +60,7 @@ public final class UpstreamData {
 
         this.direction = direction;
         this.timingNodeId = timingNodeId;
-        this.packetId = packetId;
+        this.packetNr = packetNr;
         this.message = message;
     }
 
@@ -74,8 +74,8 @@ public final class UpstreamData {
     }
 
     /** Returns the delivery/debug identity of this packet. PING uses zero. */
-    public long packetId() {
-        return packetId;
+    public long packetNr() {
+        return packetNr;
     }
 
     /** Returns the single semantic message carried by this packet. */
@@ -264,14 +264,14 @@ public final class UpstreamData {
 
     /** One cumulative report of the last successfully processed normal DN_PACKET. */
     public static final class Receive extends Message {
-        private final long receivedPacketId;
+        private final long receivedPacketNr;
 
-        public Receive(long receivedPacketId) {
-            if (receivedPacketId < 0L) {
+        public Receive(long receivedPacketNr) {
+            if (receivedPacketNr < 0L) {
                 throw new IllegalArgumentException(
-                        "receivedPacketId must be zero or positive");
+                        "receivedPacketNr must be zero or positive");
             }
-            this.receivedPacketId = receivedPacketId;
+            this.receivedPacketNr = receivedPacketNr;
         }
 
         @Override
@@ -279,8 +279,8 @@ public final class UpstreamData {
             return Family.RECV;
         }
 
-        public long receivedPacketId() {
-            return receivedPacketId;
+        public long receivedPacketNr() {
+            return receivedPacketNr;
         }
     }
 
