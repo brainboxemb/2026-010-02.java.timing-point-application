@@ -91,6 +91,10 @@ final class EngineeringWorkbench {
                 simulation,
                 scripts);
         Node centralControls = createCentralControls(centralRaceData);
+        Node centralExplorer =
+                createCentralExplorer(
+                        centralNodes,
+                        centralLocations);
         Node nodeViewerContent = createNodeViewer(
                 registrations,
                 logBook,
@@ -171,17 +175,12 @@ final class EngineeringWorkbench {
                                 "System",
                                 apiSystems)));
 
-        centralLeaf.addDockables(
+        centralLeaf.addDockable(
                 dockable(builder, centralLeaf,
                         new WorkbenchPanel(
-                                "central-nodes",
-                                "Nodes",
-                                centralNodes)),
-                dockable(builder, centralLeaf,
-                        new WorkbenchPanel(
-                                "central-locations",
-                                "Locations",
-                                centralLocations)));
+                                "central-explorer",
+                                "Central",
+                                centralExplorer)));
 
         controlsLeaf.addDockables(
                 dockable(builder, controlsLeaf,
@@ -247,6 +246,35 @@ final class EngineeringWorkbench {
         return nodeId == null || nodeId.isBlank()
                 ? perspective
                 : perspective + " " + nodeId.trim();
+    }
+
+    private Node createCentralExplorer(
+            Node centralNodes,
+            Node centralLocations) {
+        Bento bento = createBento();
+        DockBuilding builder = bento.dockBuilding();
+        DockContainerRootBranch explorerRoot =
+                builder.root("central-explorer-root");
+        DockContainerLeaf tabs =
+                builder.leaf("central-explorer-tabs");
+
+        explorerRoot.setOrientation(Orientation.HORIZONTAL);
+        explorerRoot.addContainers(tabs);
+        registerHomeOrder(explorerRoot, tabs);
+        configureLeaf(tabs);
+
+        tabs.addDockables(
+                dockable(builder, tabs,
+                        new WorkbenchPanel(
+                                "central-nodes",
+                                "Nodes",
+                                centralNodes)),
+                dockable(builder, tabs,
+                        new WorkbenchPanel(
+                                "central-locations",
+                                "Locations",
+                                centralLocations)));
+        return explorerRoot;
     }
 
     private Node createNodeControls(
