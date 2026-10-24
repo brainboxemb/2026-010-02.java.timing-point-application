@@ -495,7 +495,7 @@ public final class TestClientFxApplication extends Application {
     private VBox httpPane() {
         httpTrafficPane = new HttpTrafficPane(system.httpTraffic());
         system.httpTraffic().subscribe(
-                ignored -> Platform.runLater(httpTrafficPane::refresh));
+                () -> Platform.runLater(httpTrafficPane::refresh));
         return httpTrafficPane.pane();
     }
 
