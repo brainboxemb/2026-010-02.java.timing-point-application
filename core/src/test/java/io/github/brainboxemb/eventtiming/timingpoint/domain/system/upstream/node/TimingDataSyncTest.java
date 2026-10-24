@@ -40,6 +40,7 @@ public class TimingDataSyncTest {
 
             TimingDataSync sync =
                     new TimingDataSync(
+                            nodeId,
                             () -> true,
                             sent::add,
                             logBook);
