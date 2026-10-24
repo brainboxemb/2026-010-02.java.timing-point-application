@@ -120,6 +120,10 @@ final class ApiPane {
         timingPane.setRegistrationScopeListener(listener);
     }
 
+    void setSelectedNodeListener(Consumer<String> listener) {
+        timingPane.setSelectedNodeListener(listener);
+    }
+
     javafx.scene.Node timingNodePane() {
         return timingPane.timingNodePane();
     }

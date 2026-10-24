@@ -229,221 +229,59 @@ drag/double-click, Snap Layouts or DPI correctness; verify interactively.
 The Engineering Client uses BentoFX for workbench composition. Functional panes remain
 ordinary JavaFX nodes and do not depend on BentoFX APIs.
 
-The default composition is:
+The main area is now organized by **perspective** for the selected TimingNode:
 
 ```text
-left / controls & diagnostics         right / data
------------------------------------   ------------------------
-A|Systems / C|Nodes / C|Locations    Registrations [LocationId]
-(tabs)     | TimingNode / API /        ------------------------
-           | Registration / Simulation
-           | C|RaceData / Scripts
------------------------------------   LogBook
-Device Log                            ------------------------
------------------------------------   Raw Data / Events (tabs)
-Terminal
------------------------------------
-Client Log
+[ Node A ] [ Central A ]
+----------------------------------------------
+Node A perspective
+  Systems | TimingNode / API / Registration /
+            Simulation / Scripts
+  Registrations
+  LogBook
+  Raw Data / Events
+
+Central A perspective
+  Nodes / Locations
+  Messages
+  RaceData
+----------------------------------------------
+Shared tools: Device Log / Terminal / Client Log
 ```
 
-The compact toolbar vertically aligns **Host**, the target IP and all link
-buttons. The main power-icon/text **Connect** button checks HTTP API
-availability and opens normal **Events**, Terminal and Device Log together; once one
-or more stateful links are active, it becomes **Disconnect**, allowing the
-user to close all of them with the same action. It is green when all three
-stateful links are connected, amber when partially connected or connecting,
-and neutral when disconnected. The API's HTTP check is stateless, so it
-cannot be "disconnected" and has its own reachability button.
+The perspective titles follow the API-selected NodeId. Before SI-02 knows a node they
+read simply **Node** and **Central**. The two perspectives own independent Bento layouts;
+moving or resizing Central windows therefore does not disturb the Node-side workspace.
 
-**Central** is deliberately separate from that aggregate connection. Normal Events uses
-`/api/v1/events` and does not make SI-01 believe a Central upstream peer exists.
-Clicking **Central** reconnects the same `ApiEventClient` as
-`/api/v1/events?role=upstream`; that one role-specific session continues to carry
-normal IF-03 events and additionally carries typed `UPSTREAM_DATA` in both directions.
-Turning Central off reconnects the same client to ordinary Events again. There is never a
-second simultaneous WebSocket client service. A changed Host
-does not silently redirect existing links: disconnect before switching.
-The redundant `● Client Log` label is gone from the toolbar: Client Log
-is a local, always-running dock pane whose own tab identifies it.
-Individual boundary ports stay in the configuration.
+The Node perspective is the direct SI-01/API viewpoint. **Events** is deliberately a
+transport inspector: every WebSocket frame is one row with explicit **IN**
+(SI-01 → SI-02) or **OUT** (SI-02 → SI-01) direction, event/semantic type, timestamp
+and source/wire payload. Direction and type filters are presentation-only; selecting
+a row shows the exact frame payload. No artificial blank lines are inserted.
 
-The API control is deliberately clickable. IF-03 HTTP has no persistent connection, so
-the control performs an explicit availability **CHECK** and reports CHECKING, READY or
-UNREACHABLE instead of pretending that a long-lived HTTP session was opened. Events,
-Terminal and Device Log remain independently toggleable without changing button captions. Client-local
-logging is always available independently from SI-01. The Systems pane shows the
-current target and its reported TimingNodes, state and location, and provides
-**Sync view**. Click a node to select it for node-scoped controls.
+The Central perspective is the semantic simulator viewpoint of the same NodeId.
+**Messages** shows typed IF-06 messages received from and sent to nodes, including
+`SYNC`, `REQ`, `ACK`, `PING`, `TIMING_DATA` and `RACE_DATA`. It exposes the
+stream/sequence meaning separately from the exact IF-06 JSON. This message journal is
+bounded inspection state only; Central-owned ordered `RACE_DATA` source history remains
+independent so a later `REQ(RACE_DATA, fromSequence)` can replay the original messages.
 
-All built-in workbench tabs are non-closable: they intentionally have **no ✕
-in their tab header**. The tabs still switch, drag and detach normally, but
-the client cannot silently lose an essential live-status, log or diagnostic
-pane. A future Window/Show panels menu could introduce optional hiding
-together with a reliable restore action. The native close button of a
-separate floating window is distinct from a dock-tab close button.
+**RaceData** is the Central-owned source/editor. One RACE_DATA message has one source
+sequence and may contain multiple team/stage-start changes. Synchronization is therefore
+about the ordered RACE_DATA messages, not about the individual change fields inside one
+message.
 
-Docking panes can be dragged into separate windows. Empty original dock
-areas are pruned, so the remaining panes use that space. Each BentoFX dock
-header has standard framework controls: **▼** selects tabs that overflow the
-available header space, while **≡** opens the dock-area menu. The menu's
-**Tab position** submenu moves headers to Top/Bottom/Left/Right. When the
-selected tab is away from its original area, the same ≡ menu offers
-**Dock selected tab back**. This works in floating windows as well as the main
-workbench, including when the old home area was pruned. No extra custom ↩
-tab button or separate right-click tab menu is needed.
-**View → Reset layout** reconstructs the entire original dock arrangement,
-without changing the connected target or SI-01 state.
+In **Registrations**, RegistrationId is the primary identity column. TeamId is a separate
+optional/interpreted value and may be unresolved (`-`); SI-02 never substitutes TeamId
+for RegistrationId. Revoke remains tied to the original RegistrationId/ADD source record.
 
-### Timing, registration and data panes
+Device Log, Terminal and Client Log are target/client-wide engineering tools and remain
+shared below both perspectives rather than being duplicated per viewpoint.
 
-**TimingNode**, **API**, **Registration** and **Simulation** share the local control-tab area.
-Application/version identity and API diagnostic actions are in the **API** tab.
-The Engineering Client
-deliberately does not predict SI-01 domain acceptance from cached TimingNode state. Once a
-TimingNode is known, supported Open/Close requests remain available so processed results
-can be exercised and inspected. **Open** sends the LocationId currently entered in the
-same request; there is no separate Set Location operation. SI-01 remains authoritative.
-
-The right-hand workbench column keeps two complementary views of committed data visible as
-separate dock areas:
-
-- **Registrations** is the interpreted user-facing projection. Its compact columns are
-  **Time | Type | TeamID | Code | action**. Type is `AUTO` or `MAN` for the
-  registration origin. Code is only needed for manual registrations to show the
-  effective-time origin (`AUTO` or `MAN`); automatic registrations leave Code blank;
-- **LogBook / committed TimingData** is the technical/audit view and continues to show
-  every committed source record, sequence, Type, Code, UTC-effective time and recorded
-  time. Its dock header displays the source record count.
-
-**Raw Data** and **Events** share the lower-right detail area as tabs. **Device Log**,
-**Terminal** and **Client Log** are independent dock areas in the middle column, rather
-than application-level tabs.
-
-The maintained SI-02 UI design/review rules are documented in
-[44-02-GPD Engineering Client design rules](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/44-02-GPD-engineering-client-design-rules.md).
-The JavaFX stylesheet centralizes named palette/status tokens and shared form,
-log and data-pane spacing rather than duplicating inline styles. Technical
-updates reject stale async baseline, selected-node history, command and
-target-bound API-check results after disconnect, a newer sync, target or
-TimingNode selection; high-volume local/device logs are batched into
-small JavaFX update passes.
-
-Rendering is change-driven: a semantic TimingNode status change updates controls
-and the Systems tree; a newly committed timing record updates the history views.
-Duplicate WebSocket and HTTP messages no longer redraw identical data. Queued
-timing events share a JavaFX history update, and commands keep their controls
-disabled even while other status messages arrive.
-
-The **API** tab sits next to **TimingNode** in the Engineering workbench.
-It contains the remote Application, Version and API version diagnostics and
-explicit Refresh version / Refresh status actions. The Registrations pane
-is only the interpreted registration table. Its tab shows the effective scope:
-**Registrations [24]** for an OPEN LocationId 24, **Registrations [All]**
-when the user explicitly selects all locations, or **Registrations [–]**
-when no current OPEN location is available. The default is the currently
-OPEN location of the selected TimingNode. Click the dock's standard ≡ button
-to select **Current open location** or **All locations** directly (no nested
-submenu); the checked option updates immediately and survives resetting the
-dock layout. When the selected node opens, closes, or changes location, the
-scope caption follows without rebuilding the entire workbench.
-The Time column displays local times in the operator's configured system
-timezone. Table headers use regular-weight text, and Device Log, Terminal
-and Client Log use compact two-to-three-pixel panel margins. The Systems
-Explorer hides its redundant **LIVE** heading, while warnings like
-NOT SYNCED / SYNCING / STALE remain visible.
-
-The current-location Registrations table follows SI-01's maintained NodeService
-projection rather than reconstructing validity from local LogBook history. A compact
-status line above the table shows row count, unique-team count and the latest REV
-sequence when present. The **All locations** scope remains the historical LogBook-derived
-view.
-
-Registration projection synchronisation is event-driven. Status/TimingData events are
-invalidation signals: the client first reads the small registration metadata resource.
-ADD-only growth fetches only missing rows after the latest known ADD sequence. A changed
-REV sequence, LocationId, count regression or ambiguous mutation causes a bounded full
-projection reread because a previously shown row may have changed validity. The existing
-**Sync view** action remains the explicit manual recovery path; there is no periodic
-full-list polling loop.
-
-The Registrations and LogBook tables each have one empty final presentation row.
-Selecting that row follows the latest incoming records. Selecting a historical row
-or scrolling upward pauses following for that table only; selecting the empty
-final row resumes. This row is never an actual registration or LogBook record.
-TeamID is an interpreted reference-data value, not a renamed RegistrationId. In the
-default/reference profile, `ANNNN` projects directly to TeamID `NNNN`;
-`RNNNN` remains unresolved until reserve assignment data is available. The
-technical LogBook always keeps the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
-`Type = MAN` and `Code = MAN`; a manual registration whose time was captured
-automatically by the client shows `Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed
-meaning in `Type = AUTO`, so its Code cell is empty. A REV record keeps the interpreted row present and replaces the icon-only trash action
-with a visible **DELETED** marker. The trash action has no text header. When selected,
-the client sends the original registration family, LocationId, RegistrationId, time and,
-for manual records, the original AUTO/MAN time-source classification to the normal
-node-scoped revoke operation. SI-01 appends the REV record; it does not delete or rewrite
-the ADD record. The immutable LogBook therefore continues to show both ADD and REV.
-
-Registration input uses a compact shared form with one canonical RegistrationId field,
-local date/time and a Now button. The manual submit button directly shows its
-AUTO/MAN time-source classification; normally supported direct capability no
-longer adds an extra status row. Unsupported capability is explained only while
-the connected status is LIVE.
-
-Registration input uses one canonical RegistrationId field plus readable local civil
-date and hundredth-second clock time. The UI shows the interpreted client time zone next
-to the field (for example `Europe/Amsterdam`) and converts that explicit local value to
-the canonical UTC API timestamp when sending. **Now** captures the current client
-date/time and marks the manual-registration time source as `AUTO`; editing the date or
-time marks it as `MAN`.
-
-**Direct registration** injects an accepted registration at the TimingNode and
-does not simulate reading an antenna. Its independent **Direct time** choice
-defaults to **TimingNode clock** (omit the `time` field from IF-03), or select
-**Provided time** to send the visible local date/time translated to UTC for
-repeatable replay. Manual-entry edits do not change this choice. Client Log
-and the operation result show node, RegistrationId, acceptance sequence and
-chosen time source; SI-01 LogBook is the authority for committed records and
-optional `tagSrc`/`timeSrc` provenance (old records may omit those).
-
-The **Simulated tags** pane is separate from direct `auto-reg`. It uses
-`TAG_SCENARIO_SIMULATION` to start one `simple`, `normal` or `edge` profile
-through the real SimulatedAntenna -> AntennaManager -> TagProcessor path. A batch selects
-a count and numeric RegistrationId range, uses ascending or seedable pseudo-random order,
-and starts scenarios at the configured interval. **Stop** prevents later scenario starts;
-an HTTP request already accepted by SI-01 is not undone. The selected profile owns the
-TagObservation pattern inside each passage.
-
-### Events
-
-The **Events** detail tab uses Java 21's built-in WebSocket client and keeps raw events
-visible. Its connection is controlled from the target bar. `STATUS_SNAPSHOT` /
-`STATUS_CHANGED` and `TIMING_DATA_COMMITTED` are parsed separately while unknown
-future event types remain visible as raw diagnostics.
-
-### Device Log
-
-**Device Log** is an independent dock area. It shows live records from the connected SI-01
-`LoggingServer`. Its dock header shows the effective log-level abbreviation
-`[T/D/I/W/E]`; right-click inside the log to change the SI-01 runtime level
-when connected. An IF-03 registration request is not itself a device-log line.
-
-### Terminal
-
-**Terminal** is an independent dock area containing the line-oriented Remote Shell client.
-Its connection is controlled from the target bar. It is raw UTF-8 TCP, not an SSH/Telnet
-emulator.
-
-### Client Log
-
-**Client Log** is an independent dock area containing retained local Engineering Client
-startup/configuration/connection/request diagnostics and an independent current-level
-display and runtime threshold control through the dock header and right-click menu.
-It remains available and controllable when SI-01 is offline. A client-level change is runtime-only; the configured startup level is restored
-on the next Engineering Client start.
-
-Device Log and Client Log remain independent. Both use the readable project log-line shape
-`HH:mm:ss.SSS - [LEVEL] - message - [sourceClass.sourceMethod]`; Engineering Client
-records use their actual caller source context rather than one generic client marker.
+The compact toolbar vertically aligns **Host**, the target IP and all link buttons. The
+main **Connect** action opens ordinary Events, Terminal and Device Log. **Central** remains
+an explicit separate role switch: only `/api/v1/events?role=upstream` makes SI-01 see a
+Central upstream peer. Ordinary API/Events connectivity never implies Central availability.
 
 ## Timing workbench behaviour
 

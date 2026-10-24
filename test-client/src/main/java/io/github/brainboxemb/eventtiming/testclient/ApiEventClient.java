@@ -144,14 +144,7 @@ public final class ApiEventClient implements AutoCloseable {
             throw new IllegalArgumentException("data must not be null");
         }
 
-        final String encoded;
-        try {
-            encoded = new String(
-                    UPSTREAM_CODEC.encode(data),
-                    StandardCharsets.UTF_8);
-        } catch (UpstreamDataCodec.CodecException ex) {
-            throw new IllegalArgumentException("Could not encode UpstreamData", ex);
-        }
+        final String encoded = encodeUpstreamData(data);
 
         WebSocket current;
         synchronized (this) {
@@ -167,6 +160,19 @@ public final class ApiEventClient implements AutoCloseable {
 
         return current.sendText(encoded, true)
                 .thenApply(ignored -> (Void) null);
+    }
+
+    static String encodeUpstreamData(UpstreamData data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
+        }
+        try {
+            return new String(
+                    UPSTREAM_CODEC.encode(data),
+                    StandardCharsets.UTF_8);
+        } catch (UpstreamDataCodec.CodecException ex) {
+            throw new IllegalArgumentException("Could not encode UpstreamData", ex);
+        }
     }
 
     public void disconnect() {

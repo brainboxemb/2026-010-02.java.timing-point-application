@@ -49,6 +49,88 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void semanticMessageJournalTracksInboundAndOutboundDirections() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+        UpstreamData.Ping inbound =
+                DefaultUpstreamData.ping(
+                        NODE_A,
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        "hb-journal");
+        UpstreamData.Ping outbound =
+                DefaultUpstreamData.ping(
+                        NODE_A,
+                        UpstreamData.PingOperation.ANS,
+                        UpstreamData.PingMode.HB,
+                        "hb-journal");
+
+        simulator.accept(inbound, RECEIVED);
+        simulator.recordSent(outbound, RECEIVED.plusMillis(5));
+
+        List<CentralSystemSimulator.MessageView> messages = simulator.messages();
+        assertEquals(2, messages.size());
+        assertSame(
+                CentralSystemSimulator.MessageDirection.IN,
+                messages.get(0).direction());
+        assertSame(inbound, messages.get(0).data());
+        assertSame(
+                CentralSystemSimulator.MessageDirection.OUT,
+                messages.get(1).direction());
+        assertSame(outbound, messages.get(1).data());
+        assertEquals(1L, messages.get(0).ordinal());
+        assertEquals(2L, messages.get(1).ordinal());
+    }
+
+    @Test
+    void messageJournalIsBoundedButRaceDataReplayHistoryIsIndependent() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+        simulator.connected();
+        UpstreamData.RaceData retained =
+                createRaceData(simulator, "A0001", "T001");
+
+        for (int i = 0; i < 2100; i++) {
+            simulator.recordSent(
+                    DefaultUpstreamData.ping(
+                            NODE_A,
+                            UpstreamData.PingOperation.ANS,
+                            UpstreamData.PingMode.HB,
+                            "hb-" + i),
+                    RECEIVED.plusMillis(i));
+        }
+
+        assertEquals(2000, simulator.messages().size());
+
+        List<UpstreamData> replay = simulator.accept(
+                DefaultUpstreamData.req(
+                        NODE_A,
+                        UpstreamData.Stream.RACE_DATA,
+                        1L),
+                RECEIVED.plusSeconds(10));
+
+        assertEquals(1, replay.size());
+        assertSame(retained, replay.get(0));
+    }
+
+    @Test
+    void reconnectKeepsMessageJournalButTargetResetClearsIt() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+        simulator.accept(
+                DefaultUpstreamData.ping(
+                        NODE_A,
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        "hb-1"),
+                RECEIVED);
+
+        simulator.disconnected();
+        simulator.connected();
+        assertEquals(1, simulator.messages().size());
+
+        simulator.resetTargetState();
+        assertTrue(simulator.messages().isEmpty());
+    }
+
+    @Test
     void reconnectPreservesBothProtocolHeads() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7));
         simulator.connected();

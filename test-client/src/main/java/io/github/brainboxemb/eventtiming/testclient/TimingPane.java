@@ -64,7 +64,9 @@ final class TimingPane {
     private String systemHost = "-";
     private Consumer<Long> logBookCountListener = ignored -> {};
     private Consumer<String> registrationScopeListener = ignored -> {};
+    private Consumer<String> selectedNodeListener = ignored -> {};
     private String lastReportedRegistrationScope;
+    private String lastReportedSelectedNodeId;
     private boolean eventsConnected;
     private boolean operationBusy;
     private boolean historyRefreshQueued;
@@ -156,6 +158,7 @@ final class TimingPane {
                     String selectedId = treeNodeIds.get(selectedItem);
                     if (selectedId != null && !selectedId.equals(model.selectedNodeId())) {
                         model.selectNode(selectedId);
+                        reportSelectedNode();
                         loadSelectedLogBook();
                     }
                 });
@@ -301,6 +304,7 @@ final class TimingPane {
             String selected = node.getValue();
             if (selected != null && !selected.equals(model.selectedNodeId())) {
                 model.selectNode(selected);
+                reportSelectedNode();
                 loadSelectedLogBook();
             }
         });
@@ -334,6 +338,12 @@ final class TimingPane {
         registrationScopeListener = listener == null ? ignored -> {} : listener;
         lastReportedRegistrationScope = model.registrationScopeLabel(showAllRegistrations);
         registrationScopeListener.accept(lastReportedRegistrationScope);
+    }
+
+    void setSelectedNodeListener(Consumer<String> listener) {
+        selectedNodeListener = listener == null ? ignored -> {} : listener;
+        lastReportedSelectedNodeId = model.selectedNodeId();
+        selectedNodeListener.accept(lastReportedSelectedNodeId);
     }
 
     javafx.scene.Node timingNodePane() {
@@ -1139,6 +1149,16 @@ final class TimingPane {
         refreshControls();
         refreshTree();
         refreshLogBook();
+        reportSelectedNode();
+    }
+
+    private void reportSelectedNode() {
+        String selected = model.selectedNodeId();
+        if (java.util.Objects.equals(lastReportedSelectedNodeId, selected)) {
+            return;
+        }
+        lastReportedSelectedNodeId = selected;
+        selectedNodeListener.accept(selected);
     }
 
     private void refreshTree() {
@@ -1296,6 +1316,14 @@ final class TimingPane {
     }
 
     private void configureRegistrationView() {
+        TableColumn<TimingViewModel.InterpretedRegistration, String> registration =
+                registrationColumn(
+                        "RegistrationId",
+                        TimingViewModel.InterpretedRegistration::registrationId);
+        TableColumn<TimingViewModel.InterpretedRegistration, String> team =
+                registrationColumn(
+                        "TeamId",
+                        value -> value.teamId() == null ? "-" : value.teamId());
         TableColumn<TimingViewModel.InterpretedRegistration, String> time =
                 registrationColumn(
                         "Time",
@@ -1304,10 +1332,6 @@ final class TimingPane {
                 registrationColumn(
                         "Type",
                         TimingViewModel.InterpretedRegistration::type);
-        TableColumn<TimingViewModel.InterpretedRegistration, String> team =
-                registrationColumn(
-                        "TeamID",
-                        value -> value.teamId() == null ? "-" : value.teamId());
         TableColumn<TimingViewModel.InterpretedRegistration, String> code =
                 registrationColumn(
                         "Code",
@@ -1315,10 +1339,11 @@ final class TimingPane {
         TableColumn<TimingViewModel.InterpretedRegistration, Void> action =
                 new TableColumn<>("");
 
+        registration.setPrefWidth(125);
+        team.setPrefWidth(95);
         time.setPrefWidth(100);
-        type.setPrefWidth(80);
-        team.setPrefWidth(110);
-        code.setPrefWidth(80);
+        type.setPrefWidth(75);
+        code.setPrefWidth(70);
         action.setMinWidth(48);
         action.setPrefWidth(48);
         action.setMaxWidth(48);
@@ -1356,9 +1381,10 @@ final class TimingPane {
         });
 
         registrations.getColumns().setAll(
+                registration,
+                team,
                 time,
                 type,
-                team,
                 code,
                 action);
         registrations.setColumnResizePolicy(

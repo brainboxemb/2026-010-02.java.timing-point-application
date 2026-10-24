@@ -188,10 +188,12 @@ class TimingViewModelTest {
                 model.interpretedRegistrations(ZoneId.of("Europe/Amsterdam"));
 
         assertEquals(2, values.size());
+        assertEquals("N0001", values.get(0).registrationId());
         assertEquals("12:00:00.00", values.get(0).displayTime());
         assertEquals("AUTO", values.get(0).type());
         assertNull(values.get(0).teamId());
         assertEquals("", values.get(0).code());
+        assertEquals("N0002", values.get(1).registrationId());
         assertEquals("12:00:05.00", values.get(1).displayTime());
         assertEquals("MAN", values.get(1).type());
         assertEquals("MAN", values.get(1).code());
@@ -227,7 +229,9 @@ class TimingViewModelTest {
                 model.interpretedRegistrations(
                         ZoneId.of("Europe/Amsterdam"));
 
+        assertEquals("A0042", values.get(0).registrationId());
         assertEquals("0042", values.get(0).teamId());
+        assertEquals("R0001", values.get(1).registrationId());
         assertNull(values.get(1).teamId());
     }
 
