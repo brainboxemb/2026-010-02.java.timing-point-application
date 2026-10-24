@@ -107,10 +107,12 @@ class ApiEventClientTest {
                 + "\"eventType\":\"UPSTREAM_DATA\","
                 + "\"occurredAt\":\"2026-10-01T12:00:02Z\","
                 + "\"payload\":{"
-                + "\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
-                + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\","
+                + "\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
+                + "\"packetId\":0,"
+                + "\"message\":{\"type\":\"PING\",\"data\":{"
+                + "\"op\":\"REQ\",\"mode\":\"HB\","
                 + "\"time\":\"2026-10-01T12:00:01.123456789Z\","
-                + "\"pingId\":\"hb-1\"}"
+                + "\"pingId\":\"hb-1\"}}"
                 + "}}";
 
         Instant receivedAt =
@@ -118,26 +120,45 @@ class ApiEventClientTest {
         ApiEventClient.ApiEvent parsed =
                 ApiEventClient.parseEvent(json, receivedAt);
         ApiEventClient.UpstreamDataEvent event =
-                assertInstanceOf(ApiEventClient.UpstreamDataEvent.class, parsed);
+                assertInstanceOf(
+                        ApiEventClient.UpstreamDataEvent.class,
+                        parsed);
+        UpstreamData packet = event.upstreamData();
         UpstreamData.Ping ping =
-                assertInstanceOf(UpstreamData.Ping.class, event.upstreamData());
+                assertInstanceOf(
+                        UpstreamData.Ping.class,
+                        packet.message());
 
-        assertEquals(UpstreamData.PingOperation.REQ, ping.operation());
-        assertEquals(UpstreamData.PingMode.HB, ping.mode());
+        assertEquals(
+                UpstreamData.Direction.UP_PACKET,
+                packet.direction());
+        assertEquals(0L, packet.packetId());
+        assertEquals(
+                UpstreamData.PingOperation.REQ,
+                ping.operation());
+        assertEquals(
+                UpstreamData.PingMode.HB,
+                ping.mode());
         assertEquals("hb-1", ping.pingId());
         assertEquals(
-                Instant.parse("2026-10-01T12:00:01.123456789Z"),
+                Instant.parse(
+                        "2026-10-01T12:00:01.123456789Z"),
                 ping.time().instant());
         assertEquals(receivedAt, event.receivedAt());
         assertEquals(
-                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
+                        + "\"packetId\":0,\"message\":{\"type\":\"PING\","
                         + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\","
                         + "\"time\":\"2026-10-01T12:00:01.123456789Z\","
-                        + "\"pingId\":\"hb-1\"}}",
+                        + "\"pingId\":\"hb-1\"}}}",
                 event.rawPayloadJson());
-        assertFalse(event.rawPayloadJson().contains("\"eventType\""));
+        assertFalse(
+                event.rawPayloadJson()
+                        .contains("\"eventType\""));
         assertEquals(json, event.rawJson());
-        assertEquals("A", ping.timingNodeId().value());
+        assertEquals(
+                "A",
+                packet.timingNodeId().value());
     }
 
     @Test
