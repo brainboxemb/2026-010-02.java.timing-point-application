@@ -164,11 +164,15 @@ final class CentralPane implements AutoCloseable {
         StringBuilder text = new StringBuilder(node.nodeId())
                 .append(" [");
         if (node.locationId() != null) {
-            text.append(node.locationId());
+            int locationId = node.locationId().intValue();
+            if (locationId < 10) {
+                text.append('0');
+            }
+            text.append(locationId);
         } else if ("CLOSED".equals(node.lifecycleState())) {
-            text.append('-');
+            text.append("--");
         } else {
-            text.append('?');
+            text.append("??");
         }
         text.append("] · ")
                 .append(heartbeatAgeText(node.lastHeartbeat(), now))
