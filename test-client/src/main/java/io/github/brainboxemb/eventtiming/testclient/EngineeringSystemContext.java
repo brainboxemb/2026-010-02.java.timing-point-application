@@ -12,6 +12,7 @@ import java.net.URI;
 final class EngineeringSystemContext implements AutoCloseable {
     private final ClientConfig config;
     private final ApiEventClient eventClient = new ApiEventClient();
+    private final CentralUpstreamClient centralUpstreamClient = new CentralUpstreamClient();
     private final RemoteShellClient shellClient = new RemoteShellClient();
     private final LiveLogClient liveLogClient = new LiveLogClient();
 
@@ -41,6 +42,10 @@ final class EngineeringSystemContext implements AutoCloseable {
         return eventClient;
     }
 
+    CentralUpstreamClient centralUpstreamClient() {
+        return centralUpstreamClient;
+    }
+
     RemoteShellClient shellClient() {
         return shellClient;
     }
@@ -58,6 +63,12 @@ final class EngineeringSystemContext implements AutoCloseable {
                 "ws://" + uriHost(host) + ":" + config.eventPort() + "/api/v1/events");
     }
 
+    URI centralUpstreamEndpoint() {
+        return URI.create(
+                "ws://" + uriHost(host) + ":" + config.eventPort()
+                        + "/api/v1/events?role=upstream");
+    }
+
     boolean changeHost(String value) {
         String next = validateHost(value);
         if (next.equals(host)) {
@@ -70,6 +81,7 @@ final class EngineeringSystemContext implements AutoCloseable {
 
     void disconnectStatefulBoundaries() {
         eventClient.disconnect();
+        centralUpstreamClient.disconnect();
         shellClient.disconnect();
         liveLogClient.disconnect();
     }
@@ -95,6 +107,7 @@ final class EngineeringSystemContext implements AutoCloseable {
     @Override
     public void close() {
         eventClient.close();
+        centralUpstreamClient.close();
         shellClient.close();
         liveLogClient.close();
     }
