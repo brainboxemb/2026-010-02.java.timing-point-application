@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a reconstructed Central LogBook viewer independent from the bounded Central Messages journal: retain every accepted contiguous inbound TimingRecord once across reconnect, clear it on target reset, show one row per record with the same IF-05 Type/Code/Location/Registration/time semantics as the existing LogBook, support Node filtering and follow-end, and expose canonical IF-05 JSON for selected records.
+
 - Make Central Messages a true IF-06 message inspector: retain the raw IF-06 payload separately from the IF-03 event envelope for inbound and outbound rows, show that retained payload on selection instead of re-encoding the semantic value, and keep multi-record TIMING_DATA positions to the sequence range only while single-record messages may show the compact IF-05 record type.
 
 - Improve Engineering Client Central Messages timing: retain semantic/source message time separately from local receive time, use PING.time when available, capture receive time at the WebSocket boundary, show separate Time/Received columns, default to compact UTC time-only formatting with at most millisecond precision, and allow switching to a date+time view.

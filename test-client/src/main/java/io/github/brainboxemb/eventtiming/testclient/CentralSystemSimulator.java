@@ -81,6 +81,7 @@ final class CentralSystemSimulator {
     private final Map<String, NodeState> nodes = new LinkedHashMap<>();
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
     private final List<MessageView> messages = new ArrayList<>();
+    private final List<TimingRecord> timingRecords = new ArrayList<>();
     private boolean connected;
     private long nextMessageOrdinal = 1L;
 
@@ -121,6 +122,7 @@ final class CentralSystemSimulator {
         nodes.clear();
         locations.clear();
         messages.clear();
+        timingRecords.clear();
         nextMessageOrdinal = 1L;
         restoreConfiguredLocations();
     }
@@ -290,6 +292,16 @@ final class CentralSystemSimulator {
 
     List<MessageView> messages() {
         return List.copyOf(messages);
+    }
+
+    /**
+     * Returns the complete reconstructed Central LogBook in accepted receive order.
+     *
+     * <p>This history is independent from the bounded message-inspection journal. Duplicate replay
+     * records at or below the contiguous receive head never enter this list.</p>
+     */
+    List<TimingRecord> timingRecords() {
+        return List.copyOf(timingRecords);
     }
 
     private void recordMessage(
@@ -492,6 +504,7 @@ final class CentralSystemSimulator {
 
             node.timingDataHead = sequence;
             node.lastRecord = record;
+            timingRecords.add(record);
             applyLifecycle(node, record, receivedAt);
         }
     }

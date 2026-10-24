@@ -258,9 +258,10 @@ known they read simply **Node** and **Central**. This right-side viewer leaf is 
 to grow later with additional tabs such as Node B / Central B without moving the shared
 controls.
 
-The Node viewer contains Registrations, LogBook, Raw Data and Events. The Central viewer
-contains the semantic IF-06 Messages view; additional Central read-only viewers can be
-added there later. Input/editor panes do not travel with a detached viewer.
+The Node viewer contains Registrations, LogBook, Raw Data and Events. The Central viewer contains separate **Messages** and
+**LogBook** tabs: Messages inspects IF-06 message/batch boundaries, while Central LogBook
+reconstructs one record-oriented history from accepted TIMING_DATA. Input/editor panes
+do not travel with a detached viewer.
 
 All Bento instances use one detached-window size policy. BentoFX normally copies the full
 source dock size into a floating window, which made tabs detached from tall panes open
@@ -283,6 +284,14 @@ while that row is selected, new messages keep the table scrolled to the end; sel
 a real message suspends follow. The **End** button at the far right of the filters resumes
 follow. The bounded message journal is inspection state only; retained Central RACE_DATA
 source history remains independent for replay.
+
+**Central LogBook** is independent from that bounded Messages journal. Every accepted
+contiguous TIMING_DATA record is retained once in receive order, regardless of whether it
+arrived alone or in a 16-record replay/live batch. Duplicate replay records at or below
+Central's receive head do not create duplicate rows. Ordinary reconnect retains the
+reconstructed LogBook together with the TimingData receive head; changing target host clears
+both. The table uses the same IF-05 Type/Code/Location/Registration/Effective/Recorded
+semantics as the normal Node LogBook and can filter by NodeId.
 
 In **Registrations**, RegistrationId is the primary identity column. TeamId is a separate
 optional/interpreted value and may be unresolved (`-`); SI-02 never substitutes TeamId

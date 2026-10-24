@@ -65,6 +65,7 @@ final class EngineeringWorkbench {
             Node centralNodes,
             Node centralLocations,
             Node centralMessages,
+            Node centralLogBook,
             Node centralRaceData,
             Node timingNode,
             Node apiInfo,
@@ -95,7 +96,10 @@ final class EngineeringWorkbench {
                 logBook,
                 rawData,
                 events);
-        Node centralViewerContent = createCentralViewer(centralMessages);
+        Node centralViewerContent =
+                createCentralViewer(
+                        centralMessages,
+                        centralLogBook);
 
         Bento outerBento = createBento();
         DockBuilding builder = outerBento.dockBuilding();
@@ -360,7 +364,9 @@ final class EngineeringWorkbench {
         return viewerRoot;
     }
 
-    private Node createCentralViewer(Node centralMessages) {
+    private Node createCentralViewer(
+            Node centralMessages,
+            Node centralLogBook) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
         DockContainerRootBranch viewerRoot =
@@ -372,12 +378,17 @@ final class EngineeringWorkbench {
         registerHomeOrder(viewerRoot, messagesLeaf);
         configureLeaf(messagesLeaf);
 
-        messagesLeaf.addDockable(
+        messagesLeaf.addDockables(
                 dockable(builder, messagesLeaf,
                         new WorkbenchPanel(
                                 "central-messages",
                                 "Messages",
-                                centralMessages)));
+                                centralMessages)),
+                dockable(builder, messagesLeaf,
+                        new WorkbenchPanel(
+                                "central-logbook",
+                                "LogBook",
+                                centralLogBook)));
         return viewerRoot;
     }
 
