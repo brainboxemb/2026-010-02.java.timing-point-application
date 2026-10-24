@@ -133,8 +133,22 @@ final class CentralSystemSimulator {
         restoreConfiguredLocations();
     }
 
-    void connected() {
+    /**
+     * Marks the Central transport connected and returns exact unconfirmed packets to retry.
+     *
+     * <p>A transport reconnect does not reset protocol state. Any normal DN_PACKET that
+     * was already outstanding is therefore resent with the same packetId and content.</p>
+     */
+    List<UpstreamData> connected() {
         connected = true;
+
+        List<UpstreamData> retry = new ArrayList<>();
+        for (NodeState node : nodes.values()) {
+            if (node.outstanding != null) {
+                retry.add(node.outstanding);
+            }
+        }
+        return List.copyOf(retry);
     }
 
     void disconnected() {
