@@ -278,7 +278,7 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
-    void raceDataPositionUsesPacketIdentityNotSourceSequence() {
+    void raceDataPositionUsesPacketNrentityNotSourceSequence() {
         UpstreamData packet =
                 DefaultUpstreamData.createDnPacket(
                         NODE_A,
@@ -332,11 +332,11 @@ final class CentralMessagesPaneTest {
     }
 
     private static UpstreamData timingPacket(
-            long packetId,
+            long packetNr,
             java.util.List<TimingRecord> records) {
         return DefaultUpstreamData.createUpPacket(
                 NODE_A,
-                packetId,
+                packetNr,
                 DefaultUpstreamData.createTimingData(records));
     }
 
