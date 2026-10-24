@@ -357,11 +357,11 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void semanticMessageJournalKeepsOnlyLatestTwoHundredViewerRows() {
+    void semanticMessageJournalKeepsLatestTenThousandModelRecords() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of());
 
-        for (int index = 1; index <= 201; index++) {
+        for (int index = 1; index <= 10_001; index++) {
             UpstreamData outbound =
                     DefaultUpstreamData.createDnPacket(
                             NODE_A,
@@ -379,9 +379,9 @@ final class CentralSystemSimulatorTest {
 
         List<CentralSystemSimulator.MessageView> messages =
                 simulator.messages();
-        assertEquals(200, messages.size());
+        assertEquals(10_000, messages.size());
         assertEquals(2L, messages.get(0).ordinal());
-        assertEquals(201L, messages.get(messages.size() - 1).ordinal());
+        assertEquals(10_001L, messages.get(messages.size() - 1).ordinal());
     }
 
     @Test
