@@ -43,6 +43,7 @@ final class PresentationRuntime {
             LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
             Runnable shutdownRequest,
+            Runnable restartRequest,
             Reader consoleInput,
             Writer consoleOutput) {
         if (configuration == null) {
@@ -60,6 +61,10 @@ final class PresentationRuntime {
         if (shutdownRequest == null) {
             throw new IllegalArgumentException(
                     "shutdownRequest must not be null");
+        }
+        if (restartRequest == null) {
+            throw new IllegalArgumentException(
+                    "restartRequest must not be null");
         }
         if ((consoleInput == null) != (consoleOutput == null)) {
             throw new IllegalArgumentException(
@@ -104,7 +109,8 @@ final class PresentationRuntime {
                                 shellConfig.port(),
                                 gateway,
                                 loggingLevelControl,
-                                shutdownRequest);
+                                shutdownRequest,
+                                restartRequest);
 
         localConsole =
                 consoleInput == null
@@ -114,6 +120,7 @@ final class PresentationRuntime {
                                 loggingLevelControl,
                                 consolePromptControl,
                                 shutdownRequest,
+                                restartRequest,
                                 consoleInput,
                                 consoleOutput);
     }
