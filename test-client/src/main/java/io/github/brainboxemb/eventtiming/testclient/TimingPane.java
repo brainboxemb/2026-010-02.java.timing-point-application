@@ -1296,6 +1296,14 @@ final class TimingPane {
     }
 
     private void configureRegistrationView() {
+        TableColumn<TimingViewModel.InterpretedRegistration, String> registration =
+                registrationColumn(
+                        "RegistrationId",
+                        TimingViewModel.InterpretedRegistration::registrationId);
+        TableColumn<TimingViewModel.InterpretedRegistration, String> team =
+                registrationColumn(
+                        "TeamId",
+                        value -> value.teamId() == null ? "-" : value.teamId());
         TableColumn<TimingViewModel.InterpretedRegistration, String> time =
                 registrationColumn(
                         "Time",
@@ -1304,10 +1312,6 @@ final class TimingPane {
                 registrationColumn(
                         "Type",
                         TimingViewModel.InterpretedRegistration::type);
-        TableColumn<TimingViewModel.InterpretedRegistration, String> team =
-                registrationColumn(
-                        "TeamID",
-                        value -> value.teamId() == null ? "-" : value.teamId());
         TableColumn<TimingViewModel.InterpretedRegistration, String> code =
                 registrationColumn(
                         "Code",
@@ -1315,10 +1319,11 @@ final class TimingPane {
         TableColumn<TimingViewModel.InterpretedRegistration, Void> action =
                 new TableColumn<>("");
 
+        registration.setPrefWidth(125);
+        team.setPrefWidth(95);
         time.setPrefWidth(100);
-        type.setPrefWidth(80);
-        team.setPrefWidth(110);
-        code.setPrefWidth(80);
+        type.setPrefWidth(75);
+        code.setPrefWidth(70);
         action.setMinWidth(48);
         action.setPrefWidth(48);
         action.setMaxWidth(48);
@@ -1356,9 +1361,10 @@ final class TimingPane {
         });
 
         registrations.getColumns().setAll(
+                registration,
+                team,
                 time,
                 type,
-                team,
                 code,
                 action);
         registrations.setColumnResizePolicy(
