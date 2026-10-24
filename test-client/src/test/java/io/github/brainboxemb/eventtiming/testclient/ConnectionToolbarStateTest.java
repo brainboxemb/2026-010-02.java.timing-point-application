@@ -7,12 +7,12 @@ final class ConnectionToolbarStateTest {
     @Test
     void aggregateIgnoresStatelessHttpAndCountsPersistentLinks() {
         assertEquals(ConnectionToolbarState.NONE,
-                ConnectionToolbarState.of(false, false, false, false));
+                ConnectionToolbarState.of(false, false, false));
         assertEquals(ConnectionToolbarState.PARTIAL,
-                ConnectionToolbarState.of(true, false, false, false));
+                ConnectionToolbarState.of(true, false, false));
         assertEquals(ConnectionToolbarState.PARTIAL,
-                ConnectionToolbarState.of(true, true, false, false));
+                ConnectionToolbarState.of(true, true, false));
         assertEquals(ConnectionToolbarState.ALL,
-                ConnectionToolbarState.of(true, true, true, true));
+                ConnectionToolbarState.of(true, true, true));
     }
 }
