@@ -58,6 +58,8 @@ final class JavaFxRuntimeCheck {
                 .append("Remove old JavaFX SDK/JARs from the IDE run classpath/module path. ")
                 .append("Use JDK 21 and run from the repository root with:")
                 .append(System.lineSeparator())
+                .append("  .\\mvnw.cmd -pl shared/upstream-data -am -DskipTests install")
+                .append(System.lineSeparator())
                 .append("  .\\mvnw.cmd -f test-client\\pom.xml clean javafx:run")
                 .append(System.lineSeparator())
                 .append("or start the self-contained packaged Windows app-image.");
