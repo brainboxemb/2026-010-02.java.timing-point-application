@@ -234,8 +234,9 @@ The main window separates **engineering controls** from **viewers**:
 ```text
 left: navigation / controls / diagnostics       right: detachable viewers
 -----------------------------------------       -------------------------------
-A|Systems / C|Nodes / C|Locations              [ Node A ] [ Central A ]
-Node Controls / Central Controls                viewer content only
+System                                         [ Node A ] [ Central A ]
+Central: Nodes / Locations                      viewer content only
+Node Controls / Central Controls
 -----------------------------------------
 Device Log
 -----------------------------------------
