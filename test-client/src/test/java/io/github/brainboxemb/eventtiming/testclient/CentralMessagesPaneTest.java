@@ -188,7 +188,7 @@ final class CentralMessagesPaneTest {
                         2L,
                         CentralSystemSimulator.MessageDirection.OUT,
                         TIME,
-                        TIME.plusMillis(4),
+                        null,
                         ping);
 
         assertEquals("IN ←", CentralMessagesPane.directionText(inbound));
