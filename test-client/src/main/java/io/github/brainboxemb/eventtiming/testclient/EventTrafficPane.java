@@ -105,6 +105,9 @@ final class EventTrafficPane {
         if (event == null) {
             throw new IllegalArgumentException("event must not be null");
         }
+        if (!isNodeEvent(event)) {
+            return;
+        }
         add(new Entry(
                 Direction.IN,
                 event.occurredAt(),
@@ -194,10 +197,12 @@ final class EventTrafficPane {
         return directionMatches && typeMatches;
     }
 
+    static boolean isNodeEvent(ApiEventClient.ApiEvent event) {
+        return event != null
+                && !(event instanceof ApiEventClient.UpstreamDataEvent);
+    }
+
     static String typeOf(ApiEventClient.ApiEvent event) {
-        if (event instanceof ApiEventClient.UpstreamDataEvent upstream) {
-            return upstream.upstreamData().family().name();
-        }
         return event.eventType();
     }
 
