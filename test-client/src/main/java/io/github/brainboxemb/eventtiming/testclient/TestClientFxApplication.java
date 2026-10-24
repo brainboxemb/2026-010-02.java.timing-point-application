@@ -147,6 +147,7 @@ public final class TestClientFxApplication extends Application {
                 deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
         apiPane.setLogBookCountListener(workbench::setLogBookCount);
         apiPane.setRegistrationScopeListener(workbench::setRegistrationScope);
+        apiPane.setSelectedNodeListener(workbench::setPerspectiveNodeId);
         apiPane.setSystemHost(system.host());
         workbench.setClientLogLevel(clientLog.level());
 
@@ -286,6 +287,7 @@ public final class TestClientFxApplication extends Application {
                 ? currentDeviceLogLevel.getText() : null);
         apiPane.setLogBookCountListener(workbench::setLogBookCount);
         apiPane.setRegistrationScopeListener(workbench::setRegistrationScope);
+        apiPane.setSelectedNodeListener(workbench::setPerspectiveNodeId);
         feedback.setText("Default window layout restored");
     }
 
