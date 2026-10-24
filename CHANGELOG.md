@@ -1,5 +1,7 @@
 # Changelog
 
+- Encode IF-06 PING message times in UTC with fixed millisecond precision instead of extending the wire value to nanoseconds; accept older higher-precision PING inputs unchanged.
+
 - Make TIMING_DATA replay progress observable at INFO level: log active replay start with requested sequence and captured LogBook head, each queued LogBook replay range, empty handoffs, completed handoff to live forwarding, and requests beyond the next valid sequence without changing IF-06 delivery semantics.
 
 - Restore IF-05 `recTime` as optional diagnostic record-creation metadata: readers accept its absence, decoded records preserve that absence on re-encode, Engineering Client parsing no longer requires it, and normal upstream INFO summaries do not surface it.
