@@ -39,7 +39,7 @@ final class EventTrafficPaneTest {
     }
 
     @Test
-    void upstreamEventUsesSemanticFamilyAsTrafficType() {
+    void upstreamEventIsExcludedFromNodeEvents() {
         UpstreamData ping =
                 DefaultUpstreamData.createUpPacket(
                         new NodeId("A"),
@@ -56,7 +56,8 @@ final class EventTrafficPaneTest {
                         ping,
                         "{\"eventType\":\"UPSTREAM_DATA\"}");
 
-        assertEquals("PING", EventTrafficPane.typeOf(event));
+        assertFalse(EventTrafficPane.isNodeEvent(event));
+        assertEquals("UPSTREAM_DATA", EventTrafficPane.typeOf(event));
     }
 
     @Test
@@ -68,6 +69,7 @@ final class EventTrafficPaneTest {
                         "{}",
                         "{\"eventType\":\"STATUS_SOMETHING\"}");
 
+        assertTrue(EventTrafficPane.isNodeEvent(event));
         assertEquals("STATUS_SOMETHING", EventTrafficPane.typeOf(event));
     }
 
