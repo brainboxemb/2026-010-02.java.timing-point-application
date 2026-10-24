@@ -75,6 +75,7 @@ final class EngineeringSystemContext implements AutoCloseable {
             return false;
         }
         disconnectStatefulBoundaries();
+        httpTraffic.clear();
         host = next;
         return true;
     }
