@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Restore the three always-visible engineering diagnostics docks on the left (Device Log, Terminal and Client Log) and move the selected-node viewpoints to one right-side Bento leaf. Node <id> and Central <id> are now ordinary detachable Bento tabs whose nested workspaces can be moved as a whole to a second monitor.
+- Refine the SI-02 desktop split into left-side explorer/Node Controls/Central Controls plus the original stacked Device Log, Terminal and Client Log docks, with a dedicated right-side viewer leaf for detachable Node <id> / Central <id> viewers. Apply one Bento SceneFactory policy to all floating panes so already-small panes keep their size while detached windows are bounded to 480–960 × 320–640 px instead of inheriting an oversized source dock.
 
 - Reorganize SI-02 into top-level `Node <id>` and `Central <id>` perspectives with independent Bento workspaces and shared Device Log/Terminal/Client Log tools. Replace the Events raw text log with an IN/OUT WebSocket traffic inspector, add a separate Central semantic IF-06 Messages inspector with bounded journal state independent from RACE_DATA replay history, and make RegistrationId the primary Registrations identity while retaining optional TeamId separately.
 
