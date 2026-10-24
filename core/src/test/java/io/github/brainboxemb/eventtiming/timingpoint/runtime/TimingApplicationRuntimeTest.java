@@ -56,6 +56,36 @@ public class TimingApplicationRuntimeTest {
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
+    public void composedLocalConsoleCanRequestApplicationRestart()
+            throws Exception {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve("reboot-terminal-timing-data.jsonl");
+        StringWriter output = new StringWriter();
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
+                        identity(),
+                        config(file),
+                        null,
+                        null,
+                        new StringReader("reboot\n"),
+                        output);
+        application.activate();
+        try {
+            assertEquals(
+                    TimingApplicationRuntime.ExitRequest.RESTART,
+                    application.awaitShutdownRequest());
+        } finally {
+            application.deactivate();
+        }
+
+        assertTrue(output.toString().contains("Rebooting application."));
+    }
+
+    @Test
     public void composesConfiguredAntennasAcrossTwoSystems() {
         Path root = temporaryFolder.getRoot().toPath();
         List<Config.TimingSystemConfig> systems = new ArrayList<Config.TimingSystemConfig>();
