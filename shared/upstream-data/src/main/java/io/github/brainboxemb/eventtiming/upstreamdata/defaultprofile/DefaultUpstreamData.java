@@ -25,24 +25,24 @@ public final class DefaultUpstreamData {
     /** Creates one SI-01-to-Central packet. */
     public static UpstreamData createUpPacket(
             NodeId nodeId,
-            long packetId,
+            long packetNr,
             UpstreamData.Message message) {
         return new UpstreamData(
                 UpstreamData.Direction.UP_PACKET,
                 nodeId,
-                packetId,
+                packetNr,
                 message);
     }
 
     /** Creates one Central-to-SI-01 packet. */
     public static UpstreamData createDnPacket(
             NodeId nodeId,
-            long packetId,
+            long packetNr,
             UpstreamData.Message message) {
         return new UpstreamData(
                 UpstreamData.Direction.DN_PACKET,
                 nodeId,
-                packetId,
+                packetNr,
                 message);
     }
 
@@ -94,8 +94,8 @@ public final class DefaultUpstreamData {
 
     /** Creates one downstream receive-position report. */
     public static UpstreamData.Receive createReceive(
-            long receivedPacketId) {
-        return new UpstreamData.Receive(receivedPacketId);
+            long receivedPacketNr) {
+        return new UpstreamData.Receive(receivedPacketNr);
     }
 
     /** Creates one compatibility PING value without message time. */
