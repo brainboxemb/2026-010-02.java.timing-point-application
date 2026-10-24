@@ -435,16 +435,16 @@ final class CentralSystemSimulator {
                             + node.nodeId);
         }
 
-        long outstandingId = node.outstanding.packetNr();
-        if (receivedPacketNr < outstandingId) {
+        long outstandingNr = node.outstanding.packetNr();
+        if (receivedPacketNr < outstandingNr) {
             return List.of(node.outstanding);
         }
-        if (receivedPacketNr > outstandingId) {
+        if (receivedPacketNr > outstandingNr) {
             throw new IllegalStateException(
                     "RECV "
                             + receivedPacketNr
                             + " exceeds outstanding DN_PACKET "
-                            + outstandingId);
+                            + outstandingNr);
         }
 
         applyAcknowledgedPacket(
