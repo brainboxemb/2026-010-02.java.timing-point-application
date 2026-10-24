@@ -22,6 +22,7 @@ class ClientConfigTest {
                 "api.events.port=8082",
                 "remoteShell.port=8023",
                 "loggingServer.port=8030",
+                "central.locationIds=1, 2, 3",
                 "client.log.path=logs/engineering-client",
                 "client.log.level=DEBUG"));
 
@@ -32,6 +33,7 @@ class ClientConfigTest {
         assertEquals(8082, config.eventPort());
         assertEquals(8023, config.shellPort());
         assertEquals(8030, config.loggingServerPort());
+        assertEquals(java.util.List.of(1, 2, 3), config.centralLocationIds());
         assertEquals(Path.of("logs/engineering-client"), config.clientLogPath());
         assertEquals("DEBUG", config.clientLogLevel());
         assertEquals("http://127.0.0.1:8081", config.apiEndpoint().toString());
