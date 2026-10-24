@@ -145,20 +145,32 @@ final class CentralMessagesPaneTest {
         Instant precise =
                 Instant.parse("2026-10-24T14:29:46.798293700Z");
 
+        java.time.ZoneId amsterdam =
+                java.time.ZoneId.of("Europe/Amsterdam");
         assertEquals(
-                "14:29:46.798",
-                CentralMessagesPane.formatTime(precise, false));
+                "16:29:46.798",
+                CentralMessagesPane.formatTime(
+                        precise,
+                        false,
+                        amsterdam));
         assertEquals(
-                "2026-10-24 14:29:46.798",
-                CentralMessagesPane.formatTime(precise, true));
+                "2026-10-24 16:29:46.798",
+                CentralMessagesPane.formatTime(
+                        precise,
+                        true,
+                        amsterdam));
         assertEquals(
-                "14:29:46",
+                "16:29:46",
                 CentralMessagesPane.formatTime(
                         Instant.parse("2026-10-24T14:29:46Z"),
-                        false));
+                        false,
+                        amsterdam));
         assertEquals(
                 "—",
-                CentralMessagesPane.formatTime(null, false));
+                CentralMessagesPane.formatTime(
+                        null,
+                        false,
+                        java.time.ZoneId.of("Europe/Amsterdam")));
     }
 
     @Test
