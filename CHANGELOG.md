@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Right-align the compact C|Nodes heartbeat age and `CNT` values with leading spaces (`H -  9s`, `CNT   9`) so rapidly changing numbers stay visually aligned in the narrow explorer.
+
+- Show compact Central node liveness directly in `C|Nodes`: render rows as `A [05] · H - 30s · CNT 1157`, use `[--]` for known CLOSED and `[??]` for unknown location/lifecycle, refresh heartbeat age every 10 seconds, cap it at 999 seconds, and use the received TimingData/LogBook head as `CNT`.
+
 - Fix the Central location projection so a NODE_OPEN for a new LocationId implicitly closes the same NodeId's previously active location even when no explicit NODE_CLOSE record exists; the new OPEN sequence/time becomes the inferred close transition, leaving at most one interpreted OPEN location per node.
 
 - Correct the Central explorer semantics: rename `C|Systems` to `C|Nodes` because Central currently discovers nodes rather than a system aggregate, show a flat `NodeId · lifecycle · Location` list with protocol diagnostics in tooltips, compact `C|Locations` to `LocationId · state · NodeId`, and move the `C|RaceData` operator form into the wide controls dock.

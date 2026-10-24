@@ -504,8 +504,8 @@ The narrow explorer deliberately contains three different projections. **A|Syste
 the direct IF-03/API system view of SI-01. **C|Nodes** does not invent a Central system
 aggregate: Central currently only discovers NodeIds through typed `UPSTREAM_DATA` on the
 explicit `/api/v1/events?role=upstream` session. It therefore shows a flat compact node
-list such as `A · OPEN · Location 5`; heartbeat, TimingData head, RACE_DATA source/ACK
-heads and latest LogBook record remain available on the node tooltip.
+list such as `A [05] · H - 30s · CNT 1157`; heartbeat, TimingData head, RACE_DATA source/ACK
+heads and latest LogBook record remain available on the node tooltip. In the compact row, `[05]` means currently OPEN at LocationId 5, `[--]` means known CLOSED and `[??]` means the lifecycle/location is not known yet. `H -NNNs` is the locally observed heartbeat age, right-aligned to three digits with leading spaces (refreshed every 10 seconds and capped at 999s) and `CNT` is the received contiguous TimingData/LogBook head, right-aligned to at least three digits.
 
 **C|Locations** is another compact Central projection, for example
 `5 · OPEN · A` or `6 · UNKNOWN`. Sequence and transition timestamps remain internal
