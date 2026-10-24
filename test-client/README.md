@@ -287,7 +287,7 @@ and RACE_DATA to 16 combined changes per message. The table ends with one presen
 `— Follow end —` row: while that row is selected, new messages keep the table scrolled
 to the end; selecting a real message suspends follow and preserves the inspected viewport
 while later messages arrive. The **End** button at the far right of the filters resumes
-follow. The message journal retains only the latest 200 rows because it is temporary viewer state, not protocol storage. Central RACE_DATA is current
+follow. The simulator retains the latest 10,000 semantic messages as bounded diagnostic model state. The JavaFX table keeps only lightweight references/wrappers to that history and relies on TableView cell virtualization; it does not duplicate the raw payloads as rendered rows. Central RACE_DATA is current
 state plus at most one outstanding normal DN_PACKET for retry; there is no retained
 RACE_DATA source-sequence history.
 
