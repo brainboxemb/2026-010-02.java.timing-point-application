@@ -79,6 +79,7 @@ final class EngineeringWorkbench {
             Node logBook,
             Node rawData,
             Node events,
+            Node http,
             BooleanSupplier allRegistrations,
             Consumer<Boolean> setAllRegistrations) {
         this.allRegistrations = java.util.Objects.requireNonNull(allRegistrations);
@@ -99,7 +100,8 @@ final class EngineeringWorkbench {
                 registrations,
                 logBook,
                 rawData,
-                events);
+                events,
+                http);
         Node centralViewerContent =
                 createCentralViewer(
                         centralMessages,
@@ -348,7 +350,8 @@ final class EngineeringWorkbench {
             Node registrations,
             Node logBook,
             Node rawData,
-            Node events) {
+            Node events,
+            Node http) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
         DockContainerRootBranch viewerRoot = builder.root("node-viewer-root");
@@ -400,7 +403,12 @@ final class EngineeringWorkbench {
                         new WorkbenchPanel(
                                 "events",
                                 "Events",
-                                events)));
+                                events)),
+                dockable(builder, detailLeaf,
+                        new WorkbenchPanel(
+                                "http",
+                                "HTTP",
+                                http)));
 
         return viewerRoot;
     }
