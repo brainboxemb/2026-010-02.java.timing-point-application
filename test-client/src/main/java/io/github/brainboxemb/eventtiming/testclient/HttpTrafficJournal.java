@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 
 /**
  * Bounded diagnostic history for IF-03 HTTP calls made by the Engineering Client.
@@ -18,7 +17,7 @@ final class HttpTrafficJournal {
 
     private final Deque<ApiClient.HttpCall> calls =
             new ArrayDeque<>(MAX_HISTORY);
-    private final List<Consumer<ApiClient.HttpCall>> listeners =
+    private final List<Runnable> listeners =
             new CopyOnWriteArrayList<>();
 
     void record(ApiClient.HttpCall call) {
@@ -31,9 +30,7 @@ final class HttpTrafficJournal {
                 calls.removeFirst();
             }
         }
-        for (Consumer<ApiClient.HttpCall> listener : listeners) {
-            listener.accept(call);
-        }
+        notifyListeners();
     }
 
     List<ApiClient.HttpCall> snapshot() {
@@ -42,10 +39,23 @@ final class HttpTrafficJournal {
         }
     }
 
-    void subscribe(Consumer<ApiClient.HttpCall> listener) {
+    void clear() {
+        synchronized (calls) {
+            calls.clear();
+        }
+        notifyListeners();
+    }
+
+    void subscribe(Runnable listener) {
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
         }
         listeners.add(listener);
+    }
+
+    private void notifyListeners() {
+        for (Runnable listener : listeners) {
+            listener.run();
+        }
     }
 }
