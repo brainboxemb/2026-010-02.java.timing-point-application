@@ -247,16 +247,20 @@ Client Log
 
 The compact toolbar vertically aligns **Host**, the target IP and all link
 buttons. The main power-icon/text **Connect** button checks HTTP API
-availability and opens Events/Upstream, Terminal and Device Log together; once one
+availability and opens normal **Events**, Terminal and Device Log together; once one
 or more stateful links are active, it becomes **Disconnect**, allowing the
 user to close all of them with the same action. It is green when all three
 stateful links are connected, amber when partially connected or connecting,
 and neutral when disconnected. The API's HTTP check is stateless, so it
-cannot be "disconnected" and has its own reachability button. The four
-independent API, Events, Terminal and Device Log buttons retain stable short
-labels and each has a tooltip describing its state/action. The Events button
-opens the single `role=upstream` WebSocket: normal IF-03 status/commit events feed
-the A-views while typed `UPSTREAM_DATA` on that same session feeds the C-views. A changed Host
+cannot be "disconnected" and has its own reachability button.
+
+**Central** is deliberately separate from that aggregate connection. Normal Events uses
+`/api/v1/events` and does not make SI-01 believe a Central upstream peer exists.
+Clicking **Central** reconnects the same `ApiEventClient` as
+`/api/v1/events?role=upstream`; that one role-specific session continues to carry
+normal IF-03 events and additionally carries typed `UPSTREAM_DATA` in both directions.
+Turning Central off reconnects the same client to ordinary Events again. There is never a
+second simultaneous WebSocket client service. A changed Host
 does not silently redirect existing links: disconnect before switching.
 The redundant `● Client Log` label is gone from the toolbar: Client Log
 is a local, always-running dock pane whose own tab identifies it.
@@ -496,9 +500,11 @@ editor. The Engineering Client still does not expose arbitrary TagObservation in
 TagProcessor/filter mutation or StageStartTimes/NextUpTeams/RaceData editors.
 
 The left explorer now deliberately contains three distinct views. **A|Systems** is the
-direct IF-03/API view of SI-01. **C|Systems** is built only from typed `UPSTREAM_DATA`
-received by the same full-duplex `/api/v1/events?role=upstream` session and shows each observed NodeId,
-heartbeat activity, received TimingData head and latest LogBook record. **C|Locations**
+direct IF-03/API view of SI-01. **C|Systems** becomes connected only while the explicit
+Central role is active and is built only from typed `UPSTREAM_DATA` received by that
+full-duplex `/api/v1/events?role=upstream` session. It shows each observed NodeId,
+heartbeat activity, received TimingData head, Central RACE_DATA source/ACK heads and the
+latest LogBook record. **C|Locations**
 is the Central interpretation of configured/discovered LocationIds; NODE_INFO OPEN/CLOSE
 records drive its state. The two models do not share state, so an API/upstream mismatch
 remains visible during testing. On a TIMING_DATA source-head SYNC the simulator requests

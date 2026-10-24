@@ -63,13 +63,18 @@ final class CentralPane {
                 textColumn("Heartbeat", value -> instant(value.lastHeartbeat()));
         TableColumn<CentralSystemSimulator.SystemView, String> head =
                 textColumn("Timing head", value -> Long.toString(value.timingDataHead()));
+        TableColumn<CentralSystemSimulator.SystemView, String> raceHead =
+                textColumn("Race head", value -> Long.toString(value.raceDataHead()));
+        TableColumn<CentralSystemSimulator.SystemView, String> raceAck =
+                textColumn("Race ack", value -> Long.toString(value.raceDataAcknowledged()));
         TableColumn<CentralSystemSimulator.SystemView, String> location =
                 textColumn("Location", value ->
                         value.locationId() == null ? "—" : value.locationId().toString());
         TableColumn<CentralSystemSimulator.SystemView, String> last =
                 textColumn("Last LogBook", CentralPane::lastRecord);
 
-        systems.getColumns().setAll(node, link, heartbeat, head, location, last);
+        systems.getColumns().setAll(
+                node, link, heartbeat, head, raceHead, raceAck, location, last);
         systems.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         systems.setPlaceholder(new Label("No upstream systems observed"));
     }

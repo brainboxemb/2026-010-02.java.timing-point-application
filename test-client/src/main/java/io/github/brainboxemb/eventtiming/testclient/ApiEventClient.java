@@ -126,6 +126,13 @@ public final class ApiEventClient implements AutoCloseable {
         return webSocket != null && !webSocket.isOutputClosed();
     }
 
+    /** Returns whether the active IF-03 event session has the explicit upstream role. */
+    public synchronized boolean isUpstreamRoleConnected() {
+        return webSocket != null
+                && !webSocket.isOutputClosed()
+                && upstreamRole;
+    }
+
     /**
      * Sends one semantic IF-06 value on the active upstream-role session.
      *
@@ -222,7 +229,7 @@ public final class ApiEventClient implements AutoCloseable {
                 rawJson);
     }
 
-    private static boolean isUpstreamRole(URI endpoint) {
+    static boolean isUpstreamRole(URI endpoint) {
         String query = endpoint.getQuery();
         if (query == null) {
             return false;
@@ -249,8 +256,8 @@ public final class ApiEventClient implements AutoCloseable {
         if (webSocket == socket) {
             webSocket = null;
             upstreamRole = false;
+            connecting = false;
         }
-        connecting = false;
     }
 
     @Override
