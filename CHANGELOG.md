@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore the three always-visible engineering diagnostics docks on the left (Device Log, Terminal and Client Log) and move the selected-node viewpoints to one right-side Bento leaf. Node <id> and Central <id> are now ordinary detachable Bento tabs whose nested workspaces can be moved as a whole to a second monitor.
+
 - Reorganize SI-02 into top-level `Node <id>` and `Central <id>` perspectives with independent Bento workspaces and shared Device Log/Terminal/Client Log tools. Replace the Events raw text log with an IN/OUT WebSocket traffic inspector, add a separate Central semantic IF-06 Messages inspector with bounded journal state independent from RACE_DATA replay history, and make RegistrationId the primary Registrations identity while retaining optional TeamId separately.
 
 - Replace the SI-02 Events raw TextArea with a structured WebSocket traffic inspector: one row per frame, explicit IN/OUT direction, semantic/event type and timestamp, exact selected payload, direction/type filters, and tracked outbound Central PING/REQ/RACE_DATA traffic without artificial blank lines. Make RegistrationId the primary Registrations identity column while retaining optional interpreted TeamId separately.
