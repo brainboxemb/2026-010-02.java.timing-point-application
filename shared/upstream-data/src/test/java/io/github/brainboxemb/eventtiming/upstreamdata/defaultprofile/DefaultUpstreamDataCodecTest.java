@@ -240,7 +240,7 @@ public class DefaultUpstreamDataCodecTest {
                 codec.decode(
                         bytes(
                                 "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\","
-                                        + "\"seqNr\":0,\"msg\":{\"type\":\"PING\","
+                                        + "\"pckNr\":0,\"msg\":{\"type\":\"PING\","
                                         + "\"data\":{\"op\":\"ANS\"}}}"));
         UpstreamData.Ping manualPing =
                 (UpstreamData.Ping) manual.message();
@@ -318,7 +318,7 @@ public class DefaultUpstreamDataCodecTest {
             codec.decode(
                     bytes(
                             "{\"v\":2,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
-                                    + "\"seqNr\":1,\"msg\":{\"type\":\"RECV\","
+                                    + "\"pckNr\":1,\"msg\":{\"type\":\"RECV\","
                                     + "\"data\":{\"rcvSeqNr\":0}}}"));
             fail("expected unsupported version");
         } catch (UpstreamDataCodec.CodecException expected) {
@@ -331,7 +331,7 @@ public class DefaultUpstreamDataCodecTest {
             codec.decode(
                     bytes(
                             "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
-                                    + "\"seqNr\":1,\"msg\":{\"type\":\"FUTURE\","
+                                    + "\"pckNr\":1,\"msg\":{\"type\":\"FUTURE\","
                                     + "\"data\":{}}}"));
             fail("expected unsupported message type");
         } catch (UpstreamDataCodec.CodecException expected) {
