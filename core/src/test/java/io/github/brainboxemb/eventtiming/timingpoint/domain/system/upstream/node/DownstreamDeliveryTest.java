@@ -22,13 +22,40 @@ public class DownstreamDeliveryTest {
 
         UpstreamData first = sequencePacket(1L);
         assertTrue(delivery.begin(first));
-        delivery.complete(1L);
+        delivery.complete(first);
 
         assertReceive(stream.takeSent(), 1L);
         assertEquals(1L, delivery.lastProcessedPacketId());
 
         assertFalse(delivery.begin(first));
         assertReceive(stream.takeSent(), 1L);
+    }
+
+    @Test
+    public void duplicatePacketIdWithChangedContentIsRejected() {
+        TestUpstreamStream stream = new TestUpstreamStream();
+        DownstreamDelivery delivery =
+                new DownstreamDelivery(
+                        stream::isAvailable,
+                        stream::send);
+
+        UpstreamData first = sequencePacket(1L);
+        assertTrue(delivery.begin(first));
+        delivery.complete(first);
+        stream.takeSent();
+
+        UpstreamData changed =
+                DefaultUpstreamData.createDnPacket(
+                        new NodeId("A"),
+                        1L,
+                        DefaultUpstreamData.createSequenceAnswer(42L));
+
+        try {
+            delivery.begin(changed);
+            org.junit.Assert.fail("expected changed duplicate rejection");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("different semantic content"));
+        }
     }
 
     @Test
@@ -56,7 +83,7 @@ public class DownstreamDeliveryTest {
         assertReceive(stream.takeSent(), 0L);
 
         assertTrue(delivery.begin(sequencePacket(1L)));
-        delivery.complete(1L);
+        delivery.complete(sequencePacket(1L));
         stream.takeSent();
 
         delivery.requestFullStateIfUninitialized();
