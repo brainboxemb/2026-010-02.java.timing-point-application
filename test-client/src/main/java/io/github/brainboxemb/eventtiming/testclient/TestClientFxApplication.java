@@ -90,6 +90,7 @@ public final class TestClientFxApplication extends Application {
     private ApiPane apiPane;
     private CentralSystemSimulator centralSimulator;
     private CentralPane centralPane;
+    private CentralMessagesPane centralMessagesPane;
     private EventTrafficPane eventTrafficPane;
     private EngineeringWorkbench workbench;
     private BorderPane workbenchRoot;
@@ -140,6 +141,7 @@ public final class TestClientFxApplication extends Application {
                                 registrationId);
                     }
                 });
+        centralMessagesPane = new CentralMessagesPane(centralSimulator);
 
         workbench = createWorkbench(
                 deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
@@ -256,6 +258,7 @@ public final class TestClientFxApplication extends Application {
                 apiPane.systemsPane(),
                 centralPane.nodesPane(),
                 centralPane.locationsPane(),
+                centralMessagesPane.pane(),
                 centralPane.raceDataPane(),
                 apiPane.timingNodePane(),
                 apiPane.apiInfoPane(),
@@ -594,7 +597,7 @@ public final class TestClientFxApplication extends Application {
     private void disconnectCentral() {
         if (!system.eventClient().isUpstreamRoleConnected()) {
             centralSimulator.disconnected();
-            centralPane.refresh();
+            refreshCentralViews();
             setCentralConnected(false, "CONNECT");
             return;
         }
@@ -604,7 +607,7 @@ public final class TestClientFxApplication extends Application {
         setBoundaryState(centralBoundary, "Central", "DISCONNECTING");
         system.eventClient().disconnect();
         centralSimulator.disconnected();
-        centralPane.refresh();
+        refreshCentralViews();
         connectEventSession(false);
     }
 
@@ -638,7 +641,7 @@ public final class TestClientFxApplication extends Application {
                             centralSimulator.disconnected();
                             setCentralConnected(false, "CONNECT");
                         }
-                        centralPane.refresh();
+                        refreshCentralViews();
                         apiPane.connected();
                         clientLog.info(
                                 upstreamRole
@@ -663,7 +666,7 @@ public final class TestClientFxApplication extends Application {
                         eventConnectionEpoch.invalidate();
                         setEventConnected(false, "CONNECT");
                         centralSimulator.disconnected();
-                        centralPane.refresh();
+                        refreshCentralViews();
                         setCentralConnected(false, "CONNECT");
                         apiPane.disconnected(true);
                         clientLog.warn(
@@ -679,7 +682,7 @@ public final class TestClientFxApplication extends Application {
                         if (!system.eventClient().isConnected()) {
                             setEventConnected(false, "ERROR");
                             centralSimulator.disconnected();
-                            centralPane.refresh();
+                            refreshCentralViews();
                             setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
                             apiPane.disconnected(true);
                         }
@@ -693,7 +696,7 @@ public final class TestClientFxApplication extends Application {
                         Throwable cause = rootCause(error);
                         setEventConnected(false, "ERROR");
                         centralSimulator.disconnected();
-                        centralPane.refresh();
+                        refreshCentralViews();
                         setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
                         apiPane.disconnected(true);
                         clientLog.error(
@@ -705,7 +708,7 @@ public final class TestClientFxApplication extends Application {
         } catch (RuntimeException ex) {
             setEventConnected(false, "CONNECT");
             centralSimulator.disconnected();
-            centralPane.refresh();
+            refreshCentralViews();
             setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
             clientLog.error("IF-03 event connect failed: " + ex.getMessage());
         }
@@ -720,7 +723,7 @@ public final class TestClientFxApplication extends Application {
         system.eventClient().disconnect();
         setEventConnected(false, "CONNECT");
         centralSimulator.disconnected();
-        centralPane.refresh();
+        refreshCentralViews();
         setCentralConnected(false, "CONNECT");
         apiPane.disconnected(true);
         clientLog.info("IF-03 Events disconnected");
@@ -756,7 +759,7 @@ public final class TestClientFxApplication extends Application {
                                 }
                             });
                 }
-                centralPane.refresh();
+                refreshCentralViews();
             } catch (RuntimeException ex) {
                 clientLog.error(
                         "Central upstream data error: " + rootMessage(ex));
@@ -813,16 +816,16 @@ public final class TestClientFxApplication extends Application {
                                 feedback.setText(
                                         "Central RACE_DATA send failed: "
                                                 + rootMessage(error));
-                                centralPane.refresh();
+                                refreshCentralViews();
                             });
                         }
                     });
         } catch (RuntimeException ex) {
-            centralPane.refresh();
+            refreshCentralViews();
             throw ex;
         }
 
-        centralPane.refresh();
+        refreshCentralViews();
         clientLog.info(
                 "Central RACE_DATA #"
                         + raceData.sequence()
@@ -834,12 +837,20 @@ public final class TestClientFxApplication extends Application {
     private CompletableFuture<Void> sendUpstreamDataWithTraffic(
             UpstreamData data) {
         String rawPayload = ApiEventClient.encodeUpstreamData(data);
+        java.time.Instant sentAt = java.time.Instant.now();
         CompletableFuture<Void> send = system.eventClient().sendUpstreamData(data);
+        centralSimulator.recordSent(data, sentAt);
         eventTrafficPane.recordOutbound(
-                java.time.Instant.now(),
+                sentAt,
                 data.family().name(),
                 rawPayload);
+        centralMessagesPane.refresh();
         return send;
+    }
+
+    private void refreshCentralViews() {
+        centralPane.refresh();
+        centralMessagesPane.refresh();
     }
 
     private void requireCentralUpstreamRole() {
@@ -1043,7 +1054,7 @@ public final class TestClientFxApplication extends Application {
             apiCheckEpoch.invalidate();
             setEventConnected(false, "CONNECT");
             centralSimulator.resetTargetState();
-            centralPane.refresh();
+            refreshCentralViews();
             setCentralConnected(false, "CONNECT");
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
