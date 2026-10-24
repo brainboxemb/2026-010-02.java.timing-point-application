@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.upstreamdata;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
@@ -21,6 +22,9 @@ import java.util.Set;
  * secondary implementation hierarchy behind the public semantic types.</p>
  */
 public abstract class UpstreamData {
+    public static final int MAX_TIMING_DATA_RECORDS = 16;
+    public static final int MAX_RACE_DATA_CHANGES = 16;
+
     private final NodeId timingNodeId;
 
     private UpstreamData(NodeId timingNodeId) {
@@ -88,29 +92,48 @@ public abstract class UpstreamData {
 
     /** One ordered Central-to-node RACE_DATA change set. */
     public static final class RaceData extends UpstreamData {
+        private final LocationId locationId;
         private final long sequence;
         private final List<TeamAssignmentChange> teamAssignmentChanges;
         private final List<StageStartTimeChange> stageStartTimeChanges;
 
         public RaceData(
                 NodeId nodeId,
+                LocationId locationId,
                 long sequence,
                 List<TeamAssignmentChange> teamAssignmentChanges,
                 List<StageStartTimeChange> stageStartTimeChanges) {
 
             super(nodeId);
+            if (locationId == null) {
+                throw new IllegalArgumentException("RACE_DATA locationId must not be null");
+            }
+            this.locationId = locationId;
             this.sequence = requirePositiveSequence(sequence, "RaceData sequence");
             this.teamAssignmentChanges = copyTeamAssignmentChanges(teamAssignmentChanges);
             this.stageStartTimeChanges = copyStageStartTimeChanges(stageStartTimeChanges);
 
-            if (this.teamAssignmentChanges.isEmpty() && this.stageStartTimeChanges.isEmpty()) {
+            int changeCount =
+                    this.teamAssignmentChanges.size()
+                            + this.stageStartTimeChanges.size();
+            if (changeCount == 0) {
                 throw new IllegalArgumentException("RACE_DATA requires at least one change");
+            }
+            if (changeCount > MAX_RACE_DATA_CHANGES) {
+                throw new IllegalArgumentException(
+                        "RACE_DATA supports at most "
+                                + MAX_RACE_DATA_CHANGES
+                                + " changes");
             }
         }
 
         @Override
         public Family family() {
             return Family.RACE_DATA;
+        }
+
+        public LocationId locationId() {
+            return locationId;
         }
 
         public long sequence() {
@@ -396,6 +419,12 @@ public abstract class UpstreamData {
     private static List<TimingRecord> copyTimingData(NodeId nodeId, List<TimingRecord> records) {
         if (records == null || records.isEmpty()) {
             throw new IllegalArgumentException("TIMING_DATA requires at least one record");
+        }
+        if (records.size() > MAX_TIMING_DATA_RECORDS) {
+            throw new IllegalArgumentException(
+                    "TIMING_DATA supports at most "
+                            + MAX_TIMING_DATA_RECORDS
+                            + " records");
         }
 
         List<TimingRecord> copy = new ArrayList<TimingRecord>(records.size());
