@@ -54,7 +54,8 @@ executed automatically on startup or file drop.
 - JavaFX 21.0.10
 - BentoFX 0.16.0 workbench
 - Maven Wrapper from the repository root
-- Jackson 2.21.2 for independent JSON parsing
+- Jackson 2.21.5 for client JSON parsing
+- shared public `event-upstream-data` / TimingData contracts for IF-06 semantics
 - independent client services for IF-03, Remote Shell and live diagnostics
 
 **JavaFX runtime consistency:** SI-02 requires all `javafx.base`,
@@ -93,20 +94,24 @@ Current client services are:
 ```text
 TestClientFxApplication
   +-- ApiClient             IF-03 HTTP / JSON
-  +-- ApiEventClient        IF-03 WebSocket
+  +-- ApiEventClient        IF-03 WebSocket + typed IF-06 UpstreamData
+  +-- CentralSystemSimulator Central-side IF-06 state (transport-independent)
   +-- RemoteShellClient     line-oriented Remote Shell
   +-- LiveLogClient         LoggingServer diagnostics socket
 ```
 
 JavaFX event handlers do not own HTTP/WebSocket, shell or live-log protocol semantics.
-The client must not import SI-01 implementation classes or mutate SI-01 domain state
-directly.
+The client must not import SI-01 core/application implementation classes or mutate SI-01
+domain state directly. It may consume the shared public Event Timing semantic artifacts
+used at IF-05/IF-06 boundaries.
 
 ## Run on Windows
 
-With `JAVA_HOME` pointing to a JDK 21 installation:
+With `JAVA_HOME` pointing to a JDK 21 installation, install the shared public
+IF-06 contract into the local Maven repository and then run the standalone client:
 
 ```powershell
+.\mvnw.cmd -pl shared/upstream-data -am -DskipTests install
 .\mvnw.cmd -f test-client\pom.xml clean javafx:run
 ```
 
@@ -193,7 +198,7 @@ path/level and the LocationIds initially known to the Central System Simulator t
 `A0001`; it is not a client-configuration prefix. The target host/IP remains editable
 in the top target bar at runtime; **Apply target** changes the active host for all external
 boundaries without rewriting the config file. Changing the active host disconnects
-stateful Events/Central/Terminal/Device Log connections so they cannot silently remain
+stateful Events/Upstream, Terminal and Device Log connections so they cannot silently remain
 attached to the previous target.
 
 The resolver accepts both the repository root and `test-client` as the working
@@ -242,14 +247,16 @@ Client Log
 
 The compact toolbar vertically aligns **Host**, the target IP and all link
 buttons. The main power-icon/text **Connect** button checks HTTP API
-availability and opens Events, Central, Terminal and Device Log together; once one
+availability and opens Events/Upstream, Terminal and Device Log together; once one
 or more stateful links are active, it becomes **Disconnect**, allowing the
-user to close all of them with the same action. It is green when all four
+user to close all of them with the same action. It is green when all three
 stateful links are connected, amber when partially connected or connecting,
 and neutral when disconnected. The API's HTTP check is stateless, so it
-cannot be "disconnected" and has its own reachability button. The five
-independent API, Events, Central, Terminal and Device Log buttons retain stable short
-labels and each has a tooltip describing its state/action. A changed Host
+cannot be "disconnected" and has its own reachability button. The four
+independent API, Events, Terminal and Device Log buttons retain stable short
+labels and each has a tooltip describing its state/action. The Events button
+opens the single `role=upstream` WebSocket: normal IF-03 status/commit events feed
+the A-views while typed `UPSTREAM_DATA` on that same session feeds the C-views. A changed Host
 does not silently redirect existing links: disconnect before switching.
 The redundant `● Client Log` label is gone from the toolbar: Client Log
 is a local, always-running dock pane whose own tab identifies it.
@@ -489,8 +496,8 @@ editor. The Engineering Client still does not expose arbitrary TagObservation in
 TagProcessor/filter mutation or StageStartTimes/NextUpTeams/RaceData editors.
 
 The left explorer now deliberately contains three distinct views. **A|Systems** is the
-direct IF-03/API view of SI-01. **C|Systems** is built only from the Central Simulator's
-full-duplex `/api/v1/events?role=upstream` traffic and shows each observed NodeId,
+direct IF-03/API view of SI-01. **C|Systems** is built only from typed `UPSTREAM_DATA`
+received by the same full-duplex `/api/v1/events?role=upstream` session and shows each observed NodeId,
 heartbeat activity, received TimingData head and latest LogBook record. **C|Locations**
 is the Central interpretation of configured/discovered LocationIds; NODE_INFO OPEN/CLOSE
 records drive its state. The two models do not share state, so an API/upstream mismatch
