@@ -133,22 +133,8 @@ final class CentralSystemSimulator {
         restoreConfiguredLocations();
     }
 
-    /**
-     * Marks the Central transport connected and returns exact unconfirmed packets to retry.
-     *
-     * <p>A transport reconnect does not reset protocol state. Any normal DN_PACKET that
-     * was already outstanding is therefore resent with the same packetId and content.</p>
-     */
-    List<UpstreamData> connected() {
+    void connected() {
         connected = true;
-
-        List<UpstreamData> retry = new ArrayList<>();
-        for (NodeState node : nodes.values()) {
-            if (node.outstanding != null) {
-                retry.add(node.outstanding);
-            }
-        }
-        return List.copyOf(retry);
     }
 
     void disconnected() {
@@ -396,7 +382,7 @@ final class CentralSystemSimulator {
             node.pendingMessages.addLast(
                     DefaultUpstreamData.createSequenceAnswer(
                             node.timingDataHead));
-            return sendNextNormalPacketIfPossible(node);
+            return outstandingOrNext(node);
         }
 
         long sourceHead = sequence.sequence().longValue();
@@ -416,6 +402,14 @@ final class CentralSystemSimulator {
             node.pendingMessages.addLast(
                     DefaultUpstreamData.createTimingDataRequest(
                             node.timingDataHead + 1L));
+        }
+        return outstandingOrNext(node);
+    }
+
+    /** Retries the exact outstanding packet, or starts the next queued normal packet. */
+    private List<UpstreamData> outstandingOrNext(NodeState node) {
+        if (node.outstanding != null) {
+            return List.of(node.outstanding);
         }
         return sendNextNormalPacketIfPossible(node);
     }
