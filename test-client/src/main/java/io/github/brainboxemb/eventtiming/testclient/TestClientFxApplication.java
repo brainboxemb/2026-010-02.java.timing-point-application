@@ -822,10 +822,10 @@ public final class TestClientFxApplication extends Application {
     private long sendCentralPackets(
             String nodeId,
             List<UpstreamData> packets) {
-        long packetId = 0L;
+        long packetNr = 0L;
         for (UpstreamData packet : packets) {
-            packetId = packet.packetId();
-            final long sentPacketId = packetId;
+            packetNr = packet.packetNr();
+            final long sentPacketNr = packetNr;
             try {
                 sendUpstreamDataWithTraffic(packet)
                         .whenComplete((ignored, error) -> {
@@ -833,7 +833,7 @@ public final class TestClientFxApplication extends Application {
                                 Platform.runLater(() -> {
                                     clientLog.error(
                                             "Central DN_PACKET #"
-                                                    + sentPacketId
+                                                    + sentPacketNr
                                                     + " send failed: "
                                                     + rootMessage(error));
                                     feedback.setText(
@@ -850,7 +850,7 @@ public final class TestClientFxApplication extends Application {
         }
 
         refreshCentralViews();
-        if (packetId == 0L) {
+        if (packetNr == 0L) {
             clientLog.info(
                     "Central RaceData state updated for node "
                             + nodeId
@@ -858,11 +858,11 @@ public final class TestClientFxApplication extends Application {
         } else {
             clientLog.info(
                     "Central DN_PACKET #"
-                            + packetId
+                            + packetNr
                             + " queued for node "
                             + nodeId);
         }
-        return packetId;
+        return packetNr;
     }
 
     private CompletableFuture<Void> sendUpstreamDataWithTraffic(

@@ -47,8 +47,8 @@ public final class DefaultUpstreamDataCodec
             generator.writeNumberField("v", VERSION);
             generator.writeStringField("type", data.direction().name());
             generator.writeStringField("nodeId", data.timingNodeId().value());
-            generator.writeNumberField("packetId", data.packetId());
-            generator.writeFieldName("message");
+            generator.writeNumberField("pckNr", data.packetNr());
+            generator.writeFieldName("msg");
             writeMessage(generator, data.message());
             generator.writeEndObject();
             generator.close();
@@ -209,7 +209,7 @@ public final class DefaultUpstreamDataCodec
             UpstreamData.Receive receive)
             throws IOException {
         generator.writeStartObject();
-        generator.writeNumberField("receivedPacketId", receive.receivedPacketId());
+        generator.writeNumberField("rcvPckNr", receive.receivedPacketNr());
         generator.writeEndObject();
     }
 
@@ -254,7 +254,7 @@ public final class DefaultUpstreamDataCodec
             Integer version = null;
             String type = null;
             String nodeId = null;
-            Long packetId = null;
+            Long packetNr = null;
             byte[] message = null;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
@@ -275,14 +275,14 @@ public final class DefaultUpstreamDataCodec
                         throw invalid("Duplicate nodeId", null);
                     }
                     nodeId = readString(parser, value, "nodeId");
-                } else if ("packetId".equals(field)) {
-                    if (packetId != null) {
-                        throw invalid("Duplicate packetId", null);
+                } else if ("pckNr".equals(field)) {
+                    if (packetNr != null) {
+                        throw invalid("Duplicate pckNr", null);
                     }
-                    packetId = Long.valueOf(readLong(parser, value, "packetId"));
-                } else if ("message".equals(field)) {
+                    packetNr = Long.valueOf(readLong(parser, value, "pckNr"));
+                } else if ("msg".equals(field)) {
                     if (message != null) {
-                        throw invalid("Duplicate message", null);
+                        throw invalid("Duplicate msg", null);
                     }
                     message = captureCurrentValue(parser);
                 } else {
@@ -298,10 +298,10 @@ public final class DefaultUpstreamDataCodec
             if (version == null
                     || type == null
                     || nodeId == null
-                    || packetId == null
+                    || packetNr == null
                     || message == null) {
                 throw invalid(
-                        "v, type, nodeId, packetId and message are required",
+                        "v, type, nodeId, pckNr and msg are required",
                         null);
             }
             if (version.intValue() != VERSION) {
@@ -337,7 +337,7 @@ public final class DefaultUpstreamDataCodec
                 return new UpstreamData(
                         direction,
                         parsedNodeId,
-                        packetId.longValue(),
+                        packetNr.longValue(),
                         decodedMessage);
             } catch (IllegalArgumentException ex) {
                 throw invalid("Invalid IF-06 packet", ex);
@@ -368,18 +368,18 @@ public final class DefaultUpstreamDataCodec
                 JsonToken value = parser.nextToken();
                 if ("type".equals(field)) {
                     if (type != null) {
-                        throw invalid("Duplicate message type", null);
+                        throw invalid("Duplicate msg type", null);
                     }
                     type = readString(parser, value, "message.type");
                 } else if ("locationId".equals(field)) {
                     if (locationId != null) {
-                        throw invalid("Duplicate message locationId", null);
+                        throw invalid("Duplicate msg locationId", null);
                     }
                     locationId = Integer.valueOf(
                             readInt(parser, value, "message.locationId"));
                 } else if ("data".equals(field)) {
                     if (data != null) {
-                        throw invalid("Duplicate message data", null);
+                        throw invalid("Duplicate msg data", null);
                     }
                     data = captureCurrentValue(parser);
                 } else {
@@ -704,9 +704,9 @@ public final class DefaultUpstreamDataCodec
 
     private static UpstreamData.Receive decodeReceive(byte[] payload)
             throws CodecException {
-        Long packetId = readSingleLongObject(payload, "receivedPacketId");
+        Long packetNr = readSingleLongObject(payload, "rcvPckNr");
         try {
-            return DefaultUpstreamData.createReceive(packetId.longValue());
+            return DefaultUpstreamData.createReceive(packetNr.longValue());
         } catch (IllegalArgumentException ex) {
             throw invalid("Invalid RECV payload", ex);
         }

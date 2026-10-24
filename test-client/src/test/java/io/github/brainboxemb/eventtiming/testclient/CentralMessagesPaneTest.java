@@ -89,6 +89,58 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
+    void liveRowDeltaAppendsBeforeFollowEndWithoutReplacingHistory() {
+        CentralSystemSimulator.MessageView first =
+                messageView(1L);
+        CentralSystemSimulator.MessageView second =
+                messageView(2L);
+
+        java.util.List<CentralMessagesPane.MessageRow> current =
+                CentralMessagesPane.visibleRows(
+                        java.util.List.of(first),
+                        "ALL",
+                        "ALL",
+                        "ALL");
+        java.util.List<CentralMessagesPane.MessageRow> next =
+                CentralMessagesPane.visibleRows(
+                        java.util.List.of(first, second),
+                        "ALL",
+                        "ALL",
+                        "ALL");
+
+        assertEquals(
+                new CentralMessagesPane.RowDelta(0, 1),
+                CentralMessagesPane.liveRowDelta(current, next));
+    }
+
+    @Test
+    void liveRowDeltaHandlesBoundedJournalRolloverAsHeadRemoveAndTailAppend() {
+        CentralSystemSimulator.MessageView first =
+                messageView(1L);
+        CentralSystemSimulator.MessageView second =
+                messageView(2L);
+        CentralSystemSimulator.MessageView third =
+                messageView(3L);
+
+        java.util.List<CentralMessagesPane.MessageRow> current =
+                CentralMessagesPane.visibleRows(
+                        java.util.List.of(first, second),
+                        "ALL",
+                        "ALL",
+                        "ALL");
+        java.util.List<CentralMessagesPane.MessageRow> next =
+                CentralMessagesPane.visibleRows(
+                        java.util.List.of(second, third),
+                        "ALL",
+                        "ALL",
+                        "ALL");
+
+        assertEquals(
+                new CentralMessagesPane.RowDelta(1, 1),
+                CentralMessagesPane.liveRowDelta(current, next));
+    }
+
+    @Test
     void formatsTimeCompactlyAtMillisecondPrecision() {
         Instant precise =
                 Instant.parse("2026-10-24T14:29:46.798293700Z");
@@ -278,7 +330,7 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
-    void raceDataPositionUsesPacketIdentityNotSourceSequence() {
+    void raceDataPositionUsesPacketNrNotSourceSequence() {
         UpstreamData packet =
                 DefaultUpstreamData.createDnPacket(
                         NODE_A,
@@ -331,12 +383,22 @@ final class CentralMessagesPaneTest {
         assertEquals("OUT →", CentralMessagesPane.directionText(outbound));
     }
 
+    private static CentralSystemSimulator.MessageView messageView(
+            long ordinal) {
+        return new CentralSystemSimulator.MessageView(
+                ordinal,
+                CentralSystemSimulator.MessageDirection.IN,
+                TIME.plusMillis(ordinal),
+                TIME.plusMillis(ordinal + 1L),
+                pingPacket(UpstreamData.Direction.UP_PACKET));
+    }
+
     private static UpstreamData timingPacket(
-            long packetId,
+            long packetNr,
             java.util.List<TimingRecord> records) {
         return DefaultUpstreamData.createUpPacket(
                 NODE_A,
-                packetId,
+                packetNr,
                 DefaultUpstreamData.createTimingData(records));
     }
 

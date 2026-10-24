@@ -71,8 +71,7 @@ final class CentralMessagesPane {
     }
 
     private final CentralSystemSimulator simulator;
-    private final ObservableList<CentralSystemSimulator.MessageView> messages =
-            FXCollections.observableArrayList();
+    private List<CentralSystemSimulator.MessageView> messageHistory = List.of();
     private final ObservableList<MessageRow> rows =
             FXCollections.observableArrayList();
     private final ComboBox<String> directionFilter = new ComboBox<>();
@@ -167,7 +166,7 @@ final class CentralMessagesPane {
         String selectedType = typeFilter.getValue();
 
         List<CentralSystemSimulator.MessageView> snapshot = simulator.messages();
-        messages.setAll(snapshot);
+        messageHistory = snapshot;
 
         Set<String> nodes = new LinkedHashSet<>();
         nodes.add(ALL);
@@ -192,7 +191,7 @@ final class CentralMessagesPane {
             rebuildingRows = false;
         }
 
-        rebuildRows(selectedOrdinal, wasFollowing);
+        rebuildRows(selectedOrdinal, wasFollowing, true);
     }
 
     private void configureTable() {
@@ -291,17 +290,22 @@ final class CentralMessagesPane {
         if (rebuildingRows) {
             return;
         }
-        rebuildRows(selectedMessageOrdinal(), followEnd);
+        rebuildRows(selectedMessageOrdinal(), followEnd, false);
     }
 
-    private void rebuildRows(Long selectedOrdinal, boolean keepFollowing) {
+    private void rebuildRows(
+            Long selectedOrdinal,
+            boolean keepFollowing,
+            boolean preserveViewport) {
         rebuildingRows = true;
         try {
-            rows.setAll(visibleRows(
-                    messages,
-                    directionFilter.getValue(),
-                    nodeFilter.getValue(),
-                    typeFilter.getValue()));
+            updateVisibleRows(
+                    visibleRows(
+                            messageHistory,
+                            directionFilter.getValue(),
+                            nodeFilter.getValue(),
+                            typeFilter.getValue()),
+                    preserveViewport);
 
             if (keepFollowing) {
                 selectFollowEnd();
@@ -313,6 +317,74 @@ final class CentralMessagesPane {
         } finally {
             rebuildingRows = false;
         }
+    }
+
+    /**
+     * Applies live deltas without replacing the whole item list, so JavaFX does not move
+     * a historical viewport just because another message arrived. Explicit filter changes
+     * may rebuild the projection because they are operator-driven navigation.
+     */
+    private void updateVisibleRows(
+            List<MessageRow> next,
+            boolean preserveViewport) {
+        if (!preserveViewport || rows.isEmpty()) {
+            if (!rows.equals(next)) {
+                rows.setAll(next);
+            }
+            return;
+        }
+
+        RowDelta delta = liveRowDelta(rows, next);
+        if (delta == null) {
+            rows.setAll(next);
+            return;
+        }
+
+        if (delta.removeFromStart() > 0) {
+            rows.remove(0, delta.removeFromStart());
+        }
+        int sentinelIndex = rows.size() - 1;
+        rows.addAll(
+                sentinelIndex,
+                next.subList(
+                        delta.nextAppendFrom(),
+                        Math.max(delta.nextAppendFrom(), next.size() - 1)));
+    }
+
+    /**
+     * Resolves a live journal change as head removal plus tail append.
+     *
+     * <p>The trailing follow-end row is presentation-only and is excluded from the
+     * comparison. This covers both ordinary growth and the bounded-journal rollover
+     * where the oldest visible message disappears as a new one arrives.</p>
+     */
+    static RowDelta liveRowDelta(
+            List<MessageRow> current,
+            List<MessageRow> next) {
+        int currentMessages = Math.max(0, current.size() - 1);
+        int nextMessages = Math.max(0, next.size() - 1);
+
+        for (int remove = 0; remove <= currentMessages; remove++) {
+            int overlap = currentMessages - remove;
+            if (overlap > nextMessages) {
+                continue;
+            }
+
+            boolean matches = true;
+            for (int index = 0; index < overlap; index++) {
+                if (!current.get(remove + index).equals(next.get(index))) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return new RowDelta(remove, overlap);
+            }
+        }
+        return null;
+    }
+
+    record RowDelta(int removeFromStart, int nextAppendFrom) {
     }
 
     private void selectionChanged(MessageRow selected) {
@@ -452,7 +524,6 @@ final class CentralMessagesPane {
             MessageRow row = rows.get(index);
             if (!row.followEnd() && row.message().ordinal() == ordinal) {
                 table.getSelectionModel().select(index);
-                table.scrollTo(index);
                 return;
             }
         }
@@ -528,9 +599,9 @@ final class CentralMessagesPane {
 
     static String positionText(UpstreamData data) {
         String packet =
-                data.packetId() == 0L
+                data.packetNr() == 0L
                         ? "P0"
-                        : "P" + data.packetId();
+                        : "P" + data.packetNr();
 
         return switch (data.family()) {
             case TIMING_DATA -> packet + " · "
@@ -555,7 +626,7 @@ final class CentralMessagesPane {
             }
             case RECV -> packet + " · DN through "
                     + ((UpstreamData.Receive) data.message())
-                            .receivedPacketId();
+                            .receivedPacketNr();
             case PING, STATUS -> packet;
         };
     }

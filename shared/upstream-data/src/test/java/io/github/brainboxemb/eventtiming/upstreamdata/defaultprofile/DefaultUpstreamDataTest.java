@@ -127,14 +127,14 @@ public class DefaultUpstreamDataTest {
                         0L,
                         ping);
         assertSame(UpstreamData.Direction.UP_PACKET, pingPacket.direction());
-        assertEquals(0L, pingPacket.packetId());
+        assertEquals(0L, pingPacket.packetNr());
 
         try {
             DefaultUpstreamData.createUpPacket(
                     nodeId,
                     1L,
                     ping);
-            fail("expected positive PING packetId rejection");
+            fail("expected positive PING packetNr rejection");
         } catch (IllegalArgumentException expected) {
             // expected
         }
@@ -191,7 +191,7 @@ public class DefaultUpstreamDataTest {
         assertEquals(
                 0L,
                 DefaultUpstreamData.createReceive(0L)
-                        .receivedPacketId());
+                        .receivedPacketNr());
     }
 
     private static List<TimingRecord> timingRecords(int count) {

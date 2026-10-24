@@ -25,14 +25,14 @@ public class DownstreamDeliveryTest {
         delivery.complete(first);
 
         assertReceive(stream.takeSent(), 1L);
-        assertEquals(1L, delivery.lastProcessedPacketId());
+        assertEquals(1L, delivery.lastProcessedPacketNr());
 
         assertFalse(delivery.begin(first));
         assertReceive(stream.takeSent(), 1L);
     }
 
     @Test
-    public void duplicatePacketIdWithChangedContentIsRejected() {
+    public void duplicatePacketNrWithChangedContentIsRejected() {
         TestUpstreamStream stream = new TestUpstreamStream();
         DownstreamDelivery delivery =
                 new DownstreamDelivery(
@@ -68,7 +68,7 @@ public class DownstreamDeliveryTest {
 
         assertFalse(delivery.begin(sequencePacket(2L)));
         assertReceive(stream.takeSent(), 0L);
-        assertEquals(0L, delivery.lastProcessedPacketId());
+        assertEquals(0L, delivery.lastProcessedPacketNr());
     }
 
     @Test
@@ -103,7 +103,7 @@ public class DownstreamDeliveryTest {
         stream.setAvailable(false);
         delivery.complete(first);
 
-        assertEquals(1L, delivery.lastProcessedPacketId());
+        assertEquals(1L, delivery.lastProcessedPacketNr());
         assertEquals(0, stream.sentCount());
 
         stream.setAvailable(true);
@@ -111,20 +111,20 @@ public class DownstreamDeliveryTest {
         assertReceive(stream.takeSent(), 1L);
     }
 
-    private static UpstreamData sequencePacket(long packetId) {
+    private static UpstreamData sequencePacket(long packetNr) {
         return DefaultUpstreamData.createDnPacket(
                 new NodeId("A"),
-                packetId,
+                packetNr,
                 DefaultUpstreamData.createSequenceRequest());
     }
 
     private static void assertReceive(
             UpstreamData.Message message,
-            long expectedPacketId) {
+            long expectedPacketNr) {
         UpstreamData.Receive receive =
                 (UpstreamData.Receive) message;
         assertEquals(
-                expectedPacketId,
-                receive.receivedPacketId());
+                expectedPacketNr,
+                receive.receivedPacketNr());
     }
 }

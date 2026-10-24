@@ -14,17 +14,17 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Owns normal Central-to-node packet delivery state for one NodeUpstream.
  *
  * <p>Only one normal DN_PACKET can be processed at a time. A duplicate packet is not
- * applied again; the last accepted packet id is reported again through RECV. A gap is
- * likewise not processed and reports the last accepted packet id, including zero when
+ * applied again; the last accepted packet number is reported again through RECV. A gap is
+ * likewise not processed and reports the last accepted packet number, including zero when
  * the node needs the Central side to rebuild current downstream state.</p>
  */
 final class DownstreamDelivery {
     private final BooleanSupplier available;
     private final Consumer<UpstreamData.Message> sender;
 
-    private long lastProcessedPacketId;
+    private long lastProcessedPacketNr;
     private UpstreamData lastProcessedPacket;
-    private long processingPacketId;
+    private long processingPacketNr;
 
     DownstreamDelivery(
             BooleanSupplier available,
@@ -50,37 +50,37 @@ final class DownstreamDelivery {
                 packet.direction() == UpstreamData.Direction.DN_PACKET,
                 "downstream delivery requires DN_PACKET");
         failIfInvalidArgument(
-                packet.packetId() > 0L,
-                "downstream delivery requires a positive packetId");
+                packet.packetNr() > 0L,
+                "downstream delivery requires a positive packetNr");
         failIfInvalidArgument(
                 packet.family() != UpstreamData.Family.PING,
                 "PING does not use downstream delivery");
         failIfIllegalState(
-                processingPacketId == 0L,
+                processingPacketNr == 0L,
                 "DN_PACKET %s is already being processed",
-                processingPacketId);
+                processingPacketNr);
 
-        long receivedPacketId = packet.packetId();
-        if (receivedPacketId < lastProcessedPacketId) {
+        long receivedPacketNr = packet.packetNr();
+        if (receivedPacketNr < lastProcessedPacketNr) {
             sendReceivePosition();
             return false;
         }
 
-        if (receivedPacketId == lastProcessedPacketId) {
+        if (receivedPacketNr == lastProcessedPacketNr) {
             failIfInvalidArgument(
                     samePacket(lastProcessedPacket, packet),
-                    "DN_PACKET packetId reused with different semantic content");
+                    "DN_PACKET packetNr reused with different semantic content");
             sendReceivePosition();
             return false;
         }
 
-        if (lastProcessedPacketId == Long.MAX_VALUE
-                || receivedPacketId != lastProcessedPacketId + 1L) {
+        if (lastProcessedPacketNr == Long.MAX_VALUE
+                || receivedPacketNr != lastProcessedPacketNr + 1L) {
             sendReceivePosition();
             return false;
         }
 
-        processingPacketId = receivedPacketId;
+        processingPacketNr = receivedPacketNr;
         return true;
     }
 
@@ -88,23 +88,23 @@ final class DownstreamDelivery {
     synchronized void complete(UpstreamData packet) {
         failIfInvalidArgument(packet != null, "packet must not be null");
         failIfIllegalState(
-                processingPacketId == packet.packetId(),
+                processingPacketNr == packet.packetNr(),
                 "DN_PACKET completion does not match pending packet");
 
-        lastProcessedPacketId = packet.packetId();
+        lastProcessedPacketNr = packet.packetNr();
         lastProcessedPacket = packet;
-        processingPacketId = 0L;
+        processingPacketNr = 0L;
         sendReceivePosition();
     }
 
     /** Drops one failed/incomplete packet without advancing the accepted position. */
     synchronized void cancelPending() {
-        processingPacketId = 0L;
+        processingPacketNr = 0L;
     }
 
-    /** Returns the last successfully processed normal downstream packet id. */
-    synchronized long lastProcessedPacketId() {
-        return lastProcessedPacketId;
+    /** Returns the last successfully processed normal downstream packet number. */
+    synchronized long lastProcessedPacketNr() {
+        return lastProcessedPacketNr;
     }
 
     /**
@@ -112,7 +112,7 @@ final class DownstreamDelivery {
      * normal downstream packet yet.
      */
     synchronized void requestFullStateIfUninitialized() {
-        if (lastProcessedPacketId == 0L) {
+        if (lastProcessedPacketNr == 0L) {
             sendReceivePosition();
         }
     }
@@ -128,7 +128,7 @@ final class DownstreamDelivery {
                 || second == null
                 || first.direction() != second.direction()
                 || !first.timingNodeId().equals(second.timingNodeId())
-                || first.packetId() != second.packetId()
+                || first.packetNr() != second.packetNr()
                 || first.family() != second.family()) {
             return false;
         }
@@ -173,6 +173,6 @@ final class DownstreamDelivery {
         }
         sender.accept(
                 DefaultUpstreamData.createReceive(
-                        lastProcessedPacketId));
+                        lastProcessedPacketNr));
     }
 }

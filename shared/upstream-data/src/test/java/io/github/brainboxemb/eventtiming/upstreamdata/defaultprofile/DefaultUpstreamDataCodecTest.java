@@ -57,8 +57,8 @@ public class DefaultUpstreamDataCodecTest {
         String json = text(codec.encode(packet));
         assertTrue(
                 json.startsWith(
-                        "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"packetId\":57,"
-                                + "\"message\":{\"type\":\"TIMING_DATA\",\"data\":[{"));
+                        "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"pckNr\":57,"
+                                + "\"msg\":{\"type\":\"TIMING_DATA\",\"data\":[{"));
         assertTrue(json.contains("\"seqNr\":42"));
         assertTrue(json.contains("\"regId\":\"A0042\""));
 
@@ -66,7 +66,7 @@ public class DefaultUpstreamDataCodecTest {
         assertSame(
                 UpstreamData.Direction.UP_PACKET,
                 decoded.direction());
-        assertEquals(57L, decoded.packetId());
+        assertEquals(57L, decoded.packetNr());
         assertEquals(nodeId, decoded.timingNodeId());
 
         UpstreamData.TimingDataTransfer transfer =
@@ -104,7 +104,7 @@ public class DefaultUpstreamDataCodecTest {
 
         String json = text(codec.encode(original));
         assertTrue(json.contains("\"type\":\"DN_PACKET\""));
-        assertTrue(json.contains("\"packetId\":43"));
+        assertTrue(json.contains("\"pckNr\":43"));
         assertTrue(json.contains("\"type\":\"RACE_DATA\""));
         assertTrue(json.contains("\"locationId\":1"));
         assertTrue(!json.contains("\"seq\":"));
@@ -112,7 +112,7 @@ public class DefaultUpstreamDataCodecTest {
         assertTrue(json.contains("\"stageStartTimes\""));
 
         UpstreamData decoded = codec.decode(bytes(json));
-        assertEquals(43L, decoded.packetId());
+        assertEquals(43L, decoded.packetNr());
         UpstreamData.RaceData raceData =
                 (UpstreamData.RaceData) decoded.message();
         assertEquals(new LocationId(1), raceData.locationId());
@@ -185,7 +185,7 @@ public class DefaultUpstreamDataCodecTest {
         assertEquals(
                 41L,
                 ((UpstreamData.Receive) decodedReceive.message())
-                        .receivedPacketId());
+                        .receivedPacketNr());
 
         UpstreamData fullResend =
                 DefaultUpstreamData.createUpPacket(
@@ -197,7 +197,7 @@ public class DefaultUpstreamDataCodecTest {
                 ((UpstreamData.Receive)
                         codec.decode(codec.encode(fullResend))
                                 .message())
-                        .receivedPacketId());
+                        .receivedPacketNr());
     }
 
     @Test
@@ -217,8 +217,8 @@ public class DefaultUpstreamDataCodecTest {
                                 messageTime));
 
         assertEquals(
-                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"packetId\":0,"
-                        + "\"message\":{\"type\":\"PING\",\"data\":{\"op\":\"REQ\","
+                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"pckNr\":0,"
+                        + "\"msg\":{\"type\":\"PING\",\"data\":{\"op\":\"REQ\","
                         + "\"mode\":\"HB\",\"time\":\"2026-10-24T14:12:00.123Z\","
                         + "\"pingId\":\"p-0001\"}}}",
                 text(codec.encode(heartbeat)));
@@ -226,7 +226,7 @@ public class DefaultUpstreamDataCodecTest {
         UpstreamData decoded = codec.decode(codec.encode(heartbeat));
         UpstreamData.Ping ping =
                 (UpstreamData.Ping) decoded.message();
-        assertEquals(0L, decoded.packetId());
+        assertEquals(0L, decoded.packetNr());
         assertSame(
                 UpstreamData.PingOperation.REQ,
                 ping.operation());
@@ -240,7 +240,7 @@ public class DefaultUpstreamDataCodecTest {
                 codec.decode(
                         bytes(
                                 "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\","
-                                        + "\"packetId\":0,\"message\":{\"type\":\"PING\","
+                                        + "\"pckNr\":0,\"msg\":{\"type\":\"PING\","
                                         + "\"data\":{\"op\":\"ANS\"}}}"));
         UpstreamData.Ping manualPing =
                 (UpstreamData.Ping) manual.message();
@@ -256,29 +256,29 @@ public class DefaultUpstreamDataCodecTest {
     public void rejectsPacketAndMessageContractViolations()
             throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"packetId\":0,"
-                        + "\"message\":{\"type\":\"RECV\","
-                        + "\"data\":{\"receivedPacketId\":0}}}");
+                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"pckNr\":0,"
+                        + "\"msg\":{\"type\":\"RECV\","
+                        + "\"data\":{\"rcvSeqNr\":0}}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
-                        + "\"message\":{\"type\":\"PING\","
+                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"pckNr\":1,"
+                        + "\"msg\":{\"type\":\"PING\","
                         + "\"data\":{\"op\":\"REQ\"}}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
-                        + "\"message\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
+                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"pckNr\":1,"
+                        + "\"msg\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
                         + "\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0042\"}]}}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
-                        + "\"message\":{\"type\":\"SEQ\","
+                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"pckNr\":1,"
+                        + "\"msg\":{\"type\":\"SEQ\","
                         + "\"data\":{\"op\":\"REQ\",\"seq\":1}}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
-                        + "\"message\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
+                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"pckNr\":1,"
+                        + "\"msg\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
                         + "\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"R0001\"}]}}}");
     }
@@ -318,8 +318,8 @@ public class DefaultUpstreamDataCodecTest {
             codec.decode(
                     bytes(
                             "{\"v\":2,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
-                                    + "\"packetId\":1,\"message\":{\"type\":\"RECV\","
-                                    + "\"data\":{\"receivedPacketId\":0}}}"));
+                                    + "\"pckNr\":1,\"msg\":{\"type\":\"RECV\","
+                                    + "\"data\":{\"rcvSeqNr\":0}}}"));
             fail("expected unsupported version");
         } catch (UpstreamDataCodec.CodecException expected) {
             assertSame(
@@ -331,7 +331,7 @@ public class DefaultUpstreamDataCodecTest {
             codec.decode(
                     bytes(
                             "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
-                                    + "\"packetId\":1,\"message\":{\"type\":\"FUTURE\","
+                                    + "\"pckNr\":1,\"msg\":{\"type\":\"FUTURE\","
                                     + "\"data\":{}}}"));
             fail("expected unsupported message type");
         } catch (UpstreamDataCodec.CodecException expected) {

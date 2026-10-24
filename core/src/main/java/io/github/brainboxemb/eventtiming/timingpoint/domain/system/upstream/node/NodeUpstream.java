@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -47,7 +49,7 @@ public final class NodeUpstream extends LifecycleComponent {
     private final UpstreamInputTask inputTask;
 
     private ScheduledFuture<?> heartbeatSchedule;
-    private long nextUpPacketId = 1L;
+    private long nextUpPacketNr = 1L;
 
     /** Creates one node's semantic upstream protocol state and independent logical task lane. */
     public NodeUpstream(
@@ -141,20 +143,20 @@ public final class NodeUpstream extends LifecycleComponent {
     private void sendMessage(UpstreamData.Message message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
-        long packetId;
+        long packetNr;
         if (message.family() == UpstreamData.Family.PING) {
-            packetId = 0L;
+            packetNr = 0L;
         } else {
-            if (nextUpPacketId <= 0L) {
-                throw new IllegalStateException("UP_PACKET packetId exhausted");
+            if (nextUpPacketNr <= 0L) {
+                throw new IllegalStateException("UP_PACKET packetNr exhausted");
             }
-            packetId = nextUpPacketId++;
+            packetNr = nextUpPacketNr++;
         }
 
         sendPacket(
                 DefaultUpstreamData.createUpPacket(
                         nodeId,
-                        packetId,
+                        packetNr,
                         message));
     }
 
@@ -183,11 +185,10 @@ public final class NodeUpstream extends LifecycleComponent {
     }
 
     /** Builds one compact summary at the semantic packet boundary. */
-    private static String logSummary(UpstreamData packet) {
+    static String logSummary(UpstreamData packet) {
         String prefix =
                 "node=" + packet.timingNodeId().value()
-                        + ", direction=" + packet.direction().name()
-                        + ", packetId=" + packet.packetId()
+                        + ", packetNr=" + packet.packetNr()
                         + ", type=" + packet.family().name();
 
         switch (packet.family()) {
@@ -195,6 +196,11 @@ public final class NodeUpstream extends LifecycleComponent {
                 UpstreamData.TimingDataTransfer timingData =
                         (UpstreamData.TimingDataTransfer) packet.message();
                 int recordCount = timingData.records().size();
+                if (recordCount == 1) {
+                    return prefix
+                            + singleTimingDataLogSummary(
+                                    timingData.records().get(0));
+                }
                 long firstSequence =
                         timingData.records().get(0).sequenceNumber();
                 long lastSequence =
@@ -231,8 +237,8 @@ public final class NodeUpstream extends LifecycleComponent {
                 UpstreamData.Receive receive =
                         (UpstreamData.Receive) packet.message();
                 return prefix
-                        + ", receivedPacketId="
-                        + receive.receivedPacketId();
+                        + ", receivedPacketNr="
+                        + receive.receivedPacketNr();
 
             case PING:
                 UpstreamData.Ping ping =
@@ -246,6 +252,65 @@ public final class NodeUpstream extends LifecycleComponent {
 
             default:
                 return prefix;
+        }
+    }
+
+    /** Uses persisted IF-05 vocabulary when one TimingData record can be shown directly. */
+    private static String singleTimingDataLogSummary(TimingRecord record) {
+        StringBuilder summary =
+                new StringBuilder()
+                        .append(", seq=")
+                        .append(record.sequenceNumber())
+                        .append(", recType=")
+                        .append(timingRecordType(record.kind()))
+                        .append(", loc=")
+                        .append(record.locationId());
+
+        if (record.registrationId() != 0) {
+            summary.append(", regId=")
+                    .append(
+                            RegistrationId.fromPackedValue(
+                                    record.registrationId()).value());
+        }
+
+        summary.append(", code=")
+                .append(timingRecordCode(record));
+        return summary.toString();
+    }
+
+    private static String timingRecordType(TimingRecord.Kind kind) {
+        switch (kind) {
+            case AUTOMATIC_REGISTRATION:
+                return "AUTO_REG";
+            case MANUAL_REGISTRATION:
+                return "MAN_REG";
+            case NODE_OPEN:
+            case NODE_CLOSE:
+                return "NODE_INFO";
+            default:
+                throw new IllegalArgumentException(
+                        "Unsupported TimingRecord kind " + kind);
+        }
+    }
+
+    private static String timingRecordCode(TimingRecord record) {
+        switch (record.kind()) {
+            case AUTOMATIC_REGISTRATION:
+                return record.action().name();
+            case MANUAL_REGISTRATION:
+                return record.action().name()
+                        + ","
+                        + (record.manualTimeSource()
+                                        == TimingRecord.ManualTimeSource.AUTOMATIC
+                                ? "AUTO"
+                                : "MAN");
+            case NODE_OPEN:
+                return "OPEN";
+            case NODE_CLOSE:
+                return "CLOSE";
+            default:
+                throw new IllegalArgumentException(
+                        "Unsupported TimingRecord kind " + record.kind());
         }
     }
 

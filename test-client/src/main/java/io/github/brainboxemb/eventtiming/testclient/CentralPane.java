@@ -208,9 +208,9 @@ final class CentralPane implements AutoCloseable {
                 + "\nTiming head " + node.timingDataHead()
                 + "\nDN ack " + node.lastDnPacketAcknowledged()
                 + "\nDN pending "
-                + (node.outstandingDnPacketId() == null
+                + (node.outstandingDnPacketNr() == null
                         ? "—"
-                        : node.outstandingDnPacketId())
+                        : node.outstandingDnPacketNr())
                 + "\nLocation "
                 + (node.locationId() == null ? "—" : node.locationId())
                 + "\nLast LogBook " + lastRecord(node);
@@ -323,9 +323,9 @@ final class CentralPane implements AutoCloseable {
                         ? "0"
                         : Long.toString(view.lastDnPacketAcknowledged()));
         downstreamPending.setText(
-                view == null || view.outstandingDnPacketId() == null
+                view == null || view.outstandingDnPacketNr() == null
                         ? "—"
-                        : Long.toString(view.outstandingDnPacketId()));
+                        : Long.toString(view.outstandingDnPacketNr()));
 
         boolean enabled = simulator.isConnected() && view != null;
         raceNode.setDisable(!simulator.isConnected() || simulator.nodes().isEmpty());

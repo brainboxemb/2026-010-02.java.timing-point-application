@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-- Replace the unreleased flat IF-06 `SYNC`/`ACK`/`REQ` draft with the packet-oriented v1 development contract: explicit `UP_PACKET`/`DN_PACKET` identities, stop-and-wait downstream `RECV`/resend with idempotent duplicate handling, `PING` on packetId 0 without RECV, TIMING_DATA-only `SEQ`/`TIMING_DATA_REQ` LogBook synchronization, and current-state RACE_DATA delivery without an independent source-sequence history. Update the Central simulator, Engineering Client inspectors and protocol verification to the same model.
+- Preserve Central Messages historical inspection viewport during incoming traffic; shorten default IF-06 JSON wire keys to `pckNr`, `msg`, and `rcvPckNr`, and name the typed Java packet positions `packetNr` / `receivedPacketNr`.
+- Show a single TIMING_DATA record concretely in upstream INFO summaries (sequence, IF-05 record type/location/registration/code); retain range + count for actual multi-record batches.
 
-- Log successfully decoded inbound IF-06 messages on the device side with the stable `Upstream received:` INFO prefix and the same compact semantic summary used for outbound queued/sent messages. This makes PING answers, replay REQ requests, RACE_DATA and SYNC visible without logging full protocol JSON.
+
+- Replace the unreleased flat IF-06 `SYNC`/`ACK`/`REQ` draft with the packet-oriented v1 development contract: explicit `UP_PACKET`/`DN_PACKET` identities, stop-and-wait downstream `RECV`/resend with idempotent duplicate handling, `PING` on packetNr 0 without RECV, TIMING_DATA-only `SEQ`/`TIMING_DATA_REQ` LogBook synchronization, and current-state RACE_DATA delivery without an independent source-sequence history. Update the Central simulator, Engineering Client inspectors and protocol verification to the same model.
+
+- Log successfully decoded inbound IF-06 messages on the device side with the stable `Upstream received:` INFO prefix and the same compact semantic summary used for outbound queued/sent messages. This makes PING, SEQ, TIMING_DATA_REQ, RECV, RACE_DATA and TIMING_DATA traffic visible without logging full protocol JSON.
 
 - Restructure the left Engineering Client explorer into two vertically stacked sections: **System** above and **Central** below, with Central containing **Nodes** and **Locations** tabs. Remove the older `A|Systems` / `C|Nodes` / `C|Locations` prefixes while keeping the underlying views unchanged.
 

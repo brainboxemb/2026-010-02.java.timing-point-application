@@ -43,7 +43,7 @@ final class CentralSystemSimulatorTest {
         assertSame(
                 UpstreamData.Direction.DN_PACKET,
                 requestPacket.direction());
-        assertEquals(1L, requestPacket.packetId());
+        assertEquals(1L, requestPacket.packetNr());
         assertEquals(
                 1L,
                 ((UpstreamData.TimingDataRequest) requestPacket.message())
@@ -115,7 +115,7 @@ final class CentralSystemSimulatorTest {
 
         assertEquals(1, first.size());
         UpstreamData packet1 = first.get(0);
-        assertEquals(1L, packet1.packetId());
+        assertEquals(1L, packet1.packetNr());
         assertSame(
                 UpstreamData.Family.RACE_DATA,
                 packet1.family());
@@ -141,7 +141,7 @@ final class CentralSystemSimulatorTest {
 
         assertEquals(1, afterAck.size());
         UpstreamData packet2 = afterAck.get(0);
-        assertEquals(2L, packet2.packetId());
+        assertEquals(2L, packet2.packetNr());
         UpstreamData.RaceData delta =
                 (UpstreamData.RaceData) packet2.message();
         assertEquals(1, delta.teamAssignmentChanges().size());
@@ -155,7 +155,7 @@ final class CentralSystemSimulatorTest {
         CentralSystemSimulator.NodeView view =
                 simulator.nodes().get(0);
         assertEquals(1L, view.lastDnPacketAcknowledged());
-        assertEquals(Long.valueOf(2L), view.outstandingDnPacketId());
+        assertEquals(Long.valueOf(2L), view.outstandingDnPacketNr());
     }
 
     @Test
@@ -182,13 +182,13 @@ final class CentralSystemSimulatorTest {
 
         UpstreamData second =
                 simulator.accept(
-                        receivePacket(10L, first.packetId()),
+                        receivePacket(10L, first.packetNr()),
                         RECEIVED.plusSeconds(1))
                         .get(0);
 
         List<UpstreamData> resend =
                 simulator.accept(
-                        receivePacket(11L, first.packetId()),
+                        receivePacket(11L, first.packetNr()),
                         RECEIVED.plusSeconds(2));
 
         assertEquals(1, resend.size());
@@ -222,10 +222,10 @@ final class CentralSystemSimulatorTest {
 
         assertEquals(1, retry.size());
         assertSame(outstanding, retry.get(0));
-        assertEquals(1L, retry.get(0).packetId());
+        assertEquals(1L, retry.get(0).packetNr());
         assertEquals(
                 Long.valueOf(1L),
-                simulator.nodes().get(0).outstandingDnPacketId());
+                simulator.nodes().get(0).outstandingDnPacketNr());
     }
 
     @Test
@@ -243,7 +243,7 @@ final class CentralSystemSimulatorTest {
                         List.of())
                         .get(0);
         simulator.accept(
-                receivePacket(4L, first.packetId()),
+                receivePacket(4L, first.packetNr()),
                 RECEIVED.plusSeconds(1));
 
         List<UpstreamData> rebuilt =
@@ -252,7 +252,7 @@ final class CentralSystemSimulatorTest {
                         RECEIVED.plusSeconds(2));
 
         assertEquals(1, rebuilt.size());
-        assertEquals(1L, rebuilt.get(0).packetId());
+        assertEquals(1L, rebuilt.get(0).packetNr());
         UpstreamData.RaceData raceData =
                 (UpstreamData.RaceData) rebuilt.get(0).message();
         assertEquals(1, raceData.teamAssignmentChanges().size());
@@ -290,7 +290,7 @@ final class CentralSystemSimulatorTest {
                         RECEIVED.plusMillis(10))
                         .get(0);
 
-        assertEquals(0L, answerPacket.packetId());
+        assertEquals(0L, answerPacket.packetNr());
         UpstreamData.Ping answer =
                 (UpstreamData.Ping) answerPacket.message();
         assertEquals(answerTime, answer.time().instant());
@@ -354,6 +354,34 @@ final class CentralSystemSimulatorTest {
                 RECEIVED.plusMillis(2),
                 messages.get(1).messageTime());
         assertNull(messages.get(1).receivedAt());
+    }
+
+    @Test
+    void semanticMessageJournalKeepsLatestTenThousandModelRecords() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of());
+
+        for (int index = 1; index <= 10_001; index++) {
+            UpstreamData outbound =
+                    DefaultUpstreamData.createDnPacket(
+                            NODE_A,
+                            0L,
+                            DefaultUpstreamData.createPing(
+                                    UpstreamData.PingOperation.ANS,
+                                    UpstreamData.PingMode.HB,
+                                    "hb-" + index,
+                                    new TimingTimestamp(RECEIVED.plusMillis(index))));
+            simulator.recordSent(
+                    outbound,
+                    RECEIVED.plusMillis(index),
+                    ApiEventClient.encodeUpstreamData(outbound));
+        }
+
+        List<CentralSystemSimulator.MessageView> messages =
+                simulator.messages();
+        assertEquals(10_000, messages.size());
+        assertEquals(2L, messages.get(0).ordinal());
+        assertEquals(10_001L, messages.get(messages.size() - 1).ordinal());
     }
 
     @Test
@@ -501,31 +529,31 @@ final class CentralSystemSimulatorTest {
     }
 
     private static UpstreamData timingDataPacket(
-            long packetId,
+            long packetNr,
             TimingRecord... records) {
         return DefaultUpstreamData.createUpPacket(
                 NODE_A,
-                packetId,
+                packetNr,
                 DefaultUpstreamData.createTimingData(
                         List.of(records)));
     }
 
     private static UpstreamData upPacket(
-            long packetId,
+            long packetNr,
             UpstreamData.Message message) {
         return DefaultUpstreamData.createUpPacket(
                 NODE_A,
-                packetId,
+                packetNr,
                 message);
     }
 
     private static UpstreamData receivePacket(
-            long upPacketId,
-            long receivedPacketId) {
+            long upPacketNr,
+            long receivedPacketNr) {
         return upPacket(
-                upPacketId,
+                upPacketNr,
                 DefaultUpstreamData.createReceive(
-                        receivedPacketId));
+                        receivedPacketNr));
     }
 
     private static TimingRecord opened(
