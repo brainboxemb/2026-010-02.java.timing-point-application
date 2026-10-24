@@ -13,6 +13,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -25,6 +28,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * from the next LogBook sequence.</p>
  */
 final class TimingDataSync {
+    private static final Logger LOG = LoggerFactory.getLogger(TimingDataSync.class);
     private static final int MAX_RECORDS_PER_BATCH = UpstreamData.MAX_TIMING_DATA_RECORDS;
 
     private final NodeId nodeId;
@@ -132,6 +136,19 @@ final class TimingDataSync {
         if (fromSequence > capturedHead) {
             if (fromSequence == capturedHead + 1L) {
                 enableLive(fromSequence);
+                LOG.info(
+                        "TIMING_DATA replay empty: node={}, fromSeq={}, head={}, liveFrom={}",
+                        nodeId.value(),
+                        fromSequence,
+                        capturedHead,
+                        fromSequence);
+            } else {
+                LOG.warn(
+                        "TIMING_DATA replay not started: node={}, fromSeq={}, head={}, "
+                                + "reason=request beyond next sequence",
+                        nodeId.value(),
+                        fromSequence,
+                        capturedHead);
             }
             return;
         }
@@ -139,6 +156,11 @@ final class TimingDataSync {
         nextReplaySequence = fromSequence;
         replayHead = capturedHead;
         replayActive = true;
+        LOG.info(
+                "TIMING_DATA replay started: node={}, fromSeq={}, head={}",
+                nodeId.value(),
+                fromSequence,
+                capturedHead);
     }
 
     /** Reports whether the captured replay still has records to send. */
@@ -166,6 +188,12 @@ final class TimingDataSync {
                 (int) Math.min(
                         (long) MAX_RECORDS_PER_BATCH,
                         replayHead - nextReplaySequence + 1L);
+        long batchEnd = nextReplaySequence + limit - 1L;
+        LOG.info(
+                "TIMING_DATA replay LogBook read queued: node={}, fromSeq={}, toSeq={}",
+                nodeId.value(),
+                nextReplaySequence,
+                batchEnd);
 
         return logBook.submit(
                 LogBookQueries.timingRecordRange(
@@ -190,7 +218,14 @@ final class TimingDataSync {
 
         if (last.sequenceNumber() >= replayHead) {
             replayActive = false;
-            enableLive(replayHead + 1L);
+            long liveFrom = replayHead + 1L;
+            enableLive(liveFrom);
+            LOG.info(
+                    "TIMING_DATA replay completed: node={}, throughSeq={}, head={}, liveFrom={}",
+                    nodeId.value(),
+                    last.sequenceNumber(),
+                    replayHead,
+                    liveFrom);
         } else {
             nextReplaySequence = last.sequenceNumber() + 1L;
         }
