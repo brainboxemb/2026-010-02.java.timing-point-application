@@ -5,11 +5,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
@@ -18,13 +18,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
-/** Public/reference IF-06 v1 JSON codec. */
+/** Public/reference IF-06 development-v1 JSON packet codec. */
 public final class DefaultUpstreamDataCodec
         implements UpstreamDataCodec {
     private static final int VERSION = 1;
-
 
     private final JsonFactory jsonFactory = new JsonFactory();
     private final TimingDataCodec timingDataCodec;
@@ -47,17 +45,13 @@ public final class DefaultUpstreamDataCodec
             JsonGenerator generator = jsonFactory.createGenerator(output);
             generator.writeStartObject();
             generator.writeNumberField("v", VERSION);
-            generator.writeStringField("type", data.family().name());
-
+            generator.writeStringField("type", data.direction().name());
             generator.writeStringField("nodeId", data.timingNodeId().value());
-            if (data.family() == UpstreamData.Family.RACE_DATA) {
-                UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
-                generator.writeNumberField("locationId", raceData.locationId().value());
-                generator.writeNumberField("seq", raceData.sequence());
-            }
-
-            generator.writeFieldName("data");
-            writePayload(generator, data);
+            generator.writeNumberField("packetId", data.packetId());
+            generator.writeObjectFieldStart("message");
+            generator.writeStringField("type", data.family().name());
+            writeMessage(generator, data.message());
+            generator.writeEndObject();
             generator.writeEndObject();
             generator.close();
             return output.toByteArray();
@@ -68,29 +62,56 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
-    private void writePayload(
+    private void writeMessage(
             JsonGenerator generator,
-            UpstreamData data)
+            UpstreamData.Message message)
             throws IOException, CodecException {
-        switch (data.family()) {
+        switch (message.family()) {
             case TIMING_DATA:
-                writeTimingData(generator, (UpstreamData.TimingDataTransfer) data);
-                break;
+                generator.writeFieldName("data");
+                writeTimingData(
+                        generator,
+                        (UpstreamData.TimingDataTransfer) message);
+                return;
+
             case RACE_DATA:
-                writeRaceData(generator, (UpstreamData.RaceData) data);
-                break;
-            case SYNC:
-                writeSync(generator, (UpstreamData.Sync) data);
-                break;
-            case ACK:
-                writeAck(generator, (UpstreamData.Ack) data);
-                break;
-            case REQ:
-                writeReq(generator, (UpstreamData.Req) data);
-                break;
+                UpstreamData.RaceData raceData =
+                        (UpstreamData.RaceData) message;
+                generator.writeNumberField(
+                        "locationId",
+                        raceData.locationId().value());
+                generator.writeFieldName("data");
+                writeRaceData(generator, raceData);
+                return;
+
+            case TIMING_DATA_REQ:
+                generator.writeObjectFieldStart("data");
+                generator.writeNumberField(
+                        "fromSeq",
+                        ((UpstreamData.TimingDataRequest) message).fromSequence());
+                generator.writeEndObject();
+                return;
+
+            case SEQ:
+                writeSequence(
+                        generator,
+                        (UpstreamData.Sequence) message);
+                return;
+
+            case RECV:
+                generator.writeObjectFieldStart("data");
+                generator.writeNumberField(
+                        "receivedPacketId",
+                        ((UpstreamData.Receive) message).receivedPacketId());
+                generator.writeEndObject();
+                return;
+
             case PING:
-                writePing(generator, (UpstreamData.Ping) data);
-                break;
+                writePing(
+                        generator,
+                        (UpstreamData.Ping) message);
+                return;
+
             case STATUS:
             default:
                 throw encodeFailure(
@@ -103,29 +124,8 @@ public final class DefaultUpstreamDataCodec
             JsonGenerator generator,
             UpstreamData.TimingDataTransfer transfer)
             throws IOException, CodecException {
-        if (transfer.records() == null || transfer.records().isEmpty()) {
-            throw encodeFailure(
-                    "TIMING_DATA requires at least one record",
-                    null);
-        }
-        if (transfer.records().size() > UpstreamData.MAX_TIMING_DATA_RECORDS) {
-            throw encodeFailure(
-                    "TIMING_DATA supports at most "
-                            + UpstreamData.MAX_TIMING_DATA_RECORDS
-                            + " records",
-                    null);
-        }
-
         generator.writeStartArray();
         for (TimingRecord record : transfer.records()) {
-            if (record == null
-                    || record.nodeId()
-                            != transfer.timingNodeId().value().charAt(0)) {
-                throw encodeFailure(
-                        "TIMING_DATA contains a null or wrong-node record",
-                        null);
-            }
-
             final byte[] encoded;
             try {
                 encoded = timingDataCodec.encode(record);
@@ -159,14 +159,6 @@ public final class DefaultUpstreamDataCodec
             JsonGenerator generator,
             UpstreamData.RaceData raceData)
             throws IOException, CodecException {
-        requirePositiveSequence(raceData.sequence(), "RACE_DATA seq");
-        if (raceData.teamAssignmentChanges().isEmpty()
-                && raceData.stageStartTimeChanges().isEmpty()) {
-            throw encodeFailure(
-                    "RACE_DATA requires at least one change",
-                    null);
-        }
-
         generator.writeStartObject();
 
         if (!raceData.teamAssignmentChanges().isEmpty()) {
@@ -179,18 +171,9 @@ public final class DefaultUpstreamDataCodec
                         "regId",
                         change.registrationId().value());
                 if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                    if (change.teamId() == null) {
-                        throw encodeFailure(
-                                "teamAssignments SET requires teamId",
-                                null);
-                    }
                     generator.writeStringField(
                             "teamId",
                             change.teamId().value());
-                } else if (change.teamId() != null) {
-                    throw encodeFailure(
-                            "teamAssignments DEL must not carry teamId",
-                            null);
                 }
                 generator.writeEndObject();
             }
@@ -203,21 +186,13 @@ public final class DefaultUpstreamDataCodec
                     : raceData.stageStartTimeChanges()) {
                 generator.writeStartObject();
                 generator.writeStringField("op", change.operation().name());
-                generator.writeStringField("regId", change.registrationId().value());
+                generator.writeStringField(
+                        "regId",
+                        change.registrationId().value());
                 if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                    TimingTimestamp start = change.start();
-                    if (start == null) {
-                        throw encodeFailure(
-                                "stageStartTimes SET requires start timestamp",
-                                null);
-                    }
                     generator.writeStringField(
                             "start",
-                            start.toString());
-                } else if (change.start() != null) {
-                    throw encodeFailure(
-                            "stageStartTimes DEL must not carry start timestamp",
-                            null);
+                            change.start().toString());
                 }
                 generator.writeEndObject();
             }
@@ -227,59 +202,17 @@ public final class DefaultUpstreamDataCodec
         generator.writeEndObject();
     }
 
-    private void writeSync(
+    private void writeSequence(
             JsonGenerator generator,
-            UpstreamData.Sync sync)
-            throws IOException, CodecException {
-        requireSyncSequence(sync.sequence());
-        writeStreamSequence(
-                generator,
-                sync.stream(),
-                "seq",
-                sync.sequence());
-    }
-
-    private void writeAck(
-            JsonGenerator generator,
-            UpstreamData.Ack ack)
-            throws IOException, CodecException {
-        if (ack.stream() != UpstreamData.Stream.RACE_DATA) {
-            throw encodeFailure(
-                    "public v1 ACK supports RACE_DATA only",
-                    null);
+            UpstreamData.Sequence sequence)
+            throws IOException {
+        generator.writeObjectFieldStart("data");
+        generator.writeStringField("op", sequence.operation().name());
+        if (sequence.sequence() != null) {
+            generator.writeNumberField(
+                    "seq",
+                    sequence.sequence().longValue());
         }
-        requirePositiveSequence(ack.sequence(), "ACK seq");
-        writeStreamSequence(
-                generator,
-                ack.stream(),
-                "seq",
-                ack.sequence());
-    }
-
-    private void writeReq(
-            JsonGenerator generator,
-            UpstreamData.Req req)
-            throws IOException, CodecException {
-        requirePositiveSequence(req.fromSequence(), "REQ fromSeq");
-        writeStreamSequence(
-                generator,
-                req.stream(),
-                "fromSeq",
-                req.fromSequence());
-    }
-
-    private void writeStreamSequence(
-            JsonGenerator generator,
-            UpstreamData.Stream stream,
-            String sequenceField,
-            long sequence)
-            throws IOException, CodecException {
-        if (stream == null) {
-            throw encodeFailure("stream must not be null", null);
-        }
-        generator.writeStartObject();
-        generator.writeStringField("stream", stream.name());
-        generator.writeNumberField(sequenceField, sequence);
         generator.writeEndObject();
     }
 
@@ -287,30 +220,20 @@ public final class DefaultUpstreamDataCodec
             JsonGenerator generator,
             UpstreamData.Ping ping)
             throws IOException, CodecException {
-        if (ping.operation() == null) {
-            throw encodeFailure("PING op must not be null", null);
-        }
-
-        generator.writeStartObject();
+        generator.writeObjectFieldStart("data");
         generator.writeStringField("op", ping.operation().name());
         if (ping.mode() != null) {
-            if (ping.mode() != UpstreamData.PingMode.HB) {
-                throw encodeFailure(
-                        "Unsupported PING mode " + ping.mode(),
-                        null);
-            }
             generator.writeStringField("mode", ping.mode().name());
         }
         if (ping.time() != null) {
             if (!ping.time().isAbsolute()) {
-                throw encodeFailure("PING time must be absolute UTC", null);
+                throw encodeFailure(
+                        "PING time must be absolute UTC",
+                        null);
             }
             generator.writeStringField("time", ping.time().toString());
         }
         if (ping.pingId() != null) {
-            if (ping.pingId().trim().isEmpty()) {
-                throw encodeFailure("pingId must not be blank", null);
-            }
             generator.writeStringField("pingId", ping.pingId());
         }
         generator.writeEndObject();
@@ -336,11 +259,10 @@ public final class DefaultUpstreamDataCodec
             }
 
             Integer version = null;
-            String type = null;
+            String direction = null;
             String nodeId = null;
-            Integer topLocationId = null;
-            Long topSequence = null;
-            byte[] payload = null;
+            Long packetId = null;
+            byte[] message = null;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 String field = requireFieldName(parser);
@@ -353,37 +275,30 @@ public final class DefaultUpstreamDataCodec
                     }
                     version = Integer.valueOf(readInt(parser, value, "v"));
                 } else if ("type".equals(field)) {
-                    if (type != null) {
+                    if (direction != null) {
                         parser.close();
                         throw invalid("Duplicate type", null);
                     }
-                    type = readString(parser, value, "type");
+                    direction = readString(parser, value, "type");
                 } else if ("nodeId".equals(field)) {
                     if (nodeId != null) {
                         parser.close();
                         throw invalid("Duplicate nodeId", null);
                     }
                     nodeId = readString(parser, value, "nodeId");
-                } else if ("locationId".equals(field)) {
-                    if (topLocationId != null) {
+                } else if ("packetId".equals(field)) {
+                    if (packetId != null) {
                         parser.close();
-                        throw invalid("Duplicate top-level locationId", null);
+                        throw invalid("Duplicate packetId", null);
                     }
-                    topLocationId = Integer.valueOf(
-                            readInt(parser, value, "locationId"));
-                } else if ("seq".equals(field)) {
-                    if (topSequence != null) {
+                    packetId = Long.valueOf(
+                            readLong(parser, value, "packetId"));
+                } else if ("message".equals(field)) {
+                    if (message != null) {
                         parser.close();
-                        throw invalid("Duplicate top-level seq", null);
+                        throw invalid("Duplicate message", null);
                     }
-                    topSequence = Long.valueOf(
-                            readLong(parser, value, "seq"));
-                } else if ("data".equals(field)) {
-                    if (payload != null) {
-                        parser.close();
-                        throw invalid("Duplicate data", null);
-                    }
-                    payload = captureCurrentValue(parser);
+                    message = captureCurrentValue(parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -395,8 +310,14 @@ public final class DefaultUpstreamDataCodec
             }
             parser.close();
 
-            if (version == null || type == null || payload == null) {
-                throw invalid("v, type and data are required", null);
+            if (version == null
+                    || direction == null
+                    || nodeId == null
+                    || packetId == null
+                    || message == null) {
+                throw invalid(
+                        "v, type, nodeId, packetId and message are required",
+                        null);
             }
             if (version.intValue() != VERSION) {
                 throw CodecException.unsupportedVersion(
@@ -404,12 +325,27 @@ public final class DefaultUpstreamDataCodec
                         "Unsupported UpstreamData version " + version);
             }
 
-            return decodeByType(
-                    type,
-                    nodeId,
-                    topLocationId,
-                    topSequence,
-                    payload);
+            UpstreamData.Direction parsedDirection =
+                    parseDirection(direction);
+            NodeId parsedNodeId =
+                    requireNodeId(nodeId);
+            UpstreamData.Message parsedMessage =
+                    decodeMessage(message);
+
+            try {
+                if (parsedDirection == UpstreamData.Direction.UP_PACKET) {
+                    return DefaultUpstreamData.createUpPacket(
+                            parsedNodeId,
+                            packetId.longValue(),
+                            parsedMessage);
+                }
+                return DefaultUpstreamData.createDnPacket(
+                        parsedNodeId,
+                        packetId.longValue(),
+                        parsedMessage);
+            } catch (IllegalArgumentException ex) {
+                throw invalid("Invalid IF-06 packet", ex);
+            }
         } catch (CodecException ex) {
             throw ex;
         } catch (IOException | IllegalArgumentException ex) {
@@ -417,79 +353,97 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
-    private UpstreamData decodeByType(
-            String type,
-            String nodeId,
-            Integer topLocationId,
-            Long topSequence,
-            byte[] payload)
+    private UpstreamData.Message decodeMessage(
+            byte[] encodedMessage)
             throws CodecException {
-        if ("TIMING_DATA".equals(type)) {
-            rejectTopLocationId(topLocationId, type);
-            rejectTopSequence(topSequence, type);
-            return decodeTimingData(
-                    requireNodeId(nodeId, type),
-                    payload);
-        }
-        if ("RACE_DATA".equals(type)) {
-            if (topLocationId == null) {
-                throw invalid("RACE_DATA requires top-level locationId", null);
+        try {
+            JsonParser parser = jsonFactory.createParser(encodedMessage);
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                parser.close();
+                throw invalid("message must be an object", null);
             }
-            if (topSequence == null) {
-                throw invalid("RACE_DATA requires top-level seq", null);
-            }
-            requirePositiveSequence(
-                    topSequence.longValue(),
-                    "RACE_DATA seq");
-            final LocationId locationId;
-            try {
-                locationId = new LocationId(topLocationId.intValue());
-            } catch (IllegalArgumentException ex) {
-                throw invalid("Invalid RACE_DATA locationId", ex);
-            }
-            return decodeRaceData(
-                    requireNodeId(nodeId, type),
-                    locationId,
-                    topSequence.longValue(),
-                    payload);
-        }
-        if ("SYNC".equals(type)) {
-            rejectTopLocationId(topLocationId, type);
-            rejectTopSequence(topSequence, type);
-            return decodeSync(
-                    requireNodeId(nodeId, type),
-                    payload);
-        }
-        if ("ACK".equals(type)) {
-            rejectTopLocationId(topLocationId, type);
-            rejectTopSequence(topSequence, type);
-            return decodeAck(
-                    requireNodeId(nodeId, type),
-                    payload);
-        }
-        if ("REQ".equals(type)) {
-            rejectTopLocationId(topLocationId, type);
-            rejectTopSequence(topSequence, type);
-            return decodeReq(
-                    requireNodeId(nodeId, type),
-                    payload);
-        }
-        if ("PING".equals(type)) {
-            rejectTopLocationId(topLocationId, type);
-            rejectTopSequence(topSequence, type);
-            return decodePing(
-                    requireNodeId(nodeId, type),
-                    payload);
-        }
 
-        throw CodecException.unsupportedMessageType(
-                VERSION,
-                type,
-                "Unsupported UpstreamData type " + type);
+            String type = null;
+            Integer locationId = null;
+            byte[] payload = null;
+
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                String field = requireFieldName(parser);
+                JsonToken value = parser.nextToken();
+                if ("type".equals(field)) {
+                    if (type != null) {
+                        parser.close();
+                        throw invalid("Duplicate message type", null);
+                    }
+                    type = readString(parser, value, "message.type");
+                } else if ("locationId".equals(field)) {
+                    if (locationId != null) {
+                        parser.close();
+                        throw invalid("Duplicate message locationId", null);
+                    }
+                    locationId = Integer.valueOf(
+                            readInt(parser, value, "locationId"));
+                } else if ("data".equals(field)) {
+                    if (payload != null) {
+                        parser.close();
+                        throw invalid("Duplicate message data", null);
+                    }
+                    payload = captureCurrentValue(parser);
+                } else {
+                    parser.skipChildren();
+                }
+            }
+            parser.close();
+
+            if (type == null || payload == null) {
+                throw invalid(
+                        "message.type and message.data are required",
+                        null);
+            }
+
+            if ("TIMING_DATA".equals(type)) {
+                rejectLocationId(locationId, type);
+                return decodeTimingData(payload);
+            }
+            if ("RACE_DATA".equals(type)) {
+                if (locationId == null) {
+                    throw invalid(
+                            "RACE_DATA requires message locationId",
+                            null);
+                }
+                return decodeRaceData(
+                        new LocationId(locationId.intValue()),
+                        payload);
+            }
+            if ("TIMING_DATA_REQ".equals(type)) {
+                rejectLocationId(locationId, type);
+                return decodeTimingDataRequest(payload);
+            }
+            if ("SEQ".equals(type)) {
+                rejectLocationId(locationId, type);
+                return decodeSequence(payload);
+            }
+            if ("RECV".equals(type)) {
+                rejectLocationId(locationId, type);
+                return decodeReceive(payload);
+            }
+            if ("PING".equals(type)) {
+                rejectLocationId(locationId, type);
+                return decodePing(payload);
+            }
+
+            throw CodecException.unsupportedMessageType(
+                    VERSION,
+                    type,
+                    "Unsupported UpstreamData message type " + type);
+        } catch (CodecException ex) {
+            throw ex;
+        } catch (IOException | IllegalArgumentException ex) {
+            throw invalid("Invalid message object", ex);
+        }
     }
 
     private UpstreamData.TimingDataTransfer decodeTimingData(
-            NodeId nodeId,
             byte[] payload)
             throws CodecException {
         try {
@@ -499,7 +453,8 @@ public final class DefaultUpstreamDataCodec
                 throw invalid("TIMING_DATA data must be an array", null);
             }
 
-            List<TimingRecord> records = new ArrayList<TimingRecord>();
+            List<TimingRecord> records =
+                    new ArrayList<TimingRecord>();
             while (parser.nextToken() != JsonToken.END_ARRAY) {
                 if (records.size() >= UpstreamData.MAX_TIMING_DATA_RECORDS) {
                     parser.close();
@@ -509,6 +464,7 @@ public final class DefaultUpstreamDataCodec
                                     + " records",
                             null);
                 }
+
                 byte[] recordJson = captureCurrentValue(parser);
                 final TimingRecord record;
                 try {
@@ -521,7 +477,7 @@ public final class DefaultUpstreamDataCodec
             }
             parser.close();
 
-            return DefaultUpstreamData.timingData(nodeId, records);
+            return DefaultUpstreamData.createTimingData(records);
         } catch (CodecException ex) {
             throw ex;
         } catch (IOException | IllegalArgumentException ex) {
@@ -530,9 +486,7 @@ public final class DefaultUpstreamDataCodec
     }
 
     private UpstreamData.RaceData decodeRaceData(
-            NodeId nodeId,
             LocationId locationId,
-            long sequence,
             byte[] payload)
             throws CodecException {
         try {
@@ -542,46 +496,39 @@ public final class DefaultUpstreamDataCodec
                 throw invalid("RACE_DATA data must be an object", null);
             }
 
-            List<UpstreamData.TeamAssignmentChange> reserveChanges = null;
+            List<UpstreamData.TeamAssignmentChange> teamChanges = null;
             List<UpstreamData.StageStartTimeChange> startChanges = null;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 String field = requireFieldName(parser);
                 JsonToken value = parser.nextToken();
                 if ("teamAssignments".equals(field)) {
-                    if (reserveChanges != null) {
+                    if (teamChanges != null) {
                         parser.close();
-                        throw invalid("Duplicate teamAssignments", null);
+                        throw invalid(
+                                "Duplicate teamAssignments",
+                                null);
                     }
-                    reserveChanges = readTeamAssignmentChanges(parser, value);
+                    teamChanges =
+                            readTeamAssignmentChanges(parser, value);
                 } else if ("stageStartTimes".equals(field)) {
                     if (startChanges != null) {
                         parser.close();
-                        throw invalid("Duplicate stageStartTimes", null);
+                        throw invalid(
+                                "Duplicate stageStartTimes",
+                                null);
                     }
-                    startChanges = readStageStartTimeChanges(parser, value);
+                    startChanges =
+                            readStageStartTimeChanges(parser, value);
                 } else {
                     parser.skipChildren();
                 }
             }
             parser.close();
 
-            int changeCount =
-                    (reserveChanges == null ? 0 : reserveChanges.size())
-                            + (startChanges == null ? 0 : startChanges.size());
-            if (changeCount > UpstreamData.MAX_RACE_DATA_CHANGES) {
-                throw invalid(
-                        "RACE_DATA supports at most "
-                                + UpstreamData.MAX_RACE_DATA_CHANGES
-                                + " changes",
-                        null);
-            }
-
-            return DefaultUpstreamData.raceData(
-                    nodeId,
+            return DefaultUpstreamData.createRaceData(
                     locationId,
-                    sequence,
-                    reserveChanges,
+                    teamChanges,
                     startChanges);
         } catch (CodecException ex) {
             throw ex;
@@ -590,260 +537,117 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
-    private List<UpstreamData.TeamAssignmentChange>
-            readTeamAssignmentChanges(
-                    JsonParser parser,
-                    JsonToken token)
-                    throws IOException, CodecException {
-        if (token != JsonToken.START_ARRAY) {
-            throw invalid("teamAssignments must be an array", null);
-        }
-
-        List<UpstreamData.TeamAssignmentChange> result =
-                new ArrayList<UpstreamData.TeamAssignmentChange>();
-        while (parser.nextToken() != JsonToken.END_ARRAY) {
-            if (parser.getCurrentToken() != JsonToken.START_OBJECT) {
-                throw invalid(
-                        "teamAssignments item must be an object",
-                        null);
-            }
-
-            String op = null;
-            String registrationId = null;
-            String teamId = null;
-            boolean teamIdSeen = false;
-
-            while (parser.nextToken() != JsonToken.END_OBJECT) {
-                String field = requireFieldName(parser);
-                JsonToken value = parser.nextToken();
-                if ("op".equals(field)) {
-                    if (op != null) {
-                        throw invalid("Duplicate teamAssignments op", null);
-                    }
-                    op = readString(parser, value, "op");
-                } else if ("regId".equals(field)) {
-                    if (registrationId != null) {
-                        throw invalid("Duplicate regId", null);
-                    }
-                    registrationId = readString(parser, value, "regId");
-                } else if ("teamId".equals(field)) {
-                    if (teamIdSeen) {
-                        throw invalid("Duplicate teamId", null);
-                    }
-                    teamIdSeen = true;
-                    teamId = readString(parser, value, "teamId");
-                } else {
-                    parser.skipChildren();
-                }
-            }
-
-            if (op == null || registrationId == null) {
-                throw invalid(
-                        "teamAssignments item requires op and regId",
-                        null);
-            }
-            UpstreamData.ChangeOperation operation =
-                    parseChangeOperation(op);
-            result.add(
-                    new UpstreamData.TeamAssignmentChange(
-                            operation,
-                            new RegistrationId(registrationId),
-                            teamId == null ? null : new TeamId(teamId)));
-        }
-        return result;
-    }
-
-    private List<UpstreamData.StageStartTimeChange>
-            readStageStartTimeChanges(
-                    JsonParser parser,
-                    JsonToken token)
-                    throws IOException, CodecException {
-        if (token != JsonToken.START_ARRAY) {
-            throw invalid("stageStartTimes must be an array", null);
-        }
-
-        List<UpstreamData.StageStartTimeChange> result =
-                new ArrayList<UpstreamData.StageStartTimeChange>();
-        while (parser.nextToken() != JsonToken.END_ARRAY) {
-            if (parser.getCurrentToken() != JsonToken.START_OBJECT) {
-                throw invalid(
-                        "stageStartTimes item must be an object",
-                        null);
-            }
-
-            String op = null;
-            String registrationId = null;
-            String start = null;
-            boolean startSeen = false;
-
-            while (parser.nextToken() != JsonToken.END_OBJECT) {
-                String field = requireFieldName(parser);
-                JsonToken value = parser.nextToken();
-                if ("op".equals(field)) {
-                    if (op != null) {
-                        throw invalid("Duplicate stageStartTimes op", null);
-                    }
-                    op = readString(parser, value, "op");
-                } else if ("regId".equals(field)) {
-                    if (registrationId != null) {
-                        throw invalid("Duplicate stageStartTimes regId", null);
-                    }
-                    registrationId = readString(parser, value, "regId");
-                } else if ("start".equals(field)) {
-                    if (startSeen) {
-                        throw invalid("Duplicate stageStartTimes start", null);
-                    }
-                    startSeen = true;
-                    start = readString(parser, value, "start");
-                } else {
-                    parser.skipChildren();
-                }
-            }
-
-            if (op == null || registrationId == null) {
-                throw invalid(
-                        "stageStartTimes item requires op and regId",
-                        null);
-            }
-
-            UpstreamData.ChangeOperation operation =
-                    parseChangeOperation(op);
-            TimingTimestamp parsedStart = null;
-            if (start != null) {
-                try {
-                    parsedStart =
-                            TimingTimestamp.parse(start);
-                } catch (IllegalArgumentException ex) {
-                    throw invalid(
-                            "Invalid stageStartTimes start " + start,
-                            ex);
-                }
-            }
-
-            result.add(
-                    new UpstreamData.StageStartTimeChange(
-                            operation,
-                            new RegistrationId(registrationId),
-                            parsedStart));
-        }
-        return result;
-    }
-
-    private UpstreamData.Sync decodeSync(
-            NodeId nodeId,
+    private UpstreamData.TimingDataRequest decodeTimingDataRequest(
             byte[] payload)
             throws CodecException {
-        StreamSequence value =
-                decodeStreamSequence(payload, "seq", true);
-        return DefaultUpstreamData.sync(
-                nodeId,
-                value.stream,
-                value.sequence);
-    }
-
-    private UpstreamData.Ack decodeAck(
-            NodeId nodeId,
-            byte[] payload)
-            throws CodecException {
-        StreamSequence value =
-                decodeStreamSequence(payload, "seq", false);
+        Long fromSequence =
+                readSingleLongField(
+                        payload,
+                        "fromSeq",
+                        "TIMING_DATA_REQ");
         try {
-            return DefaultUpstreamData.ack(
-                    nodeId,
-                    value.stream,
-                    value.sequence);
+            return DefaultUpstreamData.createTimingDataRequest(
+                    fromSequence.longValue());
         } catch (IllegalArgumentException ex) {
-            throw invalid("Invalid ACK payload", ex);
+            throw invalid("Invalid TIMING_DATA_REQ payload", ex);
         }
     }
 
-    private UpstreamData.Req decodeReq(
-            NodeId nodeId,
+    private UpstreamData.Sequence decodeSequence(
             byte[] payload)
-            throws CodecException {
-        StreamSequence value =
-                decodeStreamSequence(payload, "fromSeq", false);
-        try {
-            return DefaultUpstreamData.req(
-                    nodeId,
-                    value.stream,
-                    value.sequence);
-        } catch (IllegalArgumentException ex) {
-            throw invalid("Invalid REQ payload", ex);
-        }
-    }
-
-    private StreamSequence decodeStreamSequence(
-            byte[] payload,
-            String sequenceField,
-            boolean allowZero)
             throws CodecException {
         try {
             JsonParser parser = jsonFactory.createParser(payload);
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 parser.close();
-                throw invalid("control data must be an object", null);
+                throw invalid("SEQ data must be an object", null);
             }
 
-            String stream = null;
+            String operation = null;
             Long sequence = null;
+            boolean sequenceSeen = false;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 String field = requireFieldName(parser);
                 JsonToken value = parser.nextToken();
-                if ("stream".equals(field)) {
-                    if (stream != null) {
+                if ("op".equals(field)) {
+                    if (operation != null) {
                         parser.close();
-                        throw invalid("Duplicate stream", null);
+                        throw invalid("Duplicate SEQ op", null);
                     }
-                    stream = readString(parser, value, "stream");
-                } else if (sequenceField.equals(field)) {
-                    if (sequence != null) {
+                    operation =
+                            readString(parser, value, "op");
+                } else if ("seq".equals(field)) {
+                    if (sequenceSeen) {
                         parser.close();
-                        throw invalid(
-                                "Duplicate " + sequenceField,
-                                null);
+                        throw invalid("Duplicate SEQ seq", null);
                     }
+                    sequenceSeen = true;
                     sequence = Long.valueOf(
-                            readLong(parser, value, sequenceField));
+                            readLong(parser, value, "seq"));
                 } else {
                     parser.skipChildren();
                 }
             }
             parser.close();
 
-            if (stream == null || sequence == null) {
+            if (operation == null) {
+                throw invalid("SEQ requires op", null);
+            }
+
+            UpstreamData.SequenceOperation parsedOperation;
+            try {
+                parsedOperation =
+                        UpstreamData.SequenceOperation.valueOf(operation);
+            } catch (IllegalArgumentException ex) {
                 throw invalid(
-                        "control data requires stream and " + sequenceField,
+                        "Unsupported SEQ op " + operation,
+                        ex);
+            }
+
+            if (parsedOperation == UpstreamData.SequenceOperation.REQ) {
+                if (sequenceSeen) {
+                    throw invalid(
+                            "SEQ REQ must not carry seq",
+                            null);
+                }
+                return DefaultUpstreamData.createSequenceRequest();
+            }
+            if (sequence == null) {
+                throw invalid(
+                        "SEQ " + parsedOperation + " requires seq",
                         null);
             }
-
-            UpstreamData.Stream parsedStream;
-            try {
-                parsedStream = UpstreamData.Stream.valueOf(stream);
-            } catch (IllegalArgumentException ex) {
-                throw invalid("Unsupported stream " + stream, ex);
+            if (parsedOperation == UpstreamData.SequenceOperation.ANS) {
+                return DefaultUpstreamData.createSequenceAnswer(
+                        sequence.longValue());
             }
-
-            if (allowZero) {
-                requireSyncSequence(sequence.longValue());
-            } else {
-                requirePositiveSequence(
-                        sequence.longValue(),
-                        sequenceField);
-            }
-            return new StreamSequence(
-                    parsedStream,
+            return DefaultUpstreamData.createSequenceNotification(
                     sequence.longValue());
         } catch (CodecException ex) {
             throw ex;
-        } catch (IOException ex) {
-            throw invalid("Invalid control payload", ex);
+        } catch (IOException | IllegalArgumentException ex) {
+            throw invalid("Invalid SEQ payload", ex);
+        }
+    }
+
+    private UpstreamData.Receive decodeReceive(
+            byte[] payload)
+            throws CodecException {
+        Long receivedPacketId =
+                readSingleLongField(
+                        payload,
+                        "receivedPacketId",
+                        "RECV");
+        try {
+            return DefaultUpstreamData.createReceive(
+                    receivedPacketId.longValue());
+        } catch (IllegalArgumentException ex) {
+            throw invalid("Invalid RECV payload", ex);
         }
     }
 
     private UpstreamData.Ping decodePing(
-            NodeId nodeId,
             byte[] payload)
             throws CodecException {
         try {
@@ -867,7 +671,7 @@ public final class DefaultUpstreamDataCodec
                 if ("op".equals(field)) {
                     if (operation != null) {
                         parser.close();
-                        throw invalid("Duplicate op", null);
+                        throw invalid("Duplicate PING op", null);
                     }
                     operation = readString(parser, value, "op");
                 } else if ("mode".equals(field)) {
@@ -906,13 +710,17 @@ public final class DefaultUpstreamDataCodec
                 parsedOperation =
                         UpstreamData.PingOperation.valueOf(operation);
             } catch (IllegalArgumentException ex) {
-                throw invalid("Unsupported PING op " + operation, ex);
+                throw invalid(
+                        "Unsupported PING op " + operation,
+                        ex);
             }
 
             UpstreamData.PingMode parsedMode = null;
             if (mode != null) {
                 if (!"HB".equals(mode)) {
-                    throw invalid("Unsupported PING mode " + mode, null);
+                    throw invalid(
+                            "Unsupported PING mode " + mode,
+                            null);
                 }
                 parsedMode = UpstreamData.PingMode.HB;
             }
@@ -922,12 +730,13 @@ public final class DefaultUpstreamDataCodec
                 try {
                     parsedTime = TimingTimestamp.parseAbsolute(time);
                 } catch (IllegalArgumentException ex) {
-                    throw invalid("PING time must be absolute UTC", ex);
+                    throw invalid(
+                            "PING time must be absolute UTC",
+                            ex);
                 }
             }
 
-            return DefaultUpstreamData.ping(
-                    nodeId,
+            return DefaultUpstreamData.createPing(
                     parsedOperation,
                     parsedMode,
                     pingId,
@@ -939,63 +748,233 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
+    private List<UpstreamData.TeamAssignmentChange>
+            readTeamAssignmentChanges(
+                    JsonParser parser,
+                    JsonToken token)
+                    throws IOException, CodecException {
+        if (token != JsonToken.START_ARRAY) {
+            throw invalid(
+                    "teamAssignments must be an array",
+                    null);
+        }
+
+        List<UpstreamData.TeamAssignmentChange> result =
+                new ArrayList<UpstreamData.TeamAssignmentChange>();
+        while (parser.nextToken() != JsonToken.END_ARRAY) {
+            if (parser.getCurrentToken() != JsonToken.START_OBJECT) {
+                throw invalid(
+                        "teamAssignments item must be an object",
+                        null);
+            }
+
+            String operation = null;
+            String registrationId = null;
+            String teamId = null;
+            boolean teamIdSeen = false;
+
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                String field = requireFieldName(parser);
+                JsonToken value = parser.nextToken();
+                if ("op".equals(field)) {
+                    if (operation != null) {
+                        throw invalid(
+                                "Duplicate teamAssignments op",
+                                null);
+                    }
+                    operation = readString(parser, value, "op");
+                } else if ("regId".equals(field)) {
+                    if (registrationId != null) {
+                        throw invalid("Duplicate regId", null);
+                    }
+                    registrationId =
+                            readString(parser, value, "regId");
+                } else if ("teamId".equals(field)) {
+                    if (teamIdSeen) {
+                        throw invalid("Duplicate teamId", null);
+                    }
+                    teamIdSeen = true;
+                    teamId =
+                            readString(parser, value, "teamId");
+                } else {
+                    parser.skipChildren();
+                }
+            }
+
+            if (operation == null || registrationId == null) {
+                throw invalid(
+                        "teamAssignments item requires op and regId",
+                        null);
+            }
+
+            result.add(
+                    new UpstreamData.TeamAssignmentChange(
+                            parseChangeOperation(operation),
+                            new RegistrationId(registrationId),
+                            teamId == null
+                                    ? null
+                                    : new TeamId(teamId)));
+        }
+        return result;
+    }
+
+    private List<UpstreamData.StageStartTimeChange>
+            readStageStartTimeChanges(
+                    JsonParser parser,
+                    JsonToken token)
+                    throws IOException, CodecException {
+        if (token != JsonToken.START_ARRAY) {
+            throw invalid(
+                    "stageStartTimes must be an array",
+                    null);
+        }
+
+        List<UpstreamData.StageStartTimeChange> result =
+                new ArrayList<UpstreamData.StageStartTimeChange>();
+        while (parser.nextToken() != JsonToken.END_ARRAY) {
+            if (parser.getCurrentToken() != JsonToken.START_OBJECT) {
+                throw invalid(
+                        "stageStartTimes item must be an object",
+                        null);
+            }
+
+            String operation = null;
+            String registrationId = null;
+            String start = null;
+            boolean startSeen = false;
+
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                String field = requireFieldName(parser);
+                JsonToken value = parser.nextToken();
+                if ("op".equals(field)) {
+                    if (operation != null) {
+                        throw invalid(
+                                "Duplicate stageStartTimes op",
+                                null);
+                    }
+                    operation = readString(parser, value, "op");
+                } else if ("regId".equals(field)) {
+                    if (registrationId != null) {
+                        throw invalid(
+                                "Duplicate stageStartTimes regId",
+                                null);
+                    }
+                    registrationId =
+                            readString(parser, value, "regId");
+                } else if ("start".equals(field)) {
+                    if (startSeen) {
+                        throw invalid(
+                                "Duplicate stageStartTimes start",
+                                null);
+                    }
+                    startSeen = true;
+                    start =
+                            readString(parser, value, "start");
+                } else {
+                    parser.skipChildren();
+                }
+            }
+
+            if (operation == null || registrationId == null) {
+                throw invalid(
+                        "stageStartTimes item requires op and regId",
+                        null);
+            }
+
+            TimingTimestamp parsedStart = null;
+            if (start != null) {
+                try {
+                    parsedStart = TimingTimestamp.parse(start);
+                } catch (IllegalArgumentException ex) {
+                    throw invalid(
+                            "Invalid stageStartTimes start " + start,
+                            ex);
+                }
+            }
+
+            result.add(
+                    new UpstreamData.StageStartTimeChange(
+                            parseChangeOperation(operation),
+                            new RegistrationId(registrationId),
+                            parsedStart));
+        }
+        return result;
+    }
+
+    private Long readSingleLongField(
+            byte[] payload,
+            String fieldName,
+            String messageName)
+            throws CodecException {
+        try {
+            JsonParser parser = jsonFactory.createParser(payload);
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                parser.close();
+                throw invalid(
+                        messageName + " data must be an object",
+                        null);
+            }
+
+            Long result = null;
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                String field = requireFieldName(parser);
+                JsonToken value = parser.nextToken();
+                if (fieldName.equals(field)) {
+                    if (result != null) {
+                        parser.close();
+                        throw invalid(
+                                "Duplicate " + fieldName,
+                                null);
+                    }
+                    result = Long.valueOf(
+                            readLong(parser, value, fieldName));
+                } else {
+                    parser.skipChildren();
+                }
+            }
+            parser.close();
+
+            if (result == null) {
+                throw invalid(
+                        messageName + " requires " + fieldName,
+                        null);
+            }
+            return result;
+        } catch (CodecException ex) {
+            throw ex;
+        } catch (IOException ex) {
+            throw invalid(
+                    "Invalid " + messageName + " payload",
+                    ex);
+        }
+    }
+
     private byte[] captureCurrentValue(JsonParser parser)
             throws IOException {
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        JsonGenerator generator = jsonFactory.createGenerator(output);
+        ByteArrayOutputStream output =
+                new ByteArrayOutputStream();
+        JsonGenerator generator =
+                jsonFactory.createGenerator(output);
         generator.copyCurrentStructure(parser);
         generator.close();
         return output.toByteArray();
     }
 
-    private static String requireFieldName(JsonParser parser)
-            throws IOException, CodecException {
-        if (parser.getCurrentToken() != JsonToken.FIELD_NAME) {
-            throw invalid("Expected field name", null);
+    private static UpstreamData.Direction parseDirection(
+            String text)
+            throws CodecException {
+        try {
+            return UpstreamData.Direction.valueOf(text);
+        } catch (IllegalArgumentException ex) {
+            throw invalid(
+                    "Unsupported packet type " + text,
+                    ex);
         }
-        return parser.getCurrentName();
-    }
-
-    private static String readString(
-            JsonParser parser,
-            JsonToken token,
-            String field)
-            throws CodecException, IOException {
-        if (token != JsonToken.VALUE_STRING) {
-            throw invalid(field + " must be a string", null);
-        }
-        return parser.getText();
-    }
-
-    private static int readInt(
-            JsonParser parser,
-            JsonToken token,
-            String field)
-            throws CodecException, IOException {
-        if (token != JsonToken.VALUE_NUMBER_INT) {
-            throw invalid(field + " must be an integer", null);
-        }
-        return parser.getIntValue();
-    }
-
-    private static long readLong(
-            JsonParser parser,
-            JsonToken token,
-            String field)
-            throws CodecException, IOException {
-        if (token != JsonToken.VALUE_NUMBER_INT) {
-            throw invalid(field + " must be an integer", null);
-        }
-        return parser.getLongValue();
     }
 
     private static NodeId requireNodeId(
-            String nodeId,
-            String type)
+            String nodeId)
             throws CodecException {
-        if (nodeId == null) {
-            throw invalid(type + " requires nodeId", null);
-        }
         try {
             return new NodeId(nodeId);
         } catch (IllegalArgumentException ex) {
@@ -1009,54 +988,70 @@ public final class DefaultUpstreamDataCodec
         try {
             return UpstreamData.ChangeOperation.valueOf(text);
         } catch (IllegalArgumentException ex) {
-            throw invalid("Unsupported change op " + text, ex);
+            throw invalid(
+                    "Unsupported change op " + text,
+                    ex);
         }
     }
 
-    private static void rejectTopLocationId(
+    private static void rejectLocationId(
             Integer locationId,
             String type)
             throws CodecException {
         if (locationId != null) {
             throw invalid(
-                    type + " must not carry top-level locationId",
+                    type + " must not carry message locationId",
                     null);
         }
     }
 
-    private static void rejectTopSequence(
-            Long sequence,
-            String type)
-            throws CodecException {
-        if (sequence != null) {
-            throw invalid(
-                    type + " must not carry top-level seq",
-                    null);
+    private static String requireFieldName(
+            JsonParser parser)
+            throws IOException, CodecException {
+        if (parser.getCurrentToken() != JsonToken.FIELD_NAME) {
+            throw invalid("Expected field name", null);
         }
+        return parser.getCurrentName();
     }
 
-    private static void requirePositiveSequence(
-            long sequence,
+    private static String readString(
+            JsonParser parser,
+            JsonToken token,
             String field)
-            throws CodecException {
-        if (sequence < 1L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
+            throws CodecException, IOException {
+        if (token != JsonToken.VALUE_STRING) {
             throw invalid(
-                    field + " must be in range 1.."
-                            + TimingRecord.MAX_SEQUENCE_NUMBER,
+                    field + " must be a string",
                     null);
         }
+        return parser.getText();
     }
 
-    private static void requireSyncSequence(long sequence)
-            throws CodecException {
-        if (sequence < 0L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
+    private static int readInt(
+            JsonParser parser,
+            JsonToken token,
+            String field)
+            throws CodecException, IOException {
+        if (token != JsonToken.VALUE_NUMBER_INT) {
             throw invalid(
-                    "SYNC seq must be in range 0.."
-                            + TimingRecord.MAX_SEQUENCE_NUMBER,
+                    field + " must be an integer",
                     null);
         }
+        return parser.getIntValue();
     }
 
+    private static long readLong(
+            JsonParser parser,
+            JsonToken token,
+            String field)
+            throws CodecException, IOException {
+        if (token != JsonToken.VALUE_NUMBER_INT) {
+            throw invalid(
+                    field + " must be an integer",
+                    null);
+        }
+        return parser.getLongValue();
+    }
 
     private static boolean hasUtf8Bom(byte[] data) {
         return data.length >= 3
@@ -1081,17 +1076,5 @@ public final class DefaultUpstreamDataCodec
                 CodecException.Reason.ENCODE_FAILURE,
                 message,
                 cause);
-    }
-
-    private static final class StreamSequence {
-        private final UpstreamData.Stream stream;
-        private final long sequence;
-
-        private StreamSequence(
-                UpstreamData.Stream stream,
-                long sequence) {
-            this.stream = stream;
-            this.sequence = sequence;
-        }
     }
 }
