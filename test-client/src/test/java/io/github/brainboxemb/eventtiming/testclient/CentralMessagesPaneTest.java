@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -125,6 +126,7 @@ final class CentralMessagesPaneTest {
         UpstreamData.RaceData raceData =
                 DefaultUpstreamData.raceData(
                         NODE_A,
+                        new LocationId(1),
                         12L,
                         java.util.List.of(
                                 DefaultUpstreamData.teamAssignmentSet(
