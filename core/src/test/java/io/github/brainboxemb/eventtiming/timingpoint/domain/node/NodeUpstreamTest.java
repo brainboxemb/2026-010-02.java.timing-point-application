@@ -267,7 +267,8 @@ public class NodeUpstreamTest {
                         new DefaultUpstreamDataCodec(
                                 new DefaultTimingDataCodec()),
                         logBook,
-                        tasks);
+                        tasks,
+                        timeSource);
         stream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
         stream.DISCONNECTED.subscribe(ignored -> nodeUpstream.connectionUnavailable());
         stream.DATA_AVAILABLE.subscribe(ignored -> nodeUpstream.inputAvailable());
