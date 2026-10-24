@@ -49,6 +49,23 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void targetChangeClearsLearnedStateButKeepsConfiguredLocations() throws Exception {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7, 8));
+        simulator.connected();
+        simulator.accept(
+                timingData(1, 7, "OPEN"),
+                RECEIVED);
+
+        simulator.resetTargetState();
+
+        assertTrue(simulator.systems().isEmpty());
+        assertEquals("UNKNOWN", location(simulator, 7).state());
+        assertEquals("UNKNOWN", location(simulator, 8).state());
+        assertNull(location(simulator, 7).nodeId());
+        assertEquals(false, simulator.isConnected());
+    }
+
+    @Test
     void derivesOpenAndClosedLocationFromReceivedLogBookRecords() throws Exception {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7, 8));
 
