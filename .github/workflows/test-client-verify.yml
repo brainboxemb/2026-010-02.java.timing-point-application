@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'test-client/**'
+      - 'shared/timing-data/**'
+      - 'shared/event-data/**'
+      - 'shared/upstream-data/**'
+      - 'pom.xml'
       - 'config/engineering-client.properties'
       - '.github/workflows/test-client-verify.yml'
   push:
@@ -11,6 +15,10 @@ on:
       - main
     paths:
       - 'test-client/**'
+      - 'shared/timing-data/**'
+      - 'shared/event-data/**'
+      - 'shared/upstream-data/**'
+      - 'pom.xml'
       - 'config/engineering-client.properties'
       - '.github/workflows/test-client-verify.yml'
   workflow_dispatch:
@@ -35,6 +43,10 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+
+      - name: Install shared Event Timing contracts
+        shell: bash
+        run: ./mvnw -pl shared/upstream-data -am -DskipTests install
 
       - name: Verify standalone SI-02 Engineering Client
         shell: bash
