@@ -71,8 +71,7 @@ final class CentralMessagesPane {
     }
 
     private final CentralSystemSimulator simulator;
-    private final ObservableList<CentralSystemSimulator.MessageView> messages =
-            FXCollections.observableArrayList();
+    private List<CentralSystemSimulator.MessageView> messageHistory = List.of();
     private final ObservableList<MessageRow> rows =
             FXCollections.observableArrayList();
     private final ComboBox<String> directionFilter = new ComboBox<>();
@@ -167,7 +166,7 @@ final class CentralMessagesPane {
         String selectedType = typeFilter.getValue();
 
         List<CentralSystemSimulator.MessageView> snapshot = simulator.messages();
-        messages.setAll(snapshot);
+        messageHistory = snapshot;
 
         Set<String> nodes = new LinkedHashSet<>();
         nodes.add(ALL);
@@ -302,7 +301,7 @@ final class CentralMessagesPane {
         try {
             updateVisibleRows(
                     visibleRows(
-                            messages,
+                            messageHistory,
                             directionFilter.getValue(),
                             nodeFilter.getValue(),
                             typeFilter.getValue()),
