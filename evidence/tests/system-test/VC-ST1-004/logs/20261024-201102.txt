@@ -1,0 +1,98 @@
+20:11:02.835 - [INFO] - Application identity - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] -   Application: timing-application - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] -   Version: 0.2.4-SNAPSHOT - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] -   API version: 1 - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] -   Revision: d4a69670b449d6323413beee6f17a64e77968560 - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] -   SourceRef: main - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] -   BuildOrigin: github-actions - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] -   Dirty: false - [app.ApplicationLauncher.announceStartupIdentity]
+20:11:02.835 - [INFO] - Startup configuration - [app.ApplicationLauncher.announceStartupConfiguration]
+20:11:02.835 - [INFO] -   Action: START - [app.ApplicationLauncher.announceStartupConfiguration]
+20:11:02.835 - [INFO] -   Config: /home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/system-test/target/evidence/VC-ST1-004/application.yml - [app.ApplicationLauncher.announceStartupConfiguration]
+20:11:02.835 - [INFO] -   SystemId: A - [app.ApplicationLauncher.announceStartupConfiguration]
+20:11:02.835 - [INFO] -     NodeId: A - [app.ApplicationLauncher.announceStartupConfiguration]
+20:11:02.835 - [INFO] -     EventDataProvider: reference - [app.ApplicationLauncher.announceStartupConfiguration]
+20:11:02.835 - [INFO] -     TimingDataProvider: reference - [app.ApplicationLauncher.announceStartupConfiguration]
+20:11:02.846 - [INFO] - TimingSystem A selected EventDataProvider id=reference implementation=io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider - [runtime.TimingSystemDataResolver.resolveConfigured]
+20:11:02.847 - [INFO] - TimingSystem A selected TimingDataProvider id=reference implementation=io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider - [runtime.TimingSystemDataResolver.resolveConfigured]
+20:11:02.907 - [INFO] - Starting application - [application.ApplicationConductor.activate]
+20:11:02.907 - [INFO] - Activating TimingSystem - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.907 - [INFO] - Activating TimingSystemConductor - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.907 - [INFO] - Starting TimingSystemConductor - [lifecycle.AbstractConductor.onActivate]
+20:11:02.907 - [INFO] - Activating TimingNode A - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.907 - [INFO] - Activating NodeService - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.907 - [INFO] - NodeService activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.907 - [INFO] - Activating LogBook - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.908 - [INFO] - LogBook activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.908 - [INFO] - Activating TagProcessor - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.908 - [INFO] - TagProcessor activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.910 - [INFO] - TimingNode A activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.910 - [INFO] - TimingSystemConductor started - [lifecycle.AbstractConductor.onActivate]
+20:11:02.910 - [INFO] - TimingSystemConductor activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.910 - [INFO] - Activating Upstream - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.911 - [INFO] - Activating NodeUpstream A - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.910 - [INFO] - TimingNode A persisted TimingData load started - [logbook.LogBook.loadPersistedData]
+20:11:02.911 - [INFO] - NodeUpstream A activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.911 - [INFO] - Upstream activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.911 - [INFO] - TimingSystem activated - [lifecycle.ComponentLifecycleManager.activateAll]
+20:11:02.911 - [INFO] - Application started - [application.ApplicationConductor.activate]
+20:11:02.917 - [INFO] - HTTP IF-03 listening on 127.0.0.1:35183 - [api.HttpEndpoint.start]
+20:11:02.925 - [ERROR] - Persisted TimingData load failed for A - [logbook.LogBook.loadPersistedData]
+io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence$PersistenceException: Timing record 1 belongs to B but persistence owns A
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence.validateStreamRecord(DefaultTimingDataPersistence.java:93)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence.load(DefaultTimingDataPersistence.java:46)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookOperations.loadPersistedTimingData(LogBookOperations.java:205)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook.loadPersistedData(LogBook.java:329)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode$MainTask.runStep(TimingNode.java:329)
+	at io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner$TaskRun.runStep(SerialTaskRunner.java:104)
+	at io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner$TaskRun.access$500(SerialTaskRunner.java:63)
+	at io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner.executeStep(SerialTaskRunner.java:385)
+	at io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner.lambda$queueStep$2(SerialTaskRunner.java:371)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+20:11:02.925 - [INFO] - TimingNode A LogBook status ERROR - [logbook.LogBook.publishStatus]
+20:11:02.939 - [INFO] - WebSocket IF-03 listening on 127.0.0.1:45955/api/v1/events - [api.WebSocketEndpoint.start]
+20:11:02.939 - [INFO] - Remote terminal listening on 127.0.0.1:46477 - [shell.RemoteShellServer.start]
+20:11:03.000 - [ERROR] - Queued LogBook command commitNodeOpen failed during Data Lane execution - [logbook.LogBook.processCommandItem]
+java.lang.IllegalStateException: Persisted timing-record load failed for A: Timing record 1 belongs to B but persistence owns A
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookState.ensureOperational(LogBookState.java:42)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookOperations.commitNodeOpen(LogBookOperations.java:63)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands.lambda$commitNodeOpen$0(LogBookCommands.java:29)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand.apply(LogBookCommand.java:46)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook.applyCommand(LogBook.java:536)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook.processCommandItem(LogBook.java:501)
+	at io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook.processDataLaneItem(LogBook.java:488)
+	at io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane.process(SerialLane.java:163)
+	at io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane.runQueueWorker(SerialLane.java:151)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+20:11:03.014 - [INFO] - Stopping application - [application.ApplicationConductor.deactivate]
+20:11:03.014 - [INFO] - Deactivating TimingSystem - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.014 - [INFO] - Deactivating Upstream - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.014 - [INFO] - Deactivating NodeUpstream A - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.014 - [INFO] - NodeUpstream A deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.014 - [INFO] - Upstream deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.014 - [INFO] - Deactivating TimingSystemConductor - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - Stopping TimingSystemConductor - [lifecycle.AbstractConductor.onDeactivate]
+20:11:03.015 - [INFO] - Deactivating TimingNode A - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - Deactivating TagProcessor - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - TagProcessor deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - Deactivating LogBook - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - LogBook deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - Deactivating NodeService - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - NodeService deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - TimingNode A deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - TimingSystemConductor stopped - [lifecycle.AbstractConductor.onDeactivate]
+20:11:03.015 - [INFO] - TimingSystemConductor deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - TimingSystem deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+20:11:03.015 - [INFO] - Application stopped - [application.ApplicationConductor.deactivate]
