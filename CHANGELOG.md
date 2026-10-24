@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add the first SI-02 Central System Simulator workbench slice: keep the direct API view as `A|Systems`, add independent `C|Systems` and `C|Locations` views fed only by the full-duplex Engineering upstream WebSocket, request missing TIMING_DATA from the simulator's next sequence after SYNC, answer heartbeat PING requests, show the latest received LogBook record per observed node, derive Location OPEN/CLOSED from NODE_INFO history, and allow initial Central LocationIds through `central.locationIds`.
+
+
 - Preserve IF-06 stage-start knowledge as compact UTC longs instead of inventing dates: time-only values remain `HHmmsscc`, dated values use `yyyyMMddHHmmsscc`, `ClockTimeSource` supplies the configurable civil-time zone, and `StageTiming` resolves time-only midnight rollover only when runtime is unambiguous and below 12 hours.
 
 - Remove NodeService pass-through access: application code now resolves shared EventData directly, NodeState exposes engineering stage-start mutation through a separate `NodeStateTestControl`, and TimingNodeProxy no longer depends on NodeService.
