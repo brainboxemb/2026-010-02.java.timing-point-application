@@ -98,9 +98,10 @@ public class DownstreamDeliveryTest {
                         stream::isAvailable,
                         stream::send);
 
-        assertTrue(delivery.begin(sequencePacket(1L)));
+        UpstreamData first = sequencePacket(1L);
+        assertTrue(delivery.begin(first));
         stream.setAvailable(false);
-        delivery.complete(1L);
+        delivery.complete(first);
 
         assertEquals(1L, delivery.lastProcessedPacketId());
         assertEquals(0, stream.sentCount());
