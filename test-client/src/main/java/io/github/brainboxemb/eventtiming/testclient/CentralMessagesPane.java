@@ -488,11 +488,36 @@ final class CentralMessagesPane {
 
     private static String timingDataPosition(UpstreamData.TimingDataTransfer transfer) {
         List<TimingRecord> records = transfer.records();
-        long first = records.get(0).sequenceNumber();
-        long last = records.get(records.size() - 1).sequenceNumber();
-        return first == last
-                ? "TIMING_DATA #" + first
-                : "TIMING_DATA #" + first + ".." + last;
+        TimingRecord firstRecord = records.get(0);
+        TimingRecord lastRecord = records.get(records.size() - 1);
+        long first = firstRecord.sequenceNumber();
+        long last = lastRecord.sequenceNumber();
+
+        String recordType = timingRecordType(firstRecord.kind());
+        boolean sameType = true;
+        for (int index = 1; index < records.size(); index++) {
+            if (records.get(index).kind() != firstRecord.kind()) {
+                sameType = false;
+                break;
+            }
+        }
+
+        if (first == last) {
+            return recordType + " #" + first;
+        }
+        return sameType
+                ? recordType + " #" + first + ".." + last
+                : "#" + first + ".." + last;
+    }
+
+    /** Returns the compact IF-05 record type already used by operator-facing LogBook output. */
+    private static String timingRecordType(TimingRecord.Kind kind) {
+        return switch (kind) {
+            case AUTOMATIC_REGISTRATION -> "AUTO_REG";
+            case MANUAL_REGISTRATION -> "MAN_REG";
+            case NODE_OPEN -> "NODE_OPEN";
+            case NODE_CLOSE -> "NODE_CLOSE";
+        };
     }
 
     private static String raceDataSummary(UpstreamData.RaceData raceData) {
