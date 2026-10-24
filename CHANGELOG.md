@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Standardize normal operational INFO logging across registration, durable LogBook persistence and upstream delivery: use stable `Registration accepted`, `LogBook persisted`, `Upstream queued`, `Upstream sent`, `Upstream connected` and `Upstream disconnected` prefixes; summarize TIMING_DATA once per actual message batch (sequence range + record count) and keep full encoded payload at DEBUG.
+- Standardize normal operational INFO logging across registration, durable LogBook persistence and upstream delivery: use stable `Registration accepted`, `LogBook persisted`, `Upstream queued`, `Upstream sent`, `Upstream connected` and `Upstream disconnected` prefixes; summarize TIMING_DATA once per actual message batch (sequence range + record count) without logging the full encoded payload.
 
 - Add optional absolute UTC `time` to IF-06 PING values for legacy-compatible message-time visibility. SI-01 heartbeat requests and answers populate it from the composed TimeSource, while readers still accept older PING values without time; Central reference replies create their own answer timestamp rather than echoing the request time.
 
