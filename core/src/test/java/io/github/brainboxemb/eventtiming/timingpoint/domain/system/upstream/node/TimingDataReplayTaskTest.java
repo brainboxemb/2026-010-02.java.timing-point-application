@@ -57,7 +57,7 @@ public class TimingDataReplayTaskTest {
         assertEquals(1, stream.sentCount());
         UpstreamData.Receive receive =
                 (UpstreamData.Receive) stream.takeSent();
-        assertEquals(1L, receive.receivedPacketId());
+        assertEquals(1L, receive.receivedPacketNr());
 
         batch.complete(
                 Collections.singletonList(
