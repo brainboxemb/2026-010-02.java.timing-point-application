@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace the SI-02 Events raw TextArea with a structured WebSocket traffic inspector: one row per frame, explicit IN/OUT direction, semantic/event type and timestamp, exact selected payload, direction/type filters, and tracked outbound Central PING/REQ/RACE_DATA traffic without artificial blank lines. Make RegistrationId the primary Registrations identity column while retaining optional interpreted TeamId separately.
+
 - Right-align the compact C|Nodes heartbeat age and `CNT` values with leading spaces (`H -  9s`, `CNT   9`) so rapidly changing numbers stay visually aligned in the narrow explorer.
 
 - Show compact Central node liveness directly in `C|Nodes`: render rows as `A [05] · H - 30s · CNT 1157`, use `[--]` for known CLOSED and `[??]` for unknown location/lifecycle, refresh heartbeat age every 10 seconds, cap it at 999 seconds, and use the received TimingData/LogBook head as `CNT`.
