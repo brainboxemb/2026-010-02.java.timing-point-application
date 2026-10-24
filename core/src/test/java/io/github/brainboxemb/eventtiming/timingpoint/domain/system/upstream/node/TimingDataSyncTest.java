@@ -1,23 +1,80 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class TimingDataSyncTest {
+
+    @Test
+    public void liveCatchUpSplitsPendingSuffixIntoSixteenRecordBatches() {
+        NodeId nodeId = new NodeId("A");
+        LogBook logBook = emptyLogBook(nodeId);
+        List<UpstreamData> sent = new ArrayList<UpstreamData>();
+        activate(logBook);
+        try {
+            for (int index = 0; index < 17; index++) {
+                logBook.process(
+                        LogBookCommands.commitNodeOpen(
+                                new LocationId(1)));
+            }
+
+            TimingDataSync sync =
+                    new TimingDataSync(
+                            nodeId,
+                            () -> true,
+                            sent::add,
+                            logBook);
+            sync.startReplay(
+                    DefaultUpstreamData.req(
+                            nodeId,
+                            UpstreamData.Stream.TIMING_DATA,
+                            18L));
+            assertTrue(sync.liveReady());
+
+            for (int index = 0; index < 17; index++) {
+                logBook.process(
+                        LogBookCommands.commitNodeOpen(
+                                new LocationId(1)));
+            }
+
+            sync.sendNextLiveBatch(sync.submitNextLiveBatch().join());
+            sync.sendNextLiveBatch(sync.submitNextLiveBatch().join());
+
+            assertEquals(2, sent.size());
+            UpstreamData.TimingDataTransfer first =
+                    (UpstreamData.TimingDataTransfer) sent.get(0);
+            UpstreamData.TimingDataTransfer second =
+                    (UpstreamData.TimingDataTransfer) sent.get(1);
+            assertEquals(UpstreamData.MAX_TIMING_DATA_RECORDS, first.records().size());
+            assertEquals(18L, first.records().get(0).sequenceNumber());
+            assertEquals(33L, first.records().get(15).sequenceNumber());
+            assertEquals(1, second.records().size());
+            assertEquals(34L, second.records().get(0).sequenceNumber());
+        } finally {
+            deactivate(logBook);
+        }
+    }
 
     @Test
     public void raceDataReqIsNotOwnedByTimingDataSync() {
