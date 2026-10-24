@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -133,10 +134,17 @@ final class CentralSystemSimulator {
                         nodeId.value(),
                         ignored -> new NodeState(nodeId.value()));
 
+        if (node.locationId == null || !"OPEN".equals(node.lifecycleState)) {
+            throw new IllegalStateException(
+                    "RACE_DATA requires an OPEN LocationId for " + nodeId.value());
+        }
+
+        LocationId locationId = new LocationId(node.locationId.intValue());
         long sequence = node.raceDataHead + 1L;
         UpstreamData.RaceData raceData =
                 DefaultUpstreamData.raceData(
                         nodeId,
+                        locationId,
                         sequence,
                         teamAssignmentChanges,
                         stageStartTimeChanges);
