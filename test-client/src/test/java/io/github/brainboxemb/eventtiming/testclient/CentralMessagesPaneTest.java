@@ -1,7 +1,9 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -143,6 +145,70 @@ final class CentralMessagesPaneTest {
         assertEquals(
                 "acknowledge contiguous receive head",
                 CentralMessagesPane.summaryText(ack));
+    }
+
+    @Test
+    void timingDataPositionUsesRecordTypeInsteadOfRepeatingMessageType() {
+        long millis = TIME.toEpochMilli();
+        TimingRecord automatic =
+                TimingRecord.createAutomaticRegistration(
+                        'A',
+                        1186L,
+                        1,
+                        millis,
+                        millis,
+                        new RegistrationId("A0001").packedValue(),
+                        TimingRecord.Action.ADD,
+                        TimingRecord.TagSource.API,
+                        TimingRecord.AutomaticTimeSource.API);
+
+        UpstreamData.TimingDataTransfer transfer =
+                DefaultUpstreamData.timingData(
+                        NODE_A,
+                        java.util.List.of(automatic));
+
+        assertEquals(
+                "AUTO_REG #1186",
+                CentralMessagesPane.positionText(transfer));
+    }
+
+    @Test
+    void timingDataPositionKeepsHomogeneousBatchTypeAndMixedBatchCompact() {
+        long millis = TIME.toEpochMilli();
+        TimingRecord first =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1186L,
+                        1,
+                        millis,
+                        millis);
+        TimingRecord second =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1187L,
+                        1,
+                        millis,
+                        millis);
+        TimingRecord mixed =
+                TimingRecord.createNodeClosed(
+                        'A',
+                        1188L,
+                        1,
+                        millis,
+                        millis);
+
+        assertEquals(
+                "NODE_OPEN #1186..1187",
+                CentralMessagesPane.positionText(
+                        DefaultUpstreamData.timingData(
+                                NODE_A,
+                                java.util.List.of(first, second))));
+        assertEquals(
+                "#1186..1188",
+                CentralMessagesPane.positionText(
+                        DefaultUpstreamData.timingData(
+                                NODE_A,
+                                java.util.List.of(first, second, mixed))));
     }
 
     @Test
