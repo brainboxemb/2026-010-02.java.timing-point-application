@@ -17,6 +17,17 @@ final class EngineeringWorkbenchTest {
     }
 
     @Test
+    void detachedWindowSizeKeepsSmallSourcesAndCapsLargeOnes() {
+        assertEquals(480.0, EngineeringWorkbench.detachedWidth(320.0));
+        assertEquals(640.0, EngineeringWorkbench.detachedWidth(640.0));
+        assertEquals(960.0, EngineeringWorkbench.detachedWidth(1400.0));
+
+        assertEquals(320.0, EngineeringWorkbench.detachedHeight(180.0));
+        assertEquals(420.0, EngineeringWorkbench.detachedHeight(420.0));
+        assertEquals(640.0, EngineeringWorkbench.detachedHeight(900.0));
+    }
+
+    @Test
     void perspectiveNameMustBePresent() {
         assertThrows(
                 IllegalArgumentException.class,

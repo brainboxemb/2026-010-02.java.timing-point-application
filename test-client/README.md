@@ -229,56 +229,63 @@ drag/double-click, Snap Layouts or DPI correctness; verify interactively.
 The Engineering Client uses BentoFX for workbench composition. Functional panes remain
 ordinary JavaFX nodes and do not depend on BentoFX APIs.
 
-The default composition keeps target/client-wide diagnostics permanently available in
-the left column and limits the selected-node perspectives to the right side:
+The main window separates **engineering controls** from **viewers**:
 
 ```text
-shared diagnostics                     selected-node perspectives
-------------------------------          ------------------------------------------
-Device Log                              [ Node A ] [ Central A ]
-------------------------------          |
-Terminal                                | Node A: Systems / controls / history /
-------------------------------          |         Raw Data / Events
-Client Log                              |
-                                        | Central A: Nodes / Locations /
-                                        |            Messages / RaceData
+left: navigation / controls / diagnostics       right: detachable viewers
+-----------------------------------------       -------------------------------
+A|Systems / C|Nodes / C|Locations              [ Node A ] [ Central A ]
+Node Controls / Central Controls                viewer content only
+-----------------------------------------
+Device Log
+-----------------------------------------
+Terminal
+-----------------------------------------
+Client Log
 ```
 
-Device Log, Terminal and Client Log each own a separate vertically stacked Bento dock,
-so all three can remain visible at once and be resized independently.
+The upper-left explorer keeps the direct API system view and Central node/location
+projections visible close to the controls. **Node Controls** contains TimingNode, API,
+Registration, Simulation and Scripts. **Central Controls** currently contains the
+Central RaceData editor and is the home for future Central input controls.
 
-**Node A** and **Central A** are ordinary BentoFX dock tabs in one right-side leaf, not a
-separate JavaFX TabPane. Their titles follow the API-selected NodeId. Before SI-02 knows
-a node they read simply **Node** and **Central**. Each tab contains its own nested Bento
-workspace, so the whole Node or Central perspective can be dragged out into a floating
-window and moved to another monitor while its internal dock layout remains intact.
+Device Log, Terminal and Client Log are restored to their original vertically stacked
+left-side docks, so all three can remain visible and be resized independently.
 
-The Node perspective is the direct SI-01/API viewpoint. **Events** is deliberately a
-transport inspector: every WebSocket frame is one row with explicit **IN**
-(SI-01 → SI-02) or **OUT** (SI-02 → SI-01) direction, event/semantic type, timestamp
-and source/wire payload. Direction and type filters are presentation-only; selecting
-a row shows the exact frame payload. No artificial blank lines are inserted.
+The right side is reserved for viewer workspaces. **Node A** and **Central A** are
+ordinary BentoFX dock tabs whose titles follow the API-selected NodeId. Before a node is
+known they read simply **Node** and **Central**. This right-side viewer leaf is intended
+to grow later with additional tabs such as Node B / Central B without moving the shared
+controls.
 
-The Central perspective is the semantic simulator viewpoint of the same NodeId.
-**Messages** shows typed IF-06 messages received from and sent to nodes, including
-`SYNC`, `REQ`, `ACK`, `PING`, `TIMING_DATA` and `RACE_DATA`. It exposes the
-stream/sequence meaning separately from the exact IF-06 JSON. This message journal is
-bounded inspection state only; Central-owned ordered `RACE_DATA` source history remains
-independent so a later `REQ(RACE_DATA, fromSequence)` can replay the original messages.
+The Node viewer contains Registrations, LogBook, Raw Data and Events. The Central viewer
+contains the semantic IF-06 Messages view; additional Central read-only viewers can be
+added there later. Input/editor panes do not travel with a detached viewer.
 
-**RaceData** is the Central-owned source/editor. One RACE_DATA message has one source
-sequence and may contain multiple team/stage-start changes. Synchronization is therefore
-about the ordered RACE_DATA messages, not about the individual change fields inside one
-message.
+All Bento instances use one detached-window size policy. BentoFX normally copies the full
+source dock size into a floating window, which made tabs detached from tall panes open
+nearly full-screen. SI-02 now preserves already reasonable source sizes but clamps new
+floating windows to 480–960 px wide and 320–640 px high. This applies equally to
+individual panes such as Scripts and to whole Node/Central viewer tabs.
+
+**Events** is deliberately a transport inspector: every WebSocket frame is one row with
+explicit **IN** (SI-01 → SI-02) or **OUT** (SI-02 → SI-01) direction,
+event/semantic type, timestamp and source/wire payload. Direction and type filters are
+presentation-only; selecting a row shows the exact frame payload.
+
+**Messages** is the Central semantic IF-06 inspector. It shows typed messages received
+from and sent to nodes, including `SYNC`, `REQ`, `ACK`, `PING`, `TIMING_DATA`
+and `RACE_DATA`. The bounded message journal is inspection state only; retained
+Central RACE_DATA source history remains independent for replay.
 
 In **Registrations**, RegistrationId is the primary identity column. TeamId is a separate
 optional/interpreted value and may be unresolved (`-`); SI-02 never substitutes TeamId
 for RegistrationId. Revoke remains tied to the original RegistrationId/ADD source record.
 
-The compact toolbar vertically aligns **Host**, the target IP and all link buttons. The
-main **Connect** action opens ordinary Events, Terminal and Device Log. **Central** remains
-an explicit separate role switch: only `/api/v1/events?role=upstream` makes SI-01 see a
-Central upstream peer. Ordinary API/Events connectivity never implies Central availability.
+The main **Connect** action opens ordinary Events, Terminal and Device Log. **Central**
+remains an explicit separate role switch: only `/api/v1/events?role=upstream` makes
+SI-01 see a Central upstream peer. Ordinary API/Events connectivity never implies
+Central availability.
 
 ## Timing workbench behaviour
 
