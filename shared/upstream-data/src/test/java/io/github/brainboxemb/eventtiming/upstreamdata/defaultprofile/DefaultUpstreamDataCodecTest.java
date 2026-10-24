@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
@@ -69,6 +70,7 @@ public class DefaultUpstreamDataCodecTest {
         UpstreamData.RaceData original =
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
+                        new LocationId(1),
                         123L,
                         Arrays.asList(
                                 DefaultUpstreamData.teamAssignmentSet(
@@ -146,6 +148,7 @@ public class DefaultUpstreamDataCodecTest {
         UpstreamData.RaceData data =
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
+                        new LocationId(1),
                         1L,
                         Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                         Collections.singletonList(
