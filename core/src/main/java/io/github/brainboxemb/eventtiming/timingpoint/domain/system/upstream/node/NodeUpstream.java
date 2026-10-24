@@ -186,7 +186,6 @@ public final class NodeUpstream extends LifecycleComponent {
     private static String logSummary(UpstreamData packet) {
         String prefix =
                 "node=" + packet.timingNodeId().value()
-                        + ", direction=" + packet.direction().name()
                         + ", packetId=" + packet.packetId()
                         + ", type=" + packet.family().name();
 
