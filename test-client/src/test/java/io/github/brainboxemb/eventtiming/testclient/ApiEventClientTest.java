@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -82,6 +84,28 @@ class ApiEventClientTest {
         assertEquals(
                 new ApiClient.TimingDataKey("TN-01", 3L),
                 event.timingData().key());
+    }
+
+    @Test
+    void parsesTypedUpstreamDataEvent() throws Exception {
+        String json = "{"
+                + "\"eventType\":\"UPSTREAM_DATA\","
+                + "\"occurredAt\":\"2026-10-01T12:00:02Z\","
+                + "\"payload\":{"
+                + "\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
+                + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\",\"pingId\":\"hb-1\"}"
+                + "}}";
+
+        ApiEventClient.ApiEvent parsed = ApiEventClient.parseEvent(json);
+        ApiEventClient.UpstreamDataEvent event =
+                assertInstanceOf(ApiEventClient.UpstreamDataEvent.class, parsed);
+        UpstreamData.Ping ping =
+                assertInstanceOf(UpstreamData.Ping.class, event.upstreamData());
+
+        assertEquals(UpstreamData.PingOperation.REQ, ping.operation());
+        assertEquals(UpstreamData.PingMode.HB, ping.mode());
+        assertEquals("hb-1", ping.pingId());
+        assertEquals("A", ping.timingNodeId().value());
     }
 
     @Test
