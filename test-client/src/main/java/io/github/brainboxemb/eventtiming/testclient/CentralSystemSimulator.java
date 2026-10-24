@@ -37,6 +37,21 @@ final class CentralSystemSimulator {
             Instant receivedAt,
             UpstreamData data,
             String rawPayloadJson) {
+
+        MessageView(
+                long ordinal,
+                MessageDirection direction,
+                Instant messageTime,
+                Instant receivedAt,
+                UpstreamData data) {
+            this(
+                    ordinal,
+                    direction,
+                    messageTime,
+                    receivedAt,
+                    data,
+                    ApiEventClient.encodeUpstreamData(data));
+        }
     }
 
     record NodeView(
@@ -243,6 +258,15 @@ final class CentralSystemSimulator {
      * independent retained source history and is therefore not affected when old journal
      * rows are evicted.</p>
      */
+    void recordSent(
+            UpstreamData data,
+            Instant sentAt) {
+        recordSent(
+                data,
+                sentAt,
+                ApiEventClient.encodeUpstreamData(data));
+    }
+
     void recordSent(
             UpstreamData data,
             Instant sentAt,
