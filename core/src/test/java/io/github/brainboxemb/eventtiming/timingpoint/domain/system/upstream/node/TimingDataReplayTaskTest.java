@@ -30,23 +30,33 @@ public class TimingDataReplayTaskTest {
                 new CompletableFuture<List<TimingRecord>>();
         TimingDataSync sync =
                 new TimingDataSync(
-                        new NodeId("A"),
                         stream::isAvailable,
                         stream::send,
                         new PendingLogBook(1L, batch));
+        DownstreamDelivery delivery =
+                new DownstreamDelivery(
+                        stream::isAvailable,
+                        stream::send);
+        UpstreamData packet =
+                DefaultUpstreamData.createDnPacket(
+                        new NodeId("A"),
+                        1L,
+                        DefaultUpstreamData.createTimingDataRequest(1L));
         TimingDataReplayTask task =
                 new TimingDataReplayTask(
                         stream::isAvailable,
+                        delivery,
                         sync,
-                        DefaultUpstreamData.req(
-                                new NodeId("A"),
-                                UpstreamData.Stream.TIMING_DATA,
-                                1L),
+                        packet,
+                        (UpstreamData.TimingDataRequest) packet.message(),
                         () -> {
                         });
 
         assertSame(TaskStep.Type.AWAIT, task.runStep().type());
-        assertEquals(0, stream.sentCount());
+        assertEquals(1, stream.sentCount());
+        UpstreamData.Receive receive =
+                (UpstreamData.Receive) stream.takeSent();
+        assertEquals(1L, receive.receivedPacketId());
 
         batch.complete(
                 Collections.singletonList(
