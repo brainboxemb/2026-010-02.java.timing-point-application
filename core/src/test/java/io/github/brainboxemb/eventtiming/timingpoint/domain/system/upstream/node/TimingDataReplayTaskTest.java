@@ -30,6 +30,7 @@ public class TimingDataReplayTaskTest {
                 new CompletableFuture<List<TimingRecord>>();
         TimingDataSync sync =
                 new TimingDataSync(
+                        new NodeId("A"),
                         stream::isAvailable,
                         stream::send,
                         new PendingLogBook(1L, batch));
@@ -42,13 +43,13 @@ public class TimingDataReplayTaskTest {
                         new NodeId("A"),
                         1L,
                         DefaultUpstreamData.createTimingDataRequest(1L));
+        assertEquals(true, delivery.begin(packet));
         TimingDataReplayTask task =
                 new TimingDataReplayTask(
                         stream::isAvailable,
-                        delivery,
                         sync,
-                        packet,
                         (UpstreamData.TimingDataRequest) packet.message(),
+                        () -> delivery.complete(packet),
                         () -> {
                         });
 
