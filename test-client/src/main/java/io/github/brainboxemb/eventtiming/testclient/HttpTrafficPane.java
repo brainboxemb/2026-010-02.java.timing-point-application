@@ -134,7 +134,7 @@ final class HttpTrafficPane {
         TableColumn<ApiClient.HttpCall, String> path =
                 column("Path", ApiClient.HttpCall::path);
         TableColumn<ApiClient.HttpCall, String> time =
-                column("Time", call -> call.startedAt().toString());
+                column("Time", call -> ViewerTime.instant(call.startedAt(), true));
         TableColumn<ApiClient.HttpCall, String> status =
                 column("Status", HttpTrafficPane::statusText);
 
@@ -184,7 +184,7 @@ final class HttpTrafficPane {
                 .append(call.path())
                 .append(System.lineSeparator())
                 .append("Started: ")
-                .append(call.startedAt())
+                .append(ViewerTime.instant(call.startedAt(), true))
                 .append(System.lineSeparator())
                 .append(System.lineSeparator())
                 .append("Request")
