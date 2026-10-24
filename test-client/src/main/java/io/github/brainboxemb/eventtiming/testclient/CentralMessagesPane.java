@@ -547,9 +547,9 @@ final class CentralMessagesPane {
 
     static String positionText(UpstreamData data) {
         String packet =
-                data.packetId() == 0L
+                data.packetNr() == 0L
                         ? "P0"
-                        : "P" + data.packetId();
+                        : "P" + data.packetNr();
 
         return switch (data.family()) {
             case TIMING_DATA -> packet + " · "
@@ -574,7 +574,7 @@ final class CentralMessagesPane {
             }
             case RECV -> packet + " · DN through "
                     + ((UpstreamData.Receive) data.message())
-                            .receivedPacketId();
+                            .receivedPacketNr();
             case PING, STATUS -> packet;
         };
     }
