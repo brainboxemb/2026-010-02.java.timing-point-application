@@ -29,6 +29,7 @@ final class HttpTrafficPane {
             new FollowLatestTable<>(table);
     private final TextArea detail = new TextArea();
     private final VBox pane;
+    private boolean rebuildingFilters;
 
     HttpTrafficPane(HttpTrafficJournal journal) {
         if (journal == null) {
@@ -46,8 +47,16 @@ final class HttpTrafficPane {
         statusFilter.setPrefWidth(100);
         statusFilter.setTooltip(new Tooltip("Filter by HTTP status"));
 
-        methodFilter.setOnAction(event -> refresh());
-        statusFilter.setOnAction(event -> refresh());
+        methodFilter.setOnAction(event -> {
+            if (!rebuildingFilters) {
+                refresh();
+            }
+        });
+        statusFilter.setOnAction(event -> {
+            if (!rebuildingFilters) {
+                refresh();
+            }
+        });
 
         configureTable();
 
@@ -104,14 +113,19 @@ final class HttpTrafficPane {
             statuses.add(statusText(call));
         }
 
-        methodFilter.getItems().setAll(methods);
-        statusFilter.getItems().setAll(statuses);
-        methodFilter.setValue(
-                selectedMethod != null && methods.contains(selectedMethod)
-                        ? selectedMethod : ALL);
-        statusFilter.setValue(
-                selectedStatus != null && statuses.contains(selectedStatus)
-                        ? selectedStatus : ALL);
+        rebuildingFilters = true;
+        try {
+            methodFilter.getItems().setAll(methods);
+            statusFilter.getItems().setAll(statuses);
+            methodFilter.setValue(
+                    selectedMethod != null && methods.contains(selectedMethod)
+                            ? selectedMethod : ALL);
+            statusFilter.setValue(
+                    selectedStatus != null && statuses.contains(selectedStatus)
+                            ? selectedStatus : ALL);
+        } finally {
+            rebuildingFilters = false;
+        }
     }
 
     private void configureTable() {
