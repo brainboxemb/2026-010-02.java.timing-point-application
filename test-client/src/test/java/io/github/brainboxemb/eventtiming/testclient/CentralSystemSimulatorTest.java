@@ -225,6 +225,35 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void reconstructedLogBookRetainsAcceptedRecordsWithoutReplayDuplicates() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7));
+        simulator.connected();
+
+        UpstreamData.TimingDataTransfer firstBatch =
+                DefaultUpstreamData.timingData(
+                        NODE_A,
+                        List.of(
+                                opened(1L, 7),
+                                closed(2L, 7)));
+
+        simulator.accept(firstBatch, RECEIVED);
+
+        assertEquals(2, simulator.timingRecords().size());
+        assertEquals(1L, simulator.timingRecords().get(0).sequenceNumber());
+        assertEquals(2L, simulator.timingRecords().get(1).sequenceNumber());
+
+        simulator.accept(firstBatch, RECEIVED.plusSeconds(1));
+        assertEquals(2, simulator.timingRecords().size());
+
+        simulator.disconnected();
+        simulator.connected();
+        assertEquals(2, simulator.timingRecords().size());
+
+        simulator.resetTargetState();
+        assertTrue(simulator.timingRecords().isEmpty());
+    }
+
+    @Test
     void reconnectPreservesBothProtocolHeads() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7));
         simulator.connected();

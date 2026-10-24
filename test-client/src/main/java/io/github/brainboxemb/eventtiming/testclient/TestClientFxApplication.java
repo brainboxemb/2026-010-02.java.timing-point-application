@@ -91,6 +91,7 @@ public final class TestClientFxApplication extends Application {
     private CentralSystemSimulator centralSimulator;
     private CentralPane centralPane;
     private CentralMessagesPane centralMessagesPane;
+    private CentralLogBookPane centralLogBookPane;
     private EventTrafficPane eventTrafficPane;
     private EngineeringWorkbench workbench;
     private BorderPane workbenchRoot;
@@ -142,6 +143,7 @@ public final class TestClientFxApplication extends Application {
                     }
                 });
         centralMessagesPane = new CentralMessagesPane(centralSimulator);
+        centralLogBookPane = new CentralLogBookPane(centralSimulator);
 
         workbench = createWorkbench(
                 deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
@@ -260,6 +262,7 @@ public final class TestClientFxApplication extends Application {
                 centralPane.nodesPane(),
                 centralPane.locationsPane(),
                 centralMessagesPane.pane(),
+                centralLogBookPane.pane(),
                 centralPane.raceDataPane(),
                 apiPane.timingNodePane(),
                 apiPane.apiInfoPane(),
@@ -855,6 +858,7 @@ public final class TestClientFxApplication extends Application {
     private void refreshCentralViews() {
         centralPane.refresh();
         centralMessagesPane.refresh();
+        centralLogBookPane.refresh();
     }
 
     private void requireCentralUpstreamRole() {
