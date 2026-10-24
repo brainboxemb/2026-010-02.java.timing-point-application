@@ -94,6 +94,7 @@ public final class TestClientFxApplication extends Application {
     private CentralMessagesPane centralMessagesPane;
     private CentralLogBookPane centralLogBookPane;
     private EventTrafficPane eventTrafficPane;
+    private HttpTrafficPane httpTrafficPane;
     private EngineeringWorkbench workbench;
     private BorderPane workbenchRoot;
     private Image windowIcon;
@@ -110,6 +111,7 @@ public final class TestClientFxApplication extends Application {
 
         VBox terminalPanel = terminalPane();
         VBox eventsPanel = eventsPane();
+        VBox httpPanel = httpPane();
         VBox deviceLogPanel = deviceLogPane();
         VBox clientLogPanel = clientLogPane();
 
@@ -147,7 +149,11 @@ public final class TestClientFxApplication extends Application {
         centralLogBookPane = new CentralLogBookPane(centralSimulator);
 
         workbench = createWorkbench(
-                deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
+                deviceLogPanel,
+                terminalPanel,
+                clientLogPanel,
+                eventsPanel,
+                httpPanel);
         apiPane.setLogBookCountListener(workbench::setLogBookCount);
         apiPane.setRegistrationScopeListener(workbench::setRegistrationScope);
         apiPane.setSelectedNodeListener(workbench::setPerspectiveNodeId);
@@ -156,7 +162,11 @@ public final class TestClientFxApplication extends Application {
 
         MenuItem resetLayout = new MenuItem("Reset layout");
         resetLayout.setOnAction(event -> resetLayout(
-                deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel));
+                deviceLogPanel,
+                terminalPanel,
+                clientLogPanel,
+                eventsPanel,
+                httpPanel));
         Menu view = new Menu("View");
         view.getItems().add(resetLayout);
 
@@ -257,7 +267,11 @@ public final class TestClientFxApplication extends Application {
     }
 
     private EngineeringWorkbench createWorkbench(
-            VBox deviceLogPanel, VBox terminalPanel, VBox clientLogPanel, VBox eventsPanel) {
+            VBox deviceLogPanel,
+            VBox terminalPanel,
+            VBox clientLogPanel,
+            VBox eventsPanel,
+            VBox httpPanel) {
         return new EngineeringWorkbench(
                 apiPane.systemsPane(),
                 centralPane.nodesPane(),
@@ -277,14 +291,24 @@ public final class TestClientFxApplication extends Application {
                 apiPane.logBookPane(),
                 apiPane.rawDataPane(),
                 eventsPanel,
+                httpPanel,
                 apiPane::showAllRegistrations,
                 apiPane::setShowAllRegistrations);
     }
 
     private void resetLayout(
-            VBox deviceLogPanel, VBox terminalPanel, VBox clientLogPanel, VBox eventsPanel) {
+            VBox deviceLogPanel,
+            VBox terminalPanel,
+            VBox clientLogPanel,
+            VBox eventsPanel,
+            VBox httpPanel) {
         workbench.release();
-        workbench = createWorkbench(deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
+        workbench = createWorkbench(
+                deviceLogPanel,
+                terminalPanel,
+                clientLogPanel,
+                eventsPanel,
+                httpPanel);
         workbenchRoot.setCenter(workbench.root());
         workbench.setClientLogLevel(clientLog.level());
         workbench.setDeviceLogLevel(system.liveLogClient().isConnected()
@@ -466,6 +490,13 @@ public final class TestClientFxApplication extends Application {
     private VBox eventsPane() {
         eventTrafficPane = new EventTrafficPane();
         return eventTrafficPane.pane();
+    }
+
+    private VBox httpPane() {
+        httpTrafficPane = new HttpTrafficPane(system.httpTraffic());
+        system.httpTraffic().subscribe(
+                ignored -> Platform.runLater(httpTrafficPane::refresh));
+        return httpTrafficPane.pane();
     }
 
     private VBox terminalPane() {
@@ -817,7 +848,7 @@ public final class TestClientFxApplication extends Application {
     /**
      * Sends packets that became eligible after one Central state update.
      *
-     * @return the new packet id, or 0 when the state is waiting behind an outstanding packet
+     * @return the new packet number, or 0 when the state is waiting behind an outstanding packet
      */
     private long sendCentralPackets(
             String nodeId,
@@ -871,10 +902,6 @@ public final class TestClientFxApplication extends Application {
         java.time.Instant sentAt = java.time.Instant.now();
         CompletableFuture<Void> send = system.eventClient().sendUpstreamData(data);
         centralSimulator.recordSent(data, sentAt, rawPayload);
-        eventTrafficPane.recordOutbound(
-                sentAt,
-                data.family().name(),
-                rawPayload);
         centralMessagesPane.refresh();
         return send;
     }
