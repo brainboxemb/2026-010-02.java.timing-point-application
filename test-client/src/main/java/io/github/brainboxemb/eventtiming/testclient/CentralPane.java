@@ -134,14 +134,30 @@ final class CentralPane {
     }
 
     private void refreshSystems(List<CentralSystemSimulator.SystemView> systemViews) {
-        systemRoot.setValue("System · " + systemHost);
-        systemTreeViews.clear();
-        systemRoot.getChildren().clear();
+        String title = "System · " + systemHost;
+        if (!java.util.Objects.equals(systemRoot.getValue(), title)) {
+            systemRoot.setValue(title);
+        }
 
+        Map<String, TreeItem<String>> existing = new java.util.HashMap<>();
+        systemTreeViews.forEach((item, system) ->
+                existing.put(system.nodeId(), item));
+
+        systemTreeViews.clear();
+        List<TreeItem<String>> children = new java.util.ArrayList<>();
         for (CentralSystemSimulator.SystemView system : systemViews) {
-            TreeItem<String> item = new TreeItem<>(compactSystemText(system));
+            TreeItem<String> item =
+                    existing.getOrDefault(system.nodeId(), new TreeItem<>());
+            String label = compactSystemText(system);
+            if (!java.util.Objects.equals(item.getValue(), label)) {
+                item.setValue(label);
+            }
             systemTreeViews.put(item, system);
-            systemRoot.getChildren().add(item);
+            children.add(item);
+        }
+
+        if (!systemRoot.getChildren().equals(children)) {
+            systemRoot.getChildren().setAll(children);
         }
         systemRoot.setExpanded(true);
     }
