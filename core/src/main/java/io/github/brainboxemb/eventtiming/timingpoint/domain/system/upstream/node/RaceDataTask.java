@@ -11,33 +11,35 @@ import java.util.function.BooleanSupplier;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Applies one RACE_DATA message through NodeService before acknowledging it.
+ * Applies one RACE_DATA message before confirming its containing downstream packet.
  *
- * <p>The task has exactly one asynchronous wait: NodeService.applyRaceData().
- * While that future is incomplete, SerialTaskRunner releases the shared worker.
- * UpstreamInputTask keeps this semantic task active and does not consume the next
- * queued upstream message until this task completes.</p>
+ * <p>Duplicate/gap detection belongs to DownstreamDelivery. This task only calls NodeService
+ * for a new eligible packet and advances delivery state after that asynchronous apply completes.</p>
  */
 final class RaceDataTask implements YieldingTask {
     private final BooleanSupplier available;
-    private final RaceDataSync sync;
+    private final DownstreamDelivery delivery;
     private final NodeService nodeService;
+    private final UpstreamData packet;
     private final UpstreamData.RaceData raceData;
 
     private CompletableFuture<Void> applyFuture;
 
     RaceDataTask(
             BooleanSupplier available,
-            RaceDataSync sync,
+            DownstreamDelivery delivery,
             NodeService nodeService,
+            UpstreamData packet,
             UpstreamData.RaceData raceData) {
         failIfInvalidArgument(available != null, "available must not be null");
-        failIfInvalidArgument(sync != null, "sync must not be null");
+        failIfInvalidArgument(delivery != null, "delivery must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
+        failIfInvalidArgument(packet != null, "packet must not be null");
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         this.available = available;
-        this.sync = sync;
+        this.delivery = delivery;
         this.nodeService = nodeService;
+        this.packet = packet;
         this.raceData = raceData;
     }
 
@@ -45,14 +47,13 @@ final class RaceDataTask implements YieldingTask {
     public TaskStep runStep() {
         if (applyFuture == null) {
             if (!available.getAsBoolean()
-                    || !sync.beginApply(raceData)) {
+                    || !delivery.begin(packet)) {
                 return TaskStep.done();
             }
 
-            applyFuture =
-                    nodeService.applyRaceData(raceData);
+            applyFuture = nodeService.applyRaceData(raceData);
             if (applyFuture == null) {
-                sync.cancelApply();
+                delivery.cancelPending();
                 throw new IllegalStateException(
                         "NodeService returned no RACE_DATA completion");
             }
@@ -60,7 +61,7 @@ final class RaceDataTask implements YieldingTask {
         }
 
         applyFuture.join();
-        sync.completeApply(raceData.sequence());
+        delivery.complete(packet.packetId());
         return TaskStep.done();
     }
 }
