@@ -64,7 +64,7 @@ final class TimingDataReplayTask implements YieldingTask {
             }
 
             sync.startReplay(request);
-            delivery.complete(packet.packetId());
+            delivery.complete(packet);
             started = true;
         }
 
