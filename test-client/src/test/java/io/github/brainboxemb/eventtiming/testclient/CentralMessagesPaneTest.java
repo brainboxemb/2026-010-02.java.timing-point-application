@@ -137,7 +137,7 @@ final class CentralMessagesPaneTest {
                                         "T002")),
                         java.util.List.of());
 
-        assertEquals("RACE_DATA #12", CentralMessagesPane.positionText(raceData));
+        assertEquals("RACE_DATA L1 #12", CentralMessagesPane.positionText(raceData));
         assertEquals(
                 "2 team change(s), 0 stage-start change(s)",
                 CentralMessagesPane.summaryText(raceData));
