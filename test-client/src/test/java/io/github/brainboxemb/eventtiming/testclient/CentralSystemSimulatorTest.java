@@ -196,6 +196,32 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void reconnectRetriesExactOutstandingPacketWithoutResettingPacketState() {
+        CentralSystemSimulator simulator =
+                openSimulatorAtLocation(7);
+
+        UpstreamData outstanding =
+                simulator.updateRaceData(
+                        NODE_A,
+                        List.of(
+                                DefaultUpstreamData.createTeamAssignmentSet(
+                                        "A0001",
+                                        "T001")),
+                        List.of())
+                        .get(0);
+
+        simulator.disconnected();
+        List<UpstreamData> retry = simulator.connected();
+
+        assertEquals(1, retry.size());
+        assertSame(outstanding, retry.get(0));
+        assertEquals(1L, retry.get(0).packetId());
+        assertEquals(
+                Long.valueOf(1L),
+                simulator.nodes().get(0).outstandingDnPacketId());
+    }
+
+    @Test
     void recvZeroRebuildsCurrentRaceStateFromPacketOne() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(7);
