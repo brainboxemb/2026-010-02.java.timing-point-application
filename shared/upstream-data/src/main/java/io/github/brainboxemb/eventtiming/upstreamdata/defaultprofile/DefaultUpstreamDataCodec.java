@@ -16,6 +16,8 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,6 +25,8 @@ import java.util.List;
 public final class DefaultUpstreamDataCodec
         implements UpstreamDataCodec {
     private static final int VERSION = 1;
+    private static final DateTimeFormatter PING_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'");
 
     private final JsonFactory jsonFactory = new JsonFactory();
     private final TimingDataCodec timingDataCodec;
@@ -226,7 +230,10 @@ public final class DefaultUpstreamDataCodec
             if (!ping.time().isAbsolute()) {
                 throw encodeFailure("PING time must be absolute UTC", null);
             }
-            generator.writeStringField("time", ping.time().toString());
+            generator.writeStringField(
+                    "time",
+                    PING_TIME_FORMAT.format(
+                            ping.time().instant().atOffset(ZoneOffset.UTC)));
         }
         if (ping.pingId() != null) {
             generator.writeStringField("pingId", ping.pingId());
