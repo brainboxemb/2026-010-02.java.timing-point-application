@@ -17,8 +17,8 @@ import java.util.Set;
 /**
  * Transport-independent immutable IF-06 packet.
  *
- * <p>One packet has one direction, one node, one delivery identity and exactly one semantic
- * message. Packet identity is deliberately separate from TIMING_DATA/LogBook sequence identity.</p>
+ * <p>One packet has one direction, one node, one delivery number and exactly one semantic
+ * message. The packet number is deliberately separate from the TIMING_DATA/LogBook sequence number.</p>
  */
 public final class UpstreamData {
     public static final int MAX_TIMING_DATA_RECORDS = 16;
@@ -73,7 +73,7 @@ public final class UpstreamData {
         return timingNodeId;
     }
 
-    /** Returns the delivery/debug identity of this packet. PING uses zero. */
+    /** Returns the delivery/debug number of this packet. PING uses zero. */
     public long packetNr() {
         return packetNr;
     }
