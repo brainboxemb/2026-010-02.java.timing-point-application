@@ -64,7 +64,9 @@ final class TimingPane {
     private String systemHost = "-";
     private Consumer<Long> logBookCountListener = ignored -> {};
     private Consumer<String> registrationScopeListener = ignored -> {};
+    private Consumer<String> selectedNodeListener = ignored -> {};
     private String lastReportedRegistrationScope;
+    private String lastReportedSelectedNodeId;
     private boolean eventsConnected;
     private boolean operationBusy;
     private boolean historyRefreshQueued;
@@ -334,6 +336,12 @@ final class TimingPane {
         registrationScopeListener = listener == null ? ignored -> {} : listener;
         lastReportedRegistrationScope = model.registrationScopeLabel(showAllRegistrations);
         registrationScopeListener.accept(lastReportedRegistrationScope);
+    }
+
+    void setSelectedNodeListener(Consumer<String> listener) {
+        selectedNodeListener = listener == null ? ignored -> {} : listener;
+        lastReportedSelectedNodeId = model.selectedNodeId();
+        selectedNodeListener.accept(lastReportedSelectedNodeId);
     }
 
     javafx.scene.Node timingNodePane() {
@@ -1139,6 +1147,16 @@ final class TimingPane {
         refreshControls();
         refreshTree();
         refreshLogBook();
+        reportSelectedNode();
+    }
+
+    private void reportSelectedNode() {
+        String selected = model.selectedNodeId();
+        if (java.util.Objects.equals(lastReportedSelectedNodeId, selected)) {
+            return;
+        }
+        lastReportedSelectedNodeId = selected;
+        selectedNodeListener.accept(selected);
     }
 
     private void refreshTree() {
