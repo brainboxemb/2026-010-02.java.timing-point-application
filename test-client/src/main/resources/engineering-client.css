@@ -115,6 +115,15 @@
     -fx-font-family: "Consolas";
     -fx-font-size: 12px;
 }
+.engineering-traffic-filters {
+    -fx-min-height: 28px;
+    -fx-pref-height: 28px;
+    -fx-alignment: center-left;
+}
+.engineering-traffic-table .table-cell {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 12px;
+}
 .text-area.engineering-console {
     -fx-control-inner-background: #000000;
     -fx-text-fill: #e8e8e8;
