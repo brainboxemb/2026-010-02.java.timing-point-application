@@ -212,7 +212,7 @@ final class CentralMessagesPane {
                                 message -> message.data().family().name()));
         TableColumn<MessageRow, String> position =
                 column(
-                        "Stream / seq",
+                        "Packet / position",
                         value -> messageValue(
                                 value,
                                 message -> positionText(message.data())));
@@ -356,7 +356,8 @@ final class CentralMessagesPane {
             throw new IllegalArgumentException("rawPayloadJson must not be null");
         }
         if (data.family() != UpstreamData.Family.TIMING_DATA
-                || ((UpstreamData.TimingDataTransfer) data).records().size() <= 1) {
+                || ((UpstreamData.TimingDataTransfer) data.message())
+                        .records().size() <= 1) {
             return rawPayloadJson;
         }
         return formatTopLevelDataArray(rawPayloadJson);
@@ -526,28 +527,36 @@ final class CentralMessagesPane {
     }
 
     static String positionText(UpstreamData data) {
+        String packet =
+                data.packetId() == 0L
+                        ? "P0"
+                        : "P" + data.packetId();
+
         return switch (data.family()) {
-            case TIMING_DATA -> timingDataPosition((UpstreamData.TimingDataTransfer) data);
+            case TIMING_DATA -> packet + " · "
+                    + timingDataPosition(
+                            (UpstreamData.TimingDataTransfer) data.message());
             case RACE_DATA -> {
-                UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
-                yield "RACE_DATA L"
-                        + raceData.locationId().value()
-                        + " #"
-                        + raceData.sequence();
+                UpstreamData.RaceData raceData =
+                        (UpstreamData.RaceData) data.message();
+                yield packet + " · RACE_DATA L"
+                        + raceData.locationId().value();
             }
-            case SYNC -> {
-                UpstreamData.Sync sync = (UpstreamData.Sync) data;
-                yield sync.stream().name() + " head " + sync.sequence();
+            case TIMING_DATA_REQ -> packet + " · from "
+                    + ((UpstreamData.TimingDataRequest) data.message())
+                            .fromSequence();
+            case SEQ -> {
+                UpstreamData.Sequence sequence =
+                        (UpstreamData.Sequence) data.message();
+                yield packet + " · " + sequence.operation().name()
+                        + (sequence.sequence() == null
+                                ? ""
+                                : " " + sequence.sequence());
             }
-            case ACK -> {
-                UpstreamData.Ack ack = (UpstreamData.Ack) data;
-                yield ack.stream().name() + " through " + ack.sequence();
-            }
-            case REQ -> {
-                UpstreamData.Req req = (UpstreamData.Req) data;
-                yield req.stream().name() + " from " + req.fromSequence();
-            }
-            case PING, STATUS -> "—";
+            case RECV -> packet + " · DN through "
+                    + ((UpstreamData.Receive) data.message())
+                            .receivedPacketId();
+            case PING, STATUS -> packet;
         };
     }
 
@@ -555,16 +564,24 @@ final class CentralMessagesPane {
         return switch (data.family()) {
             case TIMING_DATA -> {
                 UpstreamData.TimingDataTransfer transfer =
-                        (UpstreamData.TimingDataTransfer) data;
+                        (UpstreamData.TimingDataTransfer) data.message();
                 yield transfer.records().size() + " TimingData record(s)";
             }
-            case RACE_DATA -> raceDataSummary((UpstreamData.RaceData) data);
-            case SYNC -> "advertise source head";
-            case ACK -> "acknowledge contiguous receive head";
-            case REQ -> "request replay from sequence";
+            case RACE_DATA ->
+                    raceDataSummary(
+                            (UpstreamData.RaceData) data.message());
+            case TIMING_DATA_REQ -> "request retained TimingData";
+            case SEQ -> {
+                UpstreamData.Sequence sequence =
+                        (UpstreamData.Sequence) data.message();
+                yield "TimingData position " + sequence.operation().name();
+            }
+            case RECV -> "report last processed DN_PACKET";
             case PING -> {
-                UpstreamData.Ping ping = (UpstreamData.Ping) data;
-                StringBuilder text = new StringBuilder(ping.operation().name());
+                UpstreamData.Ping ping =
+                        (UpstreamData.Ping) data.message();
+                StringBuilder text =
+                        new StringBuilder(ping.operation().name());
                 if (ping.mode() != null) {
                     text.append(' ').append(ping.mode().name());
                 }
