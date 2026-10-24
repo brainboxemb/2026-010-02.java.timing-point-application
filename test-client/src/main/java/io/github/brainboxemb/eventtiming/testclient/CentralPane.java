@@ -161,13 +161,16 @@ final class CentralPane implements AutoCloseable {
             throw new IllegalArgumentException("now must not be null");
         }
 
-        StringBuilder text = new StringBuilder(node.nodeId())
-                .append(" · ")
-                .append(node.lifecycleState());
+        StringBuilder text = new StringBuilder(node.nodeId());
         if (node.locationId() != null) {
-            text.append(" · Location ").append(node.locationId());
+            text.append(" [").append(node.locationId()).append(']');
+        } else {
+            text.append(' ').append(node.lifecycleState());
         }
-        text.append(" · ").append(heartbeatAgeText(node.lastHeartbeat(), now));
+        text.append(" · ")
+                .append(heartbeatAgeText(node.lastHeartbeat(), now))
+                .append(" · CNT ")
+                .append(node.timingDataHead());
         return text.toString();
     }
 
