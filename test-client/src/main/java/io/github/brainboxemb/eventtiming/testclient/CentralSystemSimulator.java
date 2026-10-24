@@ -1,9 +1,9 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -15,9 +15,10 @@ import java.util.Map;
 /**
  * Central-side IF-06 simulator state.
  *
- * <p>This model is intentionally independent from the direct IF-03/API view. It learns
- * nodes and locations only from semantic upstream traffic, requests missing TimingData
- * after source-head SYNC, answers PING requests and interprets NODE_INFO history.</p>
+ * <p>This service is intentionally independent from the direct IF-03/API view. It learns
+ * nodes and locations only from typed UpstreamData received on the upstream-role session,
+ * requests missing TimingData after source-head SYNC, answers PING requests and interprets
+ * NODE_OPEN/NODE_CLOSE history.</p>
  */
 final class CentralSystemSimulator {
     record SystemView(
@@ -26,7 +27,7 @@ final class CentralSystemSimulator {
             Instant lastHeartbeat,
             long timingDataHead,
             Integer locationId,
-            ApiClient.TimingDataInfo lastRecord) {
+            TimingRecord lastRecord) {
     }
 
     record LocationView(
@@ -36,8 +37,6 @@ final class CentralSystemSimulator {
             long sequence,
             Instant changedAt) {
     }
-
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final List<Integer> configuredLocationIds;
     private final Map<String, SystemState> systems = new LinkedHashMap<>();
@@ -87,37 +86,28 @@ final class CentralSystemSimulator {
         return connected;
     }
 
-    /**
-     * Applies one semantic IF-06 JSON value and returns any Central-side replies.
-     *
-     * <p>The transport owns only the WebSocket event envelope. This model owns the
-     * IF-06 meaning and therefore decides when REQ or PING ANS is required.</p>
-     */
-    List<String> accept(String payloadJson, Instant receivedAt) throws IOException {
-        if (payloadJson == null || payloadJson.isBlank()) {
-            throw new IllegalArgumentException("payloadJson must not be blank");
+    /** Applies one semantic IF-06 value and returns any Central-side protocol replies. */
+    List<UpstreamData> accept(
+            UpstreamData data,
+            Instant receivedAt) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
         }
         if (receivedAt == null) {
             throw new IllegalArgumentException("receivedAt must not be null");
         }
 
-        JsonNode root = JSON.readTree(payloadJson);
-        int version = requiredInt(root, "v");
-        if (version != 1) {
-            throw new IllegalArgumentException("Unsupported IF-06 version: " + version);
-        }
-
-        String type = requiredText(root, "type");
-        String nodeId = requiredText(root, "nodeId");
-        JsonNode data = required(root, "data");
+        String nodeId = data.timingNodeId().value();
         SystemState system = systems.computeIfAbsent(nodeId, SystemState::new);
-        system.lastReceivedAt = receivedAt;
 
-        return switch (type) {
-            case "PING" -> handlePing(system, data, receivedAt);
-            case "SYNC" -> handleSync(system, data);
-            case "TIMING_DATA" -> {
-                handleTimingData(system, data, receivedAt);
+        return switch (data.family()) {
+            case PING -> handlePing(system, (UpstreamData.Ping) data, receivedAt);
+            case SYNC -> handleSync(system, (UpstreamData.Sync) data);
+            case TIMING_DATA -> {
+                handleTimingData(
+                        system,
+                        (UpstreamData.TimingDataTransfer) data,
+                        receivedAt);
                 yield Collections.emptyList();
             }
             default -> Collections.emptyList();
@@ -151,47 +141,45 @@ final class CentralSystemSimulator {
         return List.copyOf(result);
     }
 
-    private List<String> handlePing(
+    private List<UpstreamData> handlePing(
             SystemState system,
-            JsonNode data,
+            UpstreamData.Ping ping,
             Instant receivedAt) {
-        String operation = requiredText(data, "op");
-        String mode = optionalText(data, "mode");
-        String pingId = optionalText(data, "pingId");
-        if ("REQ".equals(operation)) {
+        if (ping.operation() == UpstreamData.PingOperation.REQ) {
             system.lastHeartbeat = receivedAt;
-            return List.of(pingAnswer(system.nodeId, mode, pingId));
+            return List.of(
+                    DefaultUpstreamData.ping(
+                            ping.timingNodeId(),
+                            UpstreamData.PingOperation.ANS,
+                            ping.mode(),
+                            ping.pingId()));
         }
         return Collections.emptyList();
     }
 
-    private List<String> handleSync(SystemState system, JsonNode data) {
-        String stream = requiredText(data, "stream");
-        long remoteHead = requiredLong(data, "seq");
-        if (!"TIMING_DATA".equals(stream)) {
+    private List<UpstreamData> handleSync(
+            SystemState system,
+            UpstreamData.Sync sync) {
+        if (sync.stream() != UpstreamData.Stream.TIMING_DATA) {
             return Collections.emptyList();
         }
+
+        long remoteHead = sync.sequence();
         if (remoteHead > system.timingDataHead) {
-            return List.of(timingDataRequest(system.nodeId, system.timingDataHead + 1L));
+            return List.of(
+                    DefaultUpstreamData.req(
+                            sync.timingNodeId(),
+                            UpstreamData.Stream.TIMING_DATA,
+                            system.timingDataHead + 1L));
         }
         return Collections.emptyList();
     }
 
     private void handleTimingData(
             SystemState system,
-            JsonNode data,
+            UpstreamData.TimingDataTransfer transfer,
             Instant receivedAt) {
-        if (!data.isArray() || data.isEmpty()) {
-            throw new IllegalArgumentException("TIMING_DATA data must be a non-empty array");
-        }
-
-        for (JsonNode recordJson : data) {
-            ApiClient.TimingDataInfo record = ApiClient.parseTimingData(recordJson);
-            if (!system.nodeId.equals(record.timingNodeId())) {
-                throw new IllegalArgumentException(
-                        "TIMING_DATA record nodeId does not match outer nodeId");
-            }
-
+        for (TimingRecord record : transfer.records()) {
             long sequence = record.sequenceNumber();
             if (sequence <= system.timingDataHead) {
                 continue;
@@ -214,14 +202,10 @@ final class CentralSystemSimulator {
 
     private void applyLifecycle(
             SystemState system,
-            ApiClient.TimingDataInfo record,
+            TimingRecord record,
             Instant receivedAt) {
-        if (!"NODE_INFO".equals(record.recordType())) {
-            return;
-        }
-
-        if (record.codes().contains("OPEN")) {
-            system.locationId = record.locationId();
+        if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
+            system.locationId = Integer.valueOf(record.locationId());
             LocationState location = locations.computeIfAbsent(
                     record.locationId(),
                     LocationState::new);
@@ -229,7 +213,7 @@ final class CentralSystemSimulator {
             location.nodeId = system.nodeId;
             location.sequence = record.sequenceNumber();
             location.changedAt = receivedAt;
-        } else if (record.codes().contains("CLOSE")) {
+        } else if (record.kind() == TimingRecord.Kind.NODE_CLOSE) {
             if (system.locationId != null
                     && system.locationId.intValue() == record.locationId()) {
                 system.locationId = null;
@@ -252,91 +236,12 @@ final class CentralSystemSimulator {
         }
     }
 
-    private static String timingDataRequest(String nodeId, long fromSequence) {
-        return "{"
-                + "\"v\":1,"
-                + "\"type\":\"REQ\","
-                + "\"nodeId\":" + quote(nodeId) + ","
-                + "\"data\":{"
-                + "\"stream\":\"TIMING_DATA\","
-                + "\"fromSeq\":" + fromSequence
-                + "}}";
-    }
-
-    private static String pingAnswer(String nodeId, String mode, String pingId) {
-        StringBuilder json = new StringBuilder();
-        json.append('{')
-                .append("\"v\":1,")
-                .append("\"type\":\"PING\",")
-                .append("\"nodeId\":").append(quote(nodeId)).append(',')
-                .append("\"data\":{\"op\":\"ANS\"");
-        if (mode != null) {
-            json.append(",\"mode\":").append(quote(mode));
-        }
-        if (pingId != null) {
-            json.append(",\"pingId\":").append(quote(pingId));
-        }
-        return json.append("}}").toString();
-    }
-
-    private static String quote(String value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (IOException ex) {
-            throw new IllegalStateException("Unable to encode IF-06 text", ex);
-        }
-    }
-
-    private static JsonNode required(JsonNode root, String field) {
-        JsonNode value = root.get(field);
-        if (value == null || value.isNull()) {
-            throw new IllegalArgumentException("Missing IF-06 field: " + field);
-        }
-        return value;
-    }
-
-    private static String requiredText(JsonNode root, String field) {
-        JsonNode value = required(root, field);
-        if (!value.isTextual()) {
-            throw new IllegalArgumentException("IF-06 field is not text: " + field);
-        }
-        return value.asText();
-    }
-
-    private static String optionalText(JsonNode root, String field) {
-        JsonNode value = root.get(field);
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        if (!value.isTextual()) {
-            throw new IllegalArgumentException("IF-06 field is not text: " + field);
-        }
-        return value.asText();
-    }
-
-    private static int requiredInt(JsonNode root, String field) {
-        JsonNode value = required(root, field);
-        if (!value.isIntegralNumber() || !value.canConvertToInt()) {
-            throw new IllegalArgumentException("IF-06 field is not an integer: " + field);
-        }
-        return value.intValue();
-    }
-
-    private static long requiredLong(JsonNode root, String field) {
-        JsonNode value = required(root, field);
-        if (!value.isIntegralNumber() || !value.canConvertToLong()) {
-            throw new IllegalArgumentException("IF-06 field is not an integer: " + field);
-        }
-        return value.longValue();
-    }
-
     private static final class SystemState {
         private final String nodeId;
-        private Instant lastReceivedAt;
         private Instant lastHeartbeat;
         private long timingDataHead;
         private Integer locationId;
-        private ApiClient.TimingDataInfo lastRecord;
+        private TimingRecord lastRecord;
 
         private SystemState(String nodeId) {
             this.nodeId = nodeId;
