@@ -15,7 +15,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>21</maven.compiler.release>
     <javafx.version>21.0.10</javafx.version>
-    <jackson.version>2.21.2</jackson.version>
+    <jackson.version>2.21.5</jackson.version>
     <luaj.version>3.0.1</luaj.version>
     <bentofx.version>0.16.0</bentofx.version>
     <customcaption.version>1.0</customcaption.version>
