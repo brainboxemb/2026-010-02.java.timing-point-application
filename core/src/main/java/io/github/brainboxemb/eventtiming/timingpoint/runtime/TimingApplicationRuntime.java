@@ -54,7 +54,7 @@ public final class TimingApplicationRuntime {
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
-    private final ApplicationExitSignal shutdownSignal;
+    private final ApplicationExitSignal exitSignal;
 
     private State state = State.NEW;
 
@@ -68,7 +68,7 @@ public final class TimingApplicationRuntime {
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
-            ApplicationExitSignal shutdownSignal) {
+            ApplicationExitSignal exitSignal) {
         this.buildIdentity = buildIdentity;
         this.timingNodes = timingNodes;
         this.configuration = configuration;
@@ -78,7 +78,7 @@ public final class TimingApplicationRuntime {
         this.simulationRunner = simulationRunner;
         this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
-        this.shutdownSignal = shutdownSignal;
+        this.exitSignal = exitSignal;
     }
 
     /**
@@ -325,7 +325,7 @@ public final class TimingApplicationRuntime {
 
     public ExitRequest awaitShutdownRequest()
             throws InterruptedException {
-        return shutdownSignal.awaitRequest();
+        return exitSignal.awaitRequest();
     }
 
     public String smokeOutput() {
@@ -339,7 +339,7 @@ public final class TimingApplicationRuntime {
      * stops system components in reverse order), then Runtime-owned executors.
      */
     public synchronized void deactivate() {
-        shutdownSignal.requestStop();
+        exitSignal.requestStop();
 
         if (state != State.INACTIVE) {
             Throwable firstFailure = null;
