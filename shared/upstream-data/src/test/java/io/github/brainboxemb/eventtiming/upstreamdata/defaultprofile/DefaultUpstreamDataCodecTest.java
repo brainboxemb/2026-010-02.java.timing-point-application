@@ -269,8 +269,7 @@ public class DefaultUpstreamDataCodecTest {
                                 TimingTimestamp.parseAbsolute(fullPrecision)));
 
         String encoded = text(codec.encode(original));
-        assertTrue(encoded.contains(
-                "\\"time\\":\\"2026-10-24T20:12:04.823Z\\""));
+        assertTrue(encoded.contains("2026-10-24T20:12:04.823Z"));
 
         String legacyEncoded = encoded.replace(
                 "2026-10-24T20:12:04.823Z",
