@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the first visible Central backend mutation pane as `C|RaceData`: select an observed NodeId, send canonical RegistrationId-to-TeamId SET/DEL through the explicit Central `role=upstream` session, allocate the next retained RACE_DATA source sequence only after the connection gate passes, and show source-head versus cumulative ACK. Keep StageStartTime editing deferred until SI-02 reuses the accepted time-only/date+time UTC interpretation path.
+
 - Add the first SI-02 Central System Simulator workbench slice: keep the direct API view as `A|Systems`, add independent `C|Systems` and `C|Locations`, use the existing `ApiEventClient` for both ordinary Events and an explicitly selected full-duplex `role=upstream` ST-2 session so a normal API/Event connection never implies Central availability, decode/encode the shared typed IF-06 `UpstreamData` contract, request missing TIMING_DATA from the simulator's next sequence after SYNC, answer heartbeat PING requests, show the latest received LogBook record per observed node, derive Location OPEN/CLOSED from NODE_INFO history, and allow initial Central LocationIds through `central.locationIds`.
 
 - Extend the SI-02 Central System Simulator with per-NodeId RACE_DATA source state: allocate ordered sequence numbers, retain immutable sent changes for REQ replay across reconnect, advertise the RACE_DATA source head when SI-01 sends TIMING_DATA SYNC, consume cumulative RACE_DATA ACK, expose source/ACK heads in `C|Systems`, and clear both protocol streams only when the target Host identity changes.

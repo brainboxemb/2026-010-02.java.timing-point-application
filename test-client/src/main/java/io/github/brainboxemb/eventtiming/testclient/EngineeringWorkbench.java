@@ -59,6 +59,7 @@ final class EngineeringWorkbench {
             Node apiSystems,
             Node centralSystems,
             Node centralLocations,
+            Node centralRaceData,
             Node timingNode,
             Node apiInfo,
             Node registration,
@@ -151,7 +152,9 @@ final class EngineeringWorkbench {
                 dockable(builder, systemsLeaf,
                         new WorkbenchPanel("central-systems", "C|Systems", centralSystems)),
                 dockable(builder, systemsLeaf,
-                        new WorkbenchPanel("central-locations", "C|Locations", centralLocations)));
+                        new WorkbenchPanel("central-locations", "C|Locations", centralLocations)),
+                dockable(builder, systemsLeaf,
+                        new WorkbenchPanel("central-race-data", "C|RaceData", centralRaceData)));
 
         controls.addDockables(
                 dockable(builder, controls, new WorkbenchPanel("timing-node", "TimingNode", timingNode)),

@@ -99,6 +99,9 @@ final class CentralSystemSimulator {
             NodeId nodeId,
             List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
             List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
+        if (!connected) {
+            throw new IllegalStateException("Central upstream is not connected");
+        }
         if (nodeId == null) {
             throw new IllegalArgumentException("nodeId must not be null");
         }

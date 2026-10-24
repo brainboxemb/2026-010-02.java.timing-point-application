@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -116,7 +118,29 @@ public final class TestClientFxApplication extends Application {
                 this::setApiState,
                 clientLog);
         centralSimulator = new CentralSystemSimulator(config.centralLocationIds());
-        centralPane = new CentralPane(centralSimulator);
+        centralPane = new CentralPane(
+                centralSimulator,
+                new CentralPane.RaceDataActions() {
+                    @Override
+                    public long setTeamAssignment(
+                            String nodeId,
+                            String registrationId,
+                            String teamId) {
+                        return sendCentralTeamAssignmentSet(
+                                nodeId,
+                                registrationId,
+                                teamId);
+                    }
+
+                    @Override
+                    public long deleteTeamAssignment(
+                            String nodeId,
+                            String registrationId) {
+                        return sendCentralTeamAssignmentDelete(
+                                nodeId,
+                                registrationId);
+                    }
+                });
 
         workbench = createWorkbench(
                 deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
@@ -233,6 +257,7 @@ public final class TestClientFxApplication extends Application {
                 apiPane.systemsPane(),
                 centralPane.systemsPane(),
                 centralPane.locationsPane(),
+                centralPane.raceDataPane(),
                 apiPane.timingNodePane(),
                 apiPane.apiInfoPane(),
                 apiPane.registrationPane(),
@@ -751,6 +776,78 @@ public final class TestClientFxApplication extends Application {
         eventLog.appendText(event.rawJson());
         eventLog.appendText(System.lineSeparator());
         eventLog.positionCaret(eventLog.getLength());
+    }
+
+    private long sendCentralTeamAssignmentSet(
+            String nodeId,
+            String registrationId,
+            String teamId) {
+        requireCentralUpstreamRole();
+
+        UpstreamData.RaceData raceData =
+                centralSimulator.createRaceData(
+                        new NodeId(nodeId),
+                        java.util.List.of(
+                                DefaultUpstreamData.teamAssignmentSet(
+                                        registrationId,
+                                        teamId)),
+                        java.util.List.of());
+        return sendCentralRaceData(raceData);
+    }
+
+    private long sendCentralTeamAssignmentDelete(
+            String nodeId,
+            String registrationId) {
+        requireCentralUpstreamRole();
+
+        UpstreamData.RaceData raceData =
+                centralSimulator.createRaceData(
+                        new NodeId(nodeId),
+                        java.util.List.of(
+                                DefaultUpstreamData.teamAssignmentDelete(
+                                        registrationId)),
+                        java.util.List.of());
+        return sendCentralRaceData(raceData);
+    }
+
+    private long sendCentralRaceData(UpstreamData.RaceData raceData) {
+        try {
+            system.eventClient()
+                    .sendUpstreamData(raceData)
+                    .whenComplete((ignored, error) -> {
+                        if (error != null) {
+                            Platform.runLater(() -> {
+                                clientLog.error(
+                                        "Central RACE_DATA #"
+                                                + raceData.sequence()
+                                                + " send failed: "
+                                                + rootMessage(error));
+                                feedback.setText(
+                                        "Central RACE_DATA send failed: "
+                                                + rootMessage(error));
+                                centralPane.refresh();
+                            });
+                        }
+                    });
+        } catch (RuntimeException ex) {
+            centralPane.refresh();
+            throw ex;
+        }
+
+        centralPane.refresh();
+        clientLog.info(
+                "Central RACE_DATA #"
+                        + raceData.sequence()
+                        + " queued for node "
+                        + raceData.timingNodeId().value());
+        return raceData.sequence();
+    }
+
+    private void requireCentralUpstreamRole() {
+        if (!system.eventClient().isUpstreamRoleConnected()) {
+            throw new IllegalStateException(
+                    "Central upstream is not connected");
+        }
     }
 
     private void connectLogs() {
