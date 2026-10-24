@@ -2,17 +2,28 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
-/** Independent IF-03 API event client used by the JavaFX Development Client. */
+/**
+ * IF-03 event client used by the JavaFX Engineering Client.
+ *
+ * <p>The upstream-role session remains one WebSocket: it carries the normal IF-03 event
+ * stream and typed IF-06 UpstreamData in both directions. Semantic Central state stays in
+ * CentralSystemSimulator rather than in this transport adapter.</p>
+ */
 public final class ApiEventClient implements AutoCloseable {
     public interface Listener {
         void onConnected();
@@ -48,6 +59,14 @@ public final class ApiEventClient implements AutoCloseable {
             implements ApiEvent {
     }
 
+    public record UpstreamDataEvent(
+            String eventType,
+            Instant occurredAt,
+            UpstreamData upstreamData,
+            String rawJson)
+            implements ApiEvent {
+    }
+
     public record UnknownEvent(
             String eventType,
             Instant occurredAt,
@@ -57,11 +76,14 @@ public final class ApiEventClient implements AutoCloseable {
     }
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final UpstreamDataCodec UPSTREAM_CODEC =
+            new DefaultUpstreamDataCodec(new DefaultTimingDataCodec());
 
     private final HttpClient httpClient = ClientHttpTransport.shared();
 
     private WebSocket webSocket;
     private boolean connecting;
+    private boolean upstreamRole;
 
     public synchronized CompletableFuture<Void> connect(URI endpoint, Listener listener) {
         validateEndpoint(endpoint);
@@ -73,6 +95,7 @@ public final class ApiEventClient implements AutoCloseable {
         }
 
         connecting = true;
+        upstreamRole = isUpstreamRole(endpoint);
         ClientListener bridge = new ClientListener(listener);
         CompletableFuture<Void> result = new CompletableFuture<>();
 
@@ -83,6 +106,7 @@ public final class ApiEventClient implements AutoCloseable {
                     if (error != null) {
                         synchronized (ApiEventClient.this) {
                             connecting = false;
+                            upstreamRole = false;
                         }
                         result.completeExceptionally(error);
                         return;
@@ -102,12 +126,49 @@ public final class ApiEventClient implements AutoCloseable {
         return webSocket != null && !webSocket.isOutputClosed();
     }
 
+    /**
+     * Sends one semantic IF-06 value on the active upstream-role session.
+     *
+     * <p>Encoding belongs to the public shared UpstreamData profile; this client only owns
+     * the IF-03 WebSocket transport.</p>
+     */
+    public CompletableFuture<Void> sendUpstreamData(UpstreamData data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
+        }
+
+        final String encoded;
+        try {
+            encoded = new String(
+                    UPSTREAM_CODEC.encode(data),
+                    StandardCharsets.UTF_8);
+        } catch (UpstreamDataCodec.CodecException ex) {
+            throw new IllegalArgumentException("Could not encode UpstreamData", ex);
+        }
+
+        WebSocket current;
+        synchronized (this) {
+            if (!upstreamRole) {
+                throw new IllegalStateException(
+                        "UpstreamData requires an upstream-role IF-03 session");
+            }
+            current = webSocket;
+        }
+        if (current == null || current.isOutputClosed()) {
+            throw new IllegalStateException("IF-03 event client is not connected");
+        }
+
+        return current.sendText(encoded, true)
+                .thenApply(ignored -> (Void) null);
+    }
+
     public void disconnect() {
         WebSocket current;
         synchronized (this) {
             current = webSocket;
             webSocket = null;
             connecting = false;
+            upstreamRole = false;
         }
         if (current != null && !current.isOutputClosed()) {
             current.sendClose(WebSocket.NORMAL_CLOSURE, "client disconnect");
@@ -138,11 +199,40 @@ public final class ApiEventClient implements AutoCloseable {
                     rawJson);
         }
 
+        if ("UPSTREAM_DATA".equals(eventType)) {
+            try {
+                UpstreamData decoded = UPSTREAM_CODEC.decode(
+                        JSON.writeValueAsBytes(payload));
+                return new UpstreamDataEvent(
+                        eventType,
+                        occurredAt,
+                        decoded,
+                        rawJson);
+            } catch (UpstreamDataCodec.CodecException ex) {
+                throw new IllegalArgumentException(
+                        "Invalid UPSTREAM_DATA event payload",
+                        ex);
+            }
+        }
+
         return new UnknownEvent(
                 eventType,
                 occurredAt,
                 JSON.writeValueAsString(payload),
                 rawJson);
+    }
+
+    private static boolean isUpstreamRole(URI endpoint) {
+        String query = endpoint.getQuery();
+        if (query == null) {
+            return false;
+        }
+        for (String parameter : query.split("&")) {
+            if ("role=upstream".equals(parameter)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void validateEndpoint(URI endpoint) {
@@ -158,6 +248,7 @@ public final class ApiEventClient implements AutoCloseable {
     private synchronized void disconnected(WebSocket socket) {
         if (webSocket == socket) {
             webSocket = null;
+            upstreamRole = false;
         }
         connecting = false;
     }
