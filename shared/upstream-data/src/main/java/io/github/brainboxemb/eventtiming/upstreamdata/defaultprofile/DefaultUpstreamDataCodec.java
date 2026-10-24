@@ -47,7 +47,7 @@ public final class DefaultUpstreamDataCodec
             generator.writeNumberField("v", VERSION);
             generator.writeStringField("type", data.direction().name());
             generator.writeStringField("nodeId", data.timingNodeId().value());
-            generator.writeNumberField("seqNr", data.packetId());
+            generator.writeNumberField("pckNr", data.packetId());
             generator.writeFieldName("msg");
             writeMessage(generator, data.message());
             generator.writeEndObject();
@@ -209,7 +209,7 @@ public final class DefaultUpstreamDataCodec
             UpstreamData.Receive receive)
             throws IOException {
         generator.writeStartObject();
-        generator.writeNumberField("rcvSeqNr", receive.receivedPacketId());
+        generator.writeNumberField("rcvPckNr", receive.receivedPacketId());
         generator.writeEndObject();
     }
 
@@ -275,11 +275,11 @@ public final class DefaultUpstreamDataCodec
                         throw invalid("Duplicate nodeId", null);
                     }
                     nodeId = readString(parser, value, "nodeId");
-                } else if ("seqNr".equals(field)) {
+                } else if ("pckNr".equals(field)) {
                     if (packetId != null) {
-                        throw invalid("Duplicate seqNr", null);
+                        throw invalid("Duplicate pckNr", null);
                     }
-                    packetId = Long.valueOf(readLong(parser, value, "seqNr"));
+                    packetId = Long.valueOf(readLong(parser, value, "pckNr"));
                 } else if ("msg".equals(field)) {
                     if (message != null) {
                         throw invalid("Duplicate msg", null);
@@ -301,7 +301,7 @@ public final class DefaultUpstreamDataCodec
                     || packetId == null
                     || message == null) {
                 throw invalid(
-                        "v, type, nodeId, seqNr and msg are required",
+                        "v, type, nodeId, pckNr and msg are required",
                         null);
             }
             if (version.intValue() != VERSION) {
@@ -704,7 +704,7 @@ public final class DefaultUpstreamDataCodec
 
     private static UpstreamData.Receive decodeReceive(byte[] payload)
             throws CodecException {
-        Long packetId = readSingleLongObject(payload, "rcvSeqNr");
+        Long packetId = readSingleLongObject(payload, "rcvPckNr");
         try {
             return DefaultUpstreamData.createReceive(packetId.longValue());
         } catch (IllegalArgumentException ex) {
