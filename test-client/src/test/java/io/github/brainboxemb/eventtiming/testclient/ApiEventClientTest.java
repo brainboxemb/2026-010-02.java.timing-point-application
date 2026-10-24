@@ -13,6 +13,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ApiEventClientTest {
     @Test
+    void classifiesUpstreamRoleOnlyFromExplicitRoleParameter() {
+        assertEquals(
+                false,
+                ApiEventClient.isUpstreamRole(
+                        java.net.URI.create(
+                                "ws://127.0.0.1:8082/api/v1/events")));
+        assertEquals(
+                true,
+                ApiEventClient.isUpstreamRole(
+                        java.net.URI.create(
+                                "ws://127.0.0.1:8082/api/v1/events?role=upstream")));
+    }
+
+    @Test
     void parsesCompactStatusSnapshot() throws Exception {
         String json = "{"
                 + "\"eventType\":\"STATUS_SNAPSHOT\","
