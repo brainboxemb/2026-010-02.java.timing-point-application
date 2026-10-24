@@ -26,6 +26,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.Simulati
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
