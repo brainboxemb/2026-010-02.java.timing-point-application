@@ -79,7 +79,7 @@ final class CentralSystemSimulator {
             Instant changedAt) {
     }
 
-    private static final int MAX_MESSAGE_HISTORY = 2000;
+    private static final int MAX_MESSAGE_HISTORY = 200;
 
     private final List<Integer> configuredLocationIds;
     private final Clock clock;
