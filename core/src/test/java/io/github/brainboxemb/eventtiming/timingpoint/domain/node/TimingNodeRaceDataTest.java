@@ -242,12 +242,12 @@ public class TimingNodeRaceDataTest {
     }
 
     private static UpstreamData raceDataSet(
-            long packetId,
+            long packetNr,
             String registrationId,
             String teamId) {
         return DefaultUpstreamData.createDnPacket(
                 new NodeId("A"),
-                packetId,
+                packetNr,
                 DefaultUpstreamData.createRaceData(
                         new LocationId(1),
                         Collections.singletonList(
@@ -259,14 +259,14 @@ public class TimingNodeRaceDataTest {
 
     private static void assertReceive(
             UpstreamData packet,
-            long packetId) {
+            long packetNr) {
         assertSame(
                 UpstreamData.Family.RECV,
                 packet.family());
         assertEquals(
-                packetId,
+                packetNr,
                 ((UpstreamData.Receive) packet.message())
-                        .receivedPacketId());
+                        .receivedPacketNr());
     }
 
     private static Fixture fixture() {
