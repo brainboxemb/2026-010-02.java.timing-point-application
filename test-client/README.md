@@ -290,7 +290,7 @@ including `GET /api/v1/node/{nodeId}/logbook`,
 from and sent to nodes, including `SEQ`, `TIMING_DATA_REQ`, `RECV`, `PING`,
 `TIMING_DATA` and `RACE_DATA`. Viewer time columns use the Engineering Client host's
 local timezone while the selected raw IF-06 JSON remains unchanged UTC wire data. For
-TIMING_DATA, **Time** uses IF-05 `recTime` (the last record for a batch); **Received**
+TIMING_DATA, **Time** uses IF-05 effective `time` (the last record for a batch); **Received**
 is the separate local WebSocket receive timestamp. The Packet / position column shows the packet number
 separately from any TIMING_DATA/LogBook sequence; RACE_DATA also shows its message-level
 LocationId. The shared IF-06 profile bounds TIMING_DATA to 16 TimingRecords per message
