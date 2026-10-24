@@ -28,7 +28,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * TimingSystem-owned semantic endpoint for one node's upstream communication.
  *
- * <p>Messaging transports encoded packets only. This component owns IF-06 packet identity,
+ * <p>Messaging transports encoded packets only. This component owns IF-06 packet numbering,
  * semantic dispatch, downstream RECV state, TIMING_DATA synchronization and PING cadence.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
