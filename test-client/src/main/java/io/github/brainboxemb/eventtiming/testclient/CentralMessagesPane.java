@@ -345,7 +345,13 @@ final class CentralMessagesPane {
     static String positionText(UpstreamData data) {
         return switch (data.family()) {
             case TIMING_DATA -> timingDataPosition((UpstreamData.TimingDataTransfer) data);
-            case RACE_DATA -> "RACE_DATA #" + ((UpstreamData.RaceData) data).sequence();
+            case RACE_DATA -> {
+                UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
+                yield "RACE_DATA L"
+                        + raceData.locationId().value()
+                        + " #"
+                        + raceData.sequence();
+            }
             case SYNC -> {
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 yield sync.stream().name() + " head " + sync.sequence();
