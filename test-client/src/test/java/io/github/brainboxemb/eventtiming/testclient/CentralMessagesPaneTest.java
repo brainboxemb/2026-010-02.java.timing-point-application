@@ -30,6 +30,7 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.OUT,
                         TIME,
+                        null,
                         sync);
 
         assertTrue(CentralMessagesPane.matches(message, "ALL", "ALL", "ALL"));
@@ -52,6 +53,7 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.IN,
                         TIME,
+                        TIME.plusMillis(4),
                         ping);
 
         java.util.List<CentralMessagesPane.MessageRow> rows =
@@ -80,6 +82,7 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.IN,
                         TIME,
+                        TIME.plusMillis(4),
                         ping);
 
         java.util.List<CentralMessagesPane.MessageRow> rows =
@@ -91,6 +94,27 @@ final class CentralMessagesPaneTest {
 
         assertEquals(1, rows.size());
         assertTrue(rows.get(0).followEnd());
+    }
+
+    @Test
+    void formatsTimeCompactlyAtMillisecondPrecision() {
+        Instant precise =
+                Instant.parse("2026-10-24T14:29:46.798293700Z");
+
+        assertEquals(
+                "14:29:46.798",
+                CentralMessagesPane.formatTime(precise, false));
+        assertEquals(
+                "2026-10-24 14:29:46.798",
+                CentralMessagesPane.formatTime(precise, true));
+        assertEquals(
+                "14:29:46",
+                CentralMessagesPane.formatTime(
+                        Instant.parse("2026-10-24T14:29:46Z"),
+                        false));
+        assertEquals(
+                "—",
+                CentralMessagesPane.formatTime(null, false));
     }
 
     @Test
@@ -157,12 +181,14 @@ final class CentralMessagesPaneTest {
                         1L,
                         CentralSystemSimulator.MessageDirection.IN,
                         TIME,
+                        TIME.plusMillis(4),
                         ping);
         CentralSystemSimulator.MessageView outbound =
                 new CentralSystemSimulator.MessageView(
                         2L,
                         CentralSystemSimulator.MessageDirection.OUT,
                         TIME,
+                        TIME.plusMillis(4),
                         ping);
 
         assertEquals("IN ←", CentralMessagesPane.directionText(inbound));

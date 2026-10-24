@@ -107,10 +107,15 @@ class ApiEventClientTest {
                 + "\"occurredAt\":\"2026-10-01T12:00:02Z\","
                 + "\"payload\":{"
                 + "\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
-                + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\",\"pingId\":\"hb-1\"}"
+                + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\","
+                + "\"time\":\"2026-10-01T12:00:01.123456789Z\","
+                + "\"pingId\":\"hb-1\"}"
                 + "}}";
 
-        ApiEventClient.ApiEvent parsed = ApiEventClient.parseEvent(json);
+        Instant receivedAt =
+                Instant.parse("2026-10-01T12:00:02.250Z");
+        ApiEventClient.ApiEvent parsed =
+                ApiEventClient.parseEvent(json, receivedAt);
         ApiEventClient.UpstreamDataEvent event =
                 assertInstanceOf(ApiEventClient.UpstreamDataEvent.class, parsed);
         UpstreamData.Ping ping =
@@ -119,6 +124,10 @@ class ApiEventClientTest {
         assertEquals(UpstreamData.PingOperation.REQ, ping.operation());
         assertEquals(UpstreamData.PingMode.HB, ping.mode());
         assertEquals("hb-1", ping.pingId());
+        assertEquals(
+                Instant.parse("2026-10-01T12:00:01.123456789Z"),
+                ping.time().instant());
+        assertEquals(receivedAt, event.receivedAt());
         assertEquals("A", ping.timingNodeId().value());
     }
 

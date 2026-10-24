@@ -33,7 +33,8 @@ final class CentralSystemSimulator {
     record MessageView(
             long ordinal,
             MessageDirection direction,
-            Instant timestamp,
+            Instant messageTime,
+            Instant receivedAt,
             UpstreamData data) {
     }
 
@@ -165,18 +166,43 @@ final class CentralSystemSimulator {
         return raceData;
     }
 
-    /** Applies one semantic IF-06 value and returns any Central-side protocol replies. */
+    /**
+     * Applies one semantic IF-06 value using one timestamp for legacy/test callers.
+     *
+     * <p>Production reception supplies the distinct IF-03 event time and local receive time
+     * through the three-argument overload.</p>
+     */
     List<UpstreamData> accept(
             UpstreamData data,
             Instant receivedAt) {
+        return accept(data, receivedAt, receivedAt);
+    }
+
+    /**
+     * Applies one semantic IF-06 value and retains source/message time separately from receipt time.
+     *
+     * <p>PING carries its own semantic message time. Other families use the IF-03 event time as
+     * their message-time fallback because IF-06 defines no common message timestamp for them.</p>
+     */
+    List<UpstreamData> accept(
+            UpstreamData data,
+            Instant eventTime,
+            Instant receivedAt) {
         if (data == null) {
             throw new IllegalArgumentException("data must not be null");
+        }
+        if (eventTime == null) {
+            throw new IllegalArgumentException("eventTime must not be null");
         }
         if (receivedAt == null) {
             throw new IllegalArgumentException("receivedAt must not be null");
         }
 
-        recordMessage(MessageDirection.IN, data, receivedAt);
+        recordMessage(
+                MessageDirection.IN,
+                data,
+                messageTime(data, eventTime),
+                receivedAt);
 
         String nodeId = data.timingNodeId().value();
         NodeState node = nodes.computeIfAbsent(nodeId, NodeState::new);
@@ -214,7 +240,11 @@ final class CentralSystemSimulator {
         if (sentAt == null) {
             throw new IllegalArgumentException("sentAt must not be null");
         }
-        recordMessage(MessageDirection.OUT, data, sentAt);
+        recordMessage(
+                MessageDirection.OUT,
+                data,
+                messageTime(data, sentAt),
+                null);
     }
 
     List<MessageView> messages() {
@@ -224,16 +254,32 @@ final class CentralSystemSimulator {
     private void recordMessage(
             MessageDirection direction,
             UpstreamData data,
-            Instant timestamp) {
+            Instant messageTime,
+            Instant receivedAt) {
         messages.add(
                 new MessageView(
                         nextMessageOrdinal++,
                         direction,
-                        timestamp,
+                        messageTime,
+                        receivedAt,
                         data));
         if (messages.size() > MAX_MESSAGE_HISTORY) {
             messages.remove(0);
         }
+    }
+
+    /** Resolves the best source/message timestamp without inventing protocol semantics. */
+    private static Instant messageTime(
+            UpstreamData data,
+            Instant fallback) {
+        if (data.family() == UpstreamData.Family.PING) {
+            UpstreamData.Ping ping =
+                    (UpstreamData.Ping) data;
+            if (ping.time() != null) {
+                return ping.time().instant();
+            }
+        }
+        return fallback;
     }
 
     List<NodeView> nodes() {

@@ -746,7 +746,8 @@ public final class TestClientFxApplication extends Application {
                 for (UpstreamData reply
                         : centralSimulator.accept(
                                 upstreamEvent.upstreamData(),
-                                upstreamReceiveTime(upstreamEvent))) {
+                                upstreamEvent.occurredAt(),
+                                upstreamEvent.receivedAt())) {
                     sendUpstreamDataWithTraffic(reply)
                             .whenComplete((ignored, error) -> {
                                 if (error != null) {
@@ -860,13 +861,6 @@ public final class TestClientFxApplication extends Application {
             throw new IllegalStateException(
                     "Central upstream is not connected");
         }
-    }
-
-    private static java.time.Instant upstreamReceiveTime(
-            ApiEventClient.UpstreamDataEvent event) {
-        return event.upstreamData().family() == UpstreamData.Family.PING
-                ? java.time.Instant.now()
-                : event.occurredAt();
     }
 
     private void connectLogs() {
