@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Yi
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ScheduledExecutorService;
@@ -25,22 +26,19 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * TimingSystem-owned semantic endpoint for one node's upstream communication.
  *
- * <p>Messaging delivers encoded messages through one node-scoped {@link UpstreamStream}. This component owns the
- * {@link UpstreamDataCodec}, so semantic IF-06 types do not leak into gateway or connector code.</p>
+ * <p>Messaging delivers encoded packets through one node-scoped {@link UpstreamStream}.
+ * This component owns packet identity, the {@link UpstreamDataCodec}, downstream delivery
+ * state and TIMING_DATA/PING protocol behavior.</p>
  *
- * <p>Exactly one decoded inbound protocol operation is active per node. Later encoded messages remain queued in the
- * stream while an earlier yielding task awaits NodeService or LogBook completion.</p>
- *
- * <p>Heartbeat cadence is protocol behavior and is therefore scheduled here on the same Runtime-owned scheduler used
- * by this node's task runner. The transport connector only reports connection state; it does not know about PING.</p>
- *
- * <p>TimingSystem also binds this endpoint to the matching TimingNode's post-commit TimingData event. That event is
- * only a wake signal: live forwarding rereads the authoritative LogBook from its retained source cursor.</p>
+ * <p>Exactly one decoded inbound protocol operation is active per node. Later encoded
+ * packets remain queued in the stream while an earlier yielding task awaits NodeService
+ * or LogBook completion.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
-    private static final long HEARTBEAT_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(30L);
+    private static final long HEARTBEAT_INTERVAL_NANOS =
+            TimeUnit.SECONDS.toNanos(30L);
 
     private final NodeId nodeId;
     private final ScheduledExecutorService scheduler;
@@ -49,10 +47,12 @@ public final class NodeUpstream extends LifecycleComponent {
     private final UpstreamDataCodec codec;
     private final NodeService nodeService;
     private final Heartbeat heartbeat;
-    private final RaceDataSync raceDataSync;
+    private final DownstreamDelivery downstreamDelivery;
     private final TimingDataSync timingDataSync;
     private final TimingDataLiveTask timingDataLiveTask;
     private final UpstreamInputTask inputTask;
+
+    private long nextUpPacketId = 1L;
     private ScheduledFuture<?> heartbeatSchedule;
 
     /** Creates one node's semantic upstream protocol state and independent logical task lane. */
@@ -75,17 +75,41 @@ public final class NodeUpstream extends LifecycleComponent {
 
         this.nodeId = nodeId;
         this.scheduler = scheduler;
-        this.taskRunner = new SerialTaskRunner(TASK_QUEUE_CAPACITY, "Upstream-" + nodeId.value(), scheduler);
+        this.taskRunner =
+                new SerialTaskRunner(
+                        TASK_QUEUE_CAPACITY,
+                        "Upstream-" + nodeId.value(),
+                        scheduler);
         this.stream = stream;
         this.codec = codec;
         this.nodeService = nodeService;
-        this.heartbeat = new Heartbeat(nodeId, this::isAvailable, this::send, timeSource);
-        this.raceDataSync = new RaceDataSync(nodeId, this::isAvailable, this::send);
-        this.timingDataSync = new TimingDataSync(nodeId, this::isAvailable, this::send, logBook);
-        this.timingDataLiveTask = new TimingDataLiveTask(nodeId, this::isAvailable, timingDataSync);
-        this.inputTask = new UpstreamInputTask(nodeId, stream, this::isAvailable,
-                this::readMessage, this::createMessageTask,
-                this::cancelMessageState);
+        this.heartbeat =
+                new Heartbeat(
+                        this::isAvailable,
+                        this::sendMessage,
+                        timeSource);
+        this.downstreamDelivery =
+                new DownstreamDelivery(
+                        this::isAvailable,
+                        this::sendMessage);
+        this.timingDataSync =
+                new TimingDataSync(
+                        this::isAvailable,
+                        this::sendMessage,
+                        logBook);
+        this.timingDataLiveTask =
+                new TimingDataLiveTask(
+                        nodeId,
+                        this::isAvailable,
+                        timingDataSync);
+        this.inputTask =
+                new UpstreamInputTask(
+                        nodeId,
+                        stream,
+                        this::isAvailable,
+                        this::readPacket,
+                        this::createPacketTask,
+                        this::cancelPacketState);
     }
 
     /** Returns this node-specific protocol instance identity. */
@@ -98,12 +122,7 @@ public final class NodeUpstream extends LifecycleComponent {
         return heartbeat.status();
     }
 
-    /**
-     * Starts serial protocol execution and its periodic heartbeat cadence.
-     *
-     * <p>The first periodic tick is delayed by one full interval. A newly connected stream requests an immediate
-     * heartbeat through {@link #connectionAvailable()}.</p>
-     */
+    /** Starts serial protocol execution and its periodic heartbeat cadence. */
     @Override
     protected void onActivate() {
         taskRunner.start();
@@ -118,7 +137,7 @@ public final class NodeUpstream extends LifecycleComponent {
         inputTask.cancel();
         timingDataLiveTask.cancel();
         timingDataSync.sessionUnavailable();
-        raceDataSync.cancelApply();
+        downstreamDelivery.cancelPending();
         taskRunner.close();
     }
 
@@ -128,93 +147,139 @@ public final class NodeUpstream extends LifecycleComponent {
     }
 
     /**
-     * Encodes and sends one semantic IF-06 message.
+     * Wraps and sends one SI-01-to-Central semantic message.
      *
-     * <p>NodeUpstream validates node ownership before the encoded value crosses back into Messaging. The stream then
-     * uses its fixed application-port binding and does not route through the gateway by NodeId again.</p>
+     * <p>PING is always packetId 0 and does not consume the normal positive packet
+     * counter. Every other outbound message receives one new positive packet id for
+     * traceability; current UP_PACKET delivery does not require RECV.</p>
      */
-    void send(UpstreamData data) {
-        failIfInvalidArgument(data != null, "data must not be null");
+    void sendMessage(UpstreamData.Message message) {
+        failIfInvalidArgument(message != null, "message must not be null");
+
+        long packetId =
+                message.family() == UpstreamData.Family.PING
+                        ? 0L
+                        : nextPositiveUpPacketId();
+
+        sendPacket(
+                DefaultUpstreamData.createUpPacket(
+                        nodeId,
+                        packetId,
+                        message));
+    }
+
+    /** Encodes and sends one already composed outbound packet. */
+    private void sendPacket(UpstreamData packet) {
+        failIfInvalidArgument(packet != null, "packet must not be null");
         failIfInvalidArgument(
-                nodeId.equals(data.timingNodeId()),
+                packet.direction() == UpstreamData.Direction.UP_PACKET,
+                "NodeUpstream sends UP_PACKET only");
+        failIfInvalidArgument(
+                nodeId.equals(packet.timingNodeId()),
                 "UpstreamData NodeId does not match NodeUpstream");
 
         try {
             String encoded =
                     new String(
-                            codec.encode(data),
+                            codec.encode(packet),
                             StandardCharsets.UTF_8);
-            String summary = logSummary(data);
+            String summary = logSummary(packet);
 
             LOG.info("Upstream queued: {}", summary);
             stream.send(encoded);
             LOG.info("Upstream sent: {}", summary);
         } catch (UpstreamDataCodec.CodecException ex) {
-            throw new IllegalStateException("Could not encode UpstreamData for node " + nodeId.value(), ex);
+            throw new IllegalStateException(
+                    "Could not encode UpstreamData for node "
+                            + nodeId.value(),
+                    ex);
         }
     }
 
-    /**
-     * Builds one compact stable summary at the semantic boundary before encoded data enters Messaging.
-     *
-     * <p>TIMING_DATA is summarized at the actual message/batch boundary, never once per contained record.</p>
-     */
-    private static String logSummary(UpstreamData data) {
-        String prefix =
-                "node=" + data.timingNodeId().value()
-                        + ", type=" + data.family().name();
+    /** Allocates one positive UP_PACKET id without changing PING packet identity. */
+    private long nextPositiveUpPacketId() {
+        if (nextUpPacketId <= 0L) {
+            throw new IllegalStateException(
+                    "UP_PACKET id space exhausted for node "
+                            + nodeId.value());
+        }
 
-        switch (data.family()) {
+        long result = nextUpPacketId;
+        nextUpPacketId =
+                result == Long.MAX_VALUE
+                        ? 0L
+                        : result + 1L;
+        return result;
+    }
+
+    /** Builds one compact stable summary at the semantic packet boundary. */
+    private static String logSummary(UpstreamData packet) {
+        String prefix =
+                "node=" + packet.timingNodeId().value()
+                        + ", dir=" + packet.direction().name()
+                        + ", packet=" + packet.packetId()
+                        + ", type=" + packet.family().name();
+
+        switch (packet.family()) {
             case TIMING_DATA:
                 UpstreamData.TimingDataTransfer timingData =
-                        (UpstreamData.TimingDataTransfer) data;
+                        (UpstreamData.TimingDataTransfer) packet.message();
                 int recordCount = timingData.records().size();
                 long firstSequence =
                         timingData.records().get(0).sequenceNumber();
                 long lastSequence =
-                        timingData.records().get(recordCount - 1).sequenceNumber();
+                        timingData.records()
+                                .get(recordCount - 1)
+                                .sequenceNumber();
                 return prefix
                         + ", seq=" + firstSequence + ".." + lastSequence
                         + ", records=" + recordCount;
 
             case RACE_DATA:
                 UpstreamData.RaceData raceData =
-                        (UpstreamData.RaceData) data;
+                        (UpstreamData.RaceData) packet.message();
                 return prefix
-                        + ", seq=" + raceData.sequence()
                         + ", location=" + raceData.locationId().value()
                         + ", changes="
                         + (raceData.teamAssignmentChanges().size()
                                 + raceData.stageStartTimeChanges().size());
 
-            case SYNC:
-                UpstreamData.Sync sync =
-                        (UpstreamData.Sync) data;
+            case TIMING_DATA_REQ:
+                UpstreamData.TimingDataRequest request =
+                        (UpstreamData.TimingDataRequest) packet.message();
                 return prefix
-                        + ", stream=" + sync.stream().name()
-                        + ", seq=" + sync.sequence();
-
-            case REQ:
-                UpstreamData.Req request =
-                        (UpstreamData.Req) data;
-                return prefix
-                        + ", stream=" + request.stream().name()
                         + ", fromSeq=" + request.fromSequence();
 
-            case ACK:
-                UpstreamData.Ack ack =
-                        (UpstreamData.Ack) data;
+            case SEQ:
+                UpstreamData.Sequence sequence =
+                        (UpstreamData.Sequence) packet.message();
                 return prefix
-                        + ", stream=" + ack.stream().name()
-                        + ", seq=" + ack.sequence();
+                        + ", op=" + sequence.operation().name()
+                        + ", seq="
+                        + (sequence.sequence() == null
+                                ? "-"
+                                : sequence.sequence());
+
+            case RECV:
+                UpstreamData.Receive receive =
+                        (UpstreamData.Receive) packet.message();
+                return prefix
+                        + ", receivedPacket="
+                        + receive.receivedPacketId();
 
             case PING:
                 UpstreamData.Ping ping =
-                        (UpstreamData.Ping) data;
+                        (UpstreamData.Ping) packet.message();
                 return prefix
                         + ", op=" + ping.operation().name()
-                        + ", mode=" + (ping.mode() == null ? "-" : ping.mode().name())
-                        + ", pingId=" + (ping.pingId() == null ? "-" : ping.pingId());
+                        + ", mode="
+                        + (ping.mode() == null
+                                ? "-"
+                                : ping.mode().name())
+                        + ", pingId="
+                        + (ping.pingId() == null
+                                ? "-"
+                                : ping.pingId());
 
             default:
                 return prefix;
@@ -222,53 +287,69 @@ public final class NodeUpstream extends LifecycleComponent {
     }
 
     /**
-     * Creates one focused task for one inbound semantic message.
+     * Creates one focused task for one inbound packet.
      *
-     * <p>Message order is preserved by admitting the next stream value only after the returned task completes.</p>
+     * <p>Normal positive DN_PACKET messages all pass through DownstreamDelivery. PING
+     * deliberately bypasses that state and therefore never produces RECV.</p>
      */
-    private YieldingTask createMessageTask(UpstreamData data) {
+    private YieldingTask createPacketTask(UpstreamData packet) {
         failIfInvalidArgument(
-                nodeId.equals(data.timingNodeId()),
+                nodeId.equals(packet.timingNodeId()),
                 "UpstreamData NodeId does not match node-scoped stream");
+        failIfInvalidArgument(
+                packet.direction() == UpstreamData.Direction.DN_PACKET,
+                "NodeUpstream accepts DN_PACKET only");
 
-        switch (data.family()) {
+        switch (packet.family()) {
             case RACE_DATA:
                 return new RaceDataTask(
                         this::isAvailable,
-                        raceDataSync,
+                        downstreamDelivery,
                         nodeService,
-                        (UpstreamData.RaceData) data);
+                        packet,
+                        (UpstreamData.RaceData) packet.message());
 
-            case REQ:
+            case TIMING_DATA_REQ:
                 return new TimingDataReplayTask(
                         this::isAvailable,
+                        downstreamDelivery,
                         timingDataSync,
-                        (UpstreamData.Req) data,
+                        packet,
+                        (UpstreamData.TimingDataRequest) packet.message(),
                         this::wakeLiveTimingData);
 
-            case SYNC:
-                return oneStepTask(() -> raceDataSync.handleSync((UpstreamData.Sync) data));
+            case SEQ:
+                return normalPacketTask(
+                        packet,
+                        () -> timingDataSync.handleSequence(
+                                (UpstreamData.Sequence) packet.message()));
 
             case PING:
-                return oneStepTask(() -> heartbeat.handle((UpstreamData.Ping) data));
+                return oneStepTask(
+                        () -> heartbeat.handle(
+                                (UpstreamData.Ping) packet.message()));
 
             default:
                 throw new UnsupportedOperationException(
-                        "Inbound UpstreamData family is not implemented by NodeUpstream: " + data.family());
+                        "Inbound UpstreamData family is not implemented by NodeUpstream: "
+                                + packet.family());
         }
     }
 
-    /** Decodes exactly one queued stream value at the semantic boundary owned by NodeUpstream. */
-    private UpstreamData readMessage() {
+    /** Decodes exactly one queued packet at the semantic boundary owned by NodeUpstream. */
+    private UpstreamData readPacket() {
         String encoded = stream.read();
         try {
-            UpstreamData data =
+            UpstreamData packet =
                     codec.decode(
                             encoded.getBytes(StandardCharsets.UTF_8));
-            LOG.info("Upstream received: {}", logSummary(data));
-            return data;
+            LOG.info("Upstream received: {}", logSummary(packet));
+            return packet;
         } catch (UpstreamDataCodec.CodecException ex) {
-            throw new IllegalArgumentException("Invalid UpstreamData for node " + nodeId.value(), ex);
+            throw new IllegalArgumentException(
+                    "Invalid UpstreamData for node "
+                            + nodeId.value(),
+                    ex);
         }
     }
 
@@ -282,6 +363,27 @@ public final class NodeUpstream extends LifecycleComponent {
         };
     }
 
+    /** Wraps one synchronous normal DN_PACKET operation with generic RECV handling. */
+    private YieldingTask normalPacketTask(
+            UpstreamData packet,
+            Runnable operation) {
+        return () -> {
+            if (!isAvailable()
+                    || !downstreamDelivery.begin(packet)) {
+                return TaskStep.done();
+            }
+
+            try {
+                operation.run();
+                downstreamDelivery.complete(packet.packetId());
+            } catch (RuntimeException ex) {
+                downstreamDelivery.cancelPending();
+                throw ex;
+            }
+            return TaskStep.done();
+        };
+    }
+
     /** Wakes the task that owns stream consumption and message continuation. */
     private void wakeQueuedInput() {
         if (isAvailable() && stream.hasMessage()) {
@@ -289,21 +391,20 @@ public final class NodeUpstream extends LifecycleComponent {
         }
     }
 
-    /** Clears protocol continuation state after one failed inbound operation. */
-    private void cancelMessageState() {
+    /** Clears packet-specific continuation state after one failed inbound operation. */
+    private void cancelPacketState() {
         timingDataSync.cancelReplay();
-        raceDataSync.cancelApply();
+        downstreamDelivery.cancelPending();
     }
 
     /**
      * Handles a connection fact from the stream paired with this NodeUpstream by TimingSystem.
      *
-     * <p>The source identity is deliberately not part of this API. TimingSystem owns the fixed
-     * stream-to-node binding, so this component only receives the semantic fact that its upstream
-     * connection became available.</p>
+     * <p>A fresh connection starts a new TIMING_DATA position handoff. Downstream packet
+     * position itself is retained across a transport reconnect of this runtime.</p>
      */
     public void connectionAvailable() {
-        queueTimingDataSync();
+        queueTimingDataSequenceNotification();
         queueHeartbeat();
         wakeQueuedInput();
     }
@@ -311,47 +412,38 @@ public final class NodeUpstream extends LifecycleComponent {
     /**
      * Handles the end of the transport session paired with this NodeUpstream by TimingSystem.
      *
-     * <p>Unread stream input is already cleared by UpstreamStream. Cancelling semantic continuations
-     * here prevents replay or live output from an ended session from resuming after reconnect.</p>
+     * <p>An already-running semantic apply is not cancelled merely because the socket disappeared.
+     * Its packet position must still advance if the domain operation succeeds, so a resend after
+     * reconnect cannot apply the same change twice.</p>
      */
     public void connectionUnavailable() {
-        inputTask.cancel();
         timingDataLiveTask.cancel();
         timingDataSync.sessionUnavailable();
-        raceDataSync.cancelApply();
     }
 
     /**
      * Handles a post-commit TimingData wake from the TimingNode paired by TimingSystem.
      *
      * <p>The event payload is deliberately not copied into an outbound queue. The live task reads
-     * the authoritative LogBook by source sequence after the SYNC/REQ handoff has completed.</p>
+     * the authoritative LogBook by source sequence after the SEQ/TIMING_DATA_REQ handoff completes.</p>
      */
     public void timingDataChanged() {
         wakeLiveTimingData();
     }
 
-    /**
-     * Handles a data-available fact from the stream paired with this NodeUpstream by TimingSystem.
-     *
-     * <p>The stream already owns the queued encoded data. This input only wakes semantic admission.</p>
-     */
+    /** Handles a data-available fact from the stream paired with this NodeUpstream. */
     public void inputAvailable() {
         wakeQueuedInput();
     }
 
-    /**
-     * Schedules periodic protocol heartbeat requests independently of any concrete transport implementation.
-     *
-     * <p>The scheduler callback only admits a short task-lane operation. Heartbeat mutable state therefore remains
-     * serialized with the other NodeUpstream protocol state.</p>
-     */
+    /** Schedules periodic protocol heartbeat requests independently of transport implementation. */
     private void startHeartbeatSchedule() {
-        heartbeatSchedule = scheduler.scheduleAtFixedRate(
-                this::queueHeartbeat,
-                HEARTBEAT_INTERVAL_NANOS,
-                HEARTBEAT_INTERVAL_NANOS,
-                TimeUnit.NANOSECONDS);
+        heartbeatSchedule =
+                scheduler.scheduleAtFixedRate(
+                        this::queueHeartbeat,
+                        HEARTBEAT_INTERVAL_NANOS,
+                        HEARTBEAT_INTERVAL_NANOS,
+                        TimeUnit.NANOSECONDS);
     }
 
     /** Stops periodic heartbeat admission before the task lane itself is closed. */
@@ -366,7 +458,9 @@ public final class NodeUpstream extends LifecycleComponent {
     /** Queues one heartbeat protocol turn only while this component and transport are operational. */
     private void queueHeartbeat() {
         if (isAvailable()) {
-            taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick");
+            taskRunner.executeOrWarn(
+                    heartbeat::tick,
+                    "heartbeat tick");
         }
     }
 
@@ -377,9 +471,10 @@ public final class NodeUpstream extends LifecycleComponent {
         }
     }
 
-    /** Queues the current TIMING_DATA source-head advertisement on this node's task lane. */
-    private void queueTimingDataSync() {
-        taskRunner.executeOrWarn(timingDataSync::sendSourceHead, "TIMING_DATA SYNC");
+    /** Queues the current TIMING_DATA position notification on this node's task lane. */
+    private void queueTimingDataSequenceNotification() {
+        taskRunner.executeOrWarn(
+                timingDataSync::sendSourceHeadNotification,
+                "TIMING_DATA SEQ NTF");
     }
-
 }
