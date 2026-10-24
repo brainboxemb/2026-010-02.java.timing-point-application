@@ -40,12 +40,14 @@ final class EventTrafficPaneTest {
 
     @Test
     void upstreamEventUsesSemanticFamilyAsTrafficType() {
-        UpstreamData.Ping ping =
-                DefaultUpstreamData.ping(
+        UpstreamData ping =
+                DefaultUpstreamData.createUpPacket(
                         new NodeId("A"),
-                        UpstreamData.PingOperation.REQ,
-                        UpstreamData.PingMode.HB,
-                        "hb-1");
+                        0L,
+                        DefaultUpstreamData.createPing(
+                                UpstreamData.PingOperation.REQ,
+                                UpstreamData.PingMode.HB,
+                                "hb-1"));
         ApiEventClient.UpstreamDataEvent event =
                 new ApiEventClient.UpstreamDataEvent(
                         "UPSTREAM_DATA",
@@ -71,12 +73,14 @@ final class EventTrafficPaneTest {
 
     @Test
     void outboundEncodingIsExactSharedUpstreamJsonWithoutEventEnvelope() {
-        UpstreamData.Ping ping =
-                DefaultUpstreamData.ping(
+        UpstreamData ping =
+                DefaultUpstreamData.createDnPacket(
                         new NodeId("A"),
-                        UpstreamData.PingOperation.ANS,
-                        UpstreamData.PingMode.HB,
-                        "hb-7");
+                        0L,
+                        DefaultUpstreamData.createPing(
+                                UpstreamData.PingOperation.ANS,
+                                UpstreamData.PingMode.HB,
+                                "hb-7"));
 
         String raw = ApiEventClient.encodeUpstreamData(ping);
 
