@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.nod
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -22,6 +23,7 @@ final class DownstreamDelivery {
     private final Consumer<UpstreamData.Message> sender;
 
     private long lastProcessedPacketId;
+    private UpstreamData lastProcessedPacket;
     private long processingPacketId;
 
     DownstreamDelivery(
@@ -59,7 +61,15 @@ final class DownstreamDelivery {
                 processingPacketId);
 
         long receivedPacketId = packet.packetId();
-        if (receivedPacketId <= lastProcessedPacketId) {
+        if (receivedPacketId < lastProcessedPacketId) {
+            sendReceivePosition();
+            return false;
+        }
+
+        if (receivedPacketId == lastProcessedPacketId) {
+            failIfInvalidArgument(
+                    samePacket(lastProcessedPacket, packet),
+                    "DN_PACKET packetId reused with different semantic content");
             sendReceivePosition();
             return false;
         }
@@ -75,12 +85,14 @@ final class DownstreamDelivery {
     }
 
     /** Commits one successfully processed downstream packet and emits RECV when possible. */
-    synchronized void complete(long packetId) {
+    synchronized void complete(UpstreamData packet) {
+        failIfInvalidArgument(packet != null, "packet must not be null");
         failIfIllegalState(
-                processingPacketId == packetId,
+                processingPacketId == packet.packetId(),
                 "DN_PACKET completion does not match pending packet");
 
-        lastProcessedPacketId = packetId;
+        lastProcessedPacketId = packet.packetId();
+        lastProcessedPacket = packet;
         processingPacketId = 0L;
         sendReceivePosition();
     }
@@ -102,6 +114,56 @@ final class DownstreamDelivery {
     synchronized void requestFullStateIfUninitialized() {
         if (lastProcessedPacketId == 0L) {
             sendReceivePosition();
+        }
+    }
+
+    /** Compares the retained duplicate boundary without keeping a packet history. */
+    private static boolean samePacket(
+            UpstreamData first,
+            UpstreamData second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null
+                || second == null
+                || first.direction() != second.direction()
+                || !first.timingNodeId().equals(second.timingNodeId())
+                || first.packetId() != second.packetId()
+                || first.family() != second.family()) {
+            return false;
+        }
+
+        switch (first.family()) {
+            case RACE_DATA:
+                UpstreamData.RaceData firstRace =
+                        (UpstreamData.RaceData) first.message();
+                UpstreamData.RaceData secondRace =
+                        (UpstreamData.RaceData) second.message();
+                return firstRace.locationId().equals(secondRace.locationId())
+                        && firstRace.teamAssignmentChanges()
+                                .equals(secondRace.teamAssignmentChanges())
+                        && firstRace.stageStartTimeChanges()
+                                .equals(secondRace.stageStartTimeChanges());
+
+            case TIMING_DATA_REQ:
+                return ((UpstreamData.TimingDataRequest) first.message())
+                                .fromSequence()
+                        == ((UpstreamData.TimingDataRequest) second.message())
+                                .fromSequence();
+
+            case SEQ:
+                UpstreamData.Sequence firstSequence =
+                        (UpstreamData.Sequence) first.message();
+                UpstreamData.Sequence secondSequence =
+                        (UpstreamData.Sequence) second.message();
+                return firstSequence.operation()
+                                == secondSequence.operation()
+                        && Objects.equals(
+                                firstSequence.sequence(),
+                                secondSequence.sequence());
+
+            default:
+                return false;
         }
     }
 
