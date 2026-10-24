@@ -1338,6 +1338,7 @@ final class TimingPane {
                         TimingViewModel.InterpretedRegistration::code);
         TableColumn<TimingViewModel.InterpretedRegistration, Void> action =
                 new TableColumn<>("");
+        action.setGraphic(followEndHeader(registrationFollow));
 
         registration.setPrefWidth(125);
         team.setPrefWidth(95);
@@ -1441,6 +1442,9 @@ final class TimingPane {
         TableColumn<ApiClient.TimingDataInfo, String> recorded = column(
                 "Recorded",
                 ApiClient.TimingDataInfo::recordedAt);
+        TableColumn<ApiClient.TimingDataInfo, Void> end =
+                new TableColumn<>("");
+        end.setGraphic(followEndHeader(logBookFollow));
 
         seq.setPrefWidth(65);
         type.setPrefWidth(95);
@@ -1449,7 +1453,11 @@ final class TimingPane {
         reg.setPrefWidth(130);
         effective.setPrefWidth(235);
         recorded.setPrefWidth(235);
-        logBook.getColumns().setAll(seq, type, code, loc, reg, effective, recorded);
+        end.setMinWidth(44);
+        end.setPrefWidth(44);
+        end.setMaxWidth(44);
+        end.setResizable(false);
+        logBook.getColumns().setAll(seq, type, code, loc, reg, effective, recorded, end);
         logBook.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         logBook.setPlaceholder(new Label("No committed records"));
         logBook.getSelectionModel().selectedItemProperty().addListener(
@@ -1485,6 +1493,13 @@ final class TimingPane {
         }
         manualTimeSource = "MAN";
         manualReg.setText("Add manual [MAN]");
+    }
+
+    private static Label followEndHeader(FollowLatestTable<?> follow) {
+        Label label = new Label("End");
+        label.setTooltip(new Tooltip("Follow new rows at the end"));
+        label.setOnMouseClicked(event -> follow.followEnd());
+        return label;
     }
 
     private static TableColumn<ApiClient.TimingDataInfo, String> column(
