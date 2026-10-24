@@ -126,6 +126,13 @@ public final class ApiEventClient implements AutoCloseable {
         return webSocket != null && !webSocket.isOutputClosed();
     }
 
+    /** Returns whether the active IF-03 event session has the explicit upstream role. */
+    public synchronized boolean isUpstreamRoleConnected() {
+        return webSocket != null
+                && !webSocket.isOutputClosed()
+                && upstreamRole;
+    }
+
     /**
      * Sends one semantic IF-06 value on the active upstream-role session.
      *
