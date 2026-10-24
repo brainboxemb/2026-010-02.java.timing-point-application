@@ -40,6 +40,11 @@ public final class TimingApplicationRuntime {
         INACTIVE
     }
 
+    public enum ExitRequest {
+        STOP,
+        RESTART
+    }
+
     private final BuildIdentity buildIdentity;
     private final TimingNodeList timingNodes;
     private final ApplicationConfiguration configuration;
@@ -318,9 +323,9 @@ public final class TimingApplicationRuntime {
         return state;
     }
 
-    public void awaitShutdownRequest()
+    public ExitRequest awaitShutdownRequest()
             throws InterruptedException {
-        shutdownSignal.awaitRequest();
+        return shutdownSignal.awaitRequest();
     }
 
     public String smokeOutput() {
@@ -334,7 +339,7 @@ public final class TimingApplicationRuntime {
      * stops system components in reverse order), then Runtime-owned executors.
      */
     public synchronized void deactivate() {
-        shutdownSignal.request();
+        shutdownSignal.requestStop();
 
         if (state != State.INACTIVE) {
             Throwable firstFailure = null;
