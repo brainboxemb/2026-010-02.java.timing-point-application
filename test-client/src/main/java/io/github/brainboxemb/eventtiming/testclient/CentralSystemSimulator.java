@@ -22,7 +22,7 @@ import java.util.Map;
  * ordered source per NodeId.</p>
  */
 final class CentralSystemSimulator {
-    record SystemView(
+    record NodeView(
             String nodeId,
             boolean connected,
             Instant lastHeartbeat,
@@ -43,7 +43,7 @@ final class CentralSystemSimulator {
     }
 
     private final List<Integer> configuredLocationIds;
-    private final Map<String, SystemState> systems = new LinkedHashMap<>();
+    private final Map<String, NodeState> nodes = new LinkedHashMap<>();
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
     private boolean connected;
 
@@ -73,7 +73,7 @@ final class CentralSystemSimulator {
      */
     void resetTargetState() {
         connected = false;
-        systems.clear();
+        nodes.clear();
         locations.clear();
         restoreConfiguredLocations();
     }
@@ -110,10 +110,10 @@ final class CentralSystemSimulator {
             throw new IllegalArgumentException("RACE_DATA change lists must not be null");
         }
 
-        SystemState system =
-                systems.computeIfAbsent(
+        NodeState system =
+                nodes.computeIfAbsent(
                         nodeId.value(),
-                        ignored -> new SystemState(nodeId.value()));
+                        ignored -> new NodeState(nodeId.value()));
 
         long sequence = system.raceDataHead + 1L;
         UpstreamData.RaceData raceData =
@@ -140,7 +140,7 @@ final class CentralSystemSimulator {
         }
 
         String nodeId = data.timingNodeId().value();
-        SystemState system = systems.computeIfAbsent(nodeId, SystemState::new);
+        NodeState system = nodes.computeIfAbsent(nodeId, NodeState::new);
 
         return switch (data.family()) {
             case PING -> handlePing(system, (UpstreamData.Ping) data, receivedAt);
@@ -161,10 +161,10 @@ final class CentralSystemSimulator {
         };
     }
 
-    List<SystemView> systems() {
-        List<SystemView> result = new ArrayList<>(systems.size());
-        for (SystemState state : systems.values()) {
-            result.add(new SystemView(
+    List<NodeView> nodes() {
+        List<NodeView> result = new ArrayList<>(nodes.size());
+        for (NodeState state : nodes.values()) {
+            result.add(new NodeView(
                     state.nodeId,
                     connected,
                     state.lastHeartbeat,
@@ -192,7 +192,7 @@ final class CentralSystemSimulator {
     }
 
     private List<UpstreamData> handlePing(
-            SystemState system,
+            NodeState system,
             UpstreamData.Ping ping,
             Instant receivedAt) {
         if (ping.operation() == UpstreamData.PingOperation.REQ) {
@@ -214,7 +214,7 @@ final class CentralSystemSimulator {
      * with its own independent source head and requests any missing TimingData suffix.</p>
      */
     private List<UpstreamData> handleSync(
-            SystemState system,
+            NodeState system,
             UpstreamData.Sync sync) {
         if (sync.stream() != UpstreamData.Stream.TIMING_DATA) {
             throw new UnsupportedOperationException(
@@ -247,7 +247,7 @@ final class CentralSystemSimulator {
 
     /** Replays retained Central-owned RACE_DATA from the requested inclusive sequence. */
     private List<UpstreamData> handleReq(
-            SystemState system,
+            NodeState system,
             UpstreamData.Req request) {
         if (request.stream() != UpstreamData.Stream.RACE_DATA) {
             throw new UnsupportedOperationException(
@@ -279,7 +279,7 @@ final class CentralSystemSimulator {
 
     /** Applies one cumulative RACE_DATA acknowledgement from SI-01. */
     private void handleAck(
-            SystemState system,
+            NodeState system,
             UpstreamData.Ack acknowledgement) {
         if (acknowledgement.stream() != UpstreamData.Stream.RACE_DATA) {
             throw new UnsupportedOperationException(
@@ -300,7 +300,7 @@ final class CentralSystemSimulator {
     }
 
     private void handleTimingData(
-            SystemState system,
+            NodeState system,
             UpstreamData.TimingDataTransfer transfer,
             Instant receivedAt) {
         for (TimingRecord record : transfer.records()) {
@@ -325,7 +325,7 @@ final class CentralSystemSimulator {
     }
 
     private void applyLifecycle(
-            SystemState system,
+            NodeState system,
             TimingRecord record,
             Instant receivedAt) {
         if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
@@ -368,7 +368,7 @@ final class CentralSystemSimulator {
      * NODE_CLOSE record was emitted between both OPEN records.</p>
      */
     private void closePreviousLocationOnMove(
-            SystemState system,
+            NodeState system,
             int nextLocationId,
             long sequence,
             Instant changedAt) {
@@ -400,7 +400,7 @@ final class CentralSystemSimulator {
         }
     }
 
-    private static final class SystemState {
+    private static final class NodeState {
         private final String nodeId;
         private final Map<Long, UpstreamData.RaceData> raceDataHistory =
                 new LinkedHashMap<>();
@@ -412,7 +412,7 @@ final class CentralSystemSimulator {
         private Integer locationId;
         private TimingRecord lastRecord;
 
-        private SystemState(String nodeId) {
+        private NodeState(String nodeId) {
             this.nodeId = nodeId;
         }
     }
