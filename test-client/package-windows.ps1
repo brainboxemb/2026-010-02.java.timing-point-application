@@ -35,6 +35,17 @@ $OutputDir = if ([string]::IsNullOrWhiteSpace($Destination)) {
 
 Push-Location $RepoRoot
 try {
+    $sharedArgs = @(
+        "-pl", "shared/upstream-data",
+        "-am",
+        "-DskipTests",
+        "install"
+    )
+    & $Maven @sharedArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to install shared Event Timing contracts."
+    }
+
     $packageArgs = @(
         "-f", "test-client\pom.xml",
         "-DeventTiming.buildOrigin=local",
