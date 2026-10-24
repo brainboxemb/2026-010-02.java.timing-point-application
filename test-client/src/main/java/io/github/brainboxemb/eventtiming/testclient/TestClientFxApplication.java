@@ -1043,7 +1043,7 @@ public final class TestClientFxApplication extends Application {
             setLogConnected(false, "CONNECT");
             setApiState("CHECK");
             apiPane.setSystemHost(system.host());
-                apiPane.disconnected(true);
+            apiPane.disconnected(true);
             feedback.setText("Target changed to " + system.host());
             clientLog.info("Engineering Client target changed to " + system.host());
             return true;
