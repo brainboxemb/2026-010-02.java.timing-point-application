@@ -37,7 +37,7 @@ public class NodeUpstreamLogSummaryTest {
                                 Collections.singletonList(record)));
 
         assertEquals(
-                "node=A, packetId=80, type=TIMING_DATA, seq=1190, "
+                "node=A, packetNr=80, type=TIMING_DATA, seq=1190, "
                         + "recType=AUTO_REG, loc=2, regId=A0001, code=ADD",
                 NodeUpstream.logSummary(packet));
     }
@@ -62,7 +62,7 @@ public class NodeUpstreamLogSummaryTest {
                                 Collections.singletonList(record)));
 
         assertEquals(
-                "node=A, packetId=81, type=TIMING_DATA, seq=1191, "
+                "node=A, packetNr=81, type=TIMING_DATA, seq=1191, "
                         + "recType=MAN_REG, loc=2, regId=A0002, code=REV,MAN",
                 NodeUpstream.logSummary(packet));
     }
@@ -83,7 +83,7 @@ public class NodeUpstreamLogSummaryTest {
                                 Arrays.asList(first, second)));
 
         assertEquals(
-                "node=A, packetId=82, type=TIMING_DATA, seq=1192..1193, records=2",
+                "node=A, packetNr=82, type=TIMING_DATA, seq=1192..1193, records=2",
                 NodeUpstream.logSummary(packet));
     }
 }
