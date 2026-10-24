@@ -79,7 +79,8 @@ final class CentralSystemSimulator {
             Instant changedAt) {
     }
 
-    private static final int MAX_MESSAGE_HISTORY = 200;
+    /** Bounded model-side diagnostic history; TableView rendering is virtualized separately. */
+    private static final int MAX_MESSAGE_HISTORY = 10_000;
 
     private final List<Integer> configuredLocationIds;
     private final Clock clock;
