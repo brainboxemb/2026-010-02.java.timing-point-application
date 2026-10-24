@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -14,12 +16,13 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
 import java.time.Instant;
 import java.util.List;
 
 /** JavaFX projections and operator controls for the Central System Simulator state. */
-final class CentralPane {
+final class CentralPane implements AutoCloseable {
     interface RaceDataActions {
         long setTeamAssignment(String nodeId, String registrationId, String teamId);
 
@@ -42,6 +45,7 @@ final class CentralPane {
     private final VBox nodesPane;
     private final VBox locationsPane;
     private final VBox raceDataPane;
+    private final Timeline heartbeatAgeRefresh;
 
     CentralPane(
             CentralSystemSimulator simulator,
@@ -67,6 +71,12 @@ final class CentralPane {
         raceDataPane = createRaceDataPane();
         VBox.setVgrow(nodes, Priority.ALWAYS);
         VBox.setVgrow(locations, Priority.ALWAYS);
+
+        heartbeatAgeRefresh = new Timeline(
+                new KeyFrame(Duration.seconds(10), event -> nodes.refresh()));
+        heartbeatAgeRefresh.setCycleCount(Timeline.INDEFINITE);
+        heartbeatAgeRefresh.play();
+
         refresh();
     }
 
@@ -112,7 +122,7 @@ final class CentralPane {
                     CentralSystemSimulator.NodeView value,
                     boolean empty) {
                 super.updateItem(value, empty);
-                setText(empty || value == null ? null : compactNodeText(value));
+                setText(empty || value == null ? null : compactNodeText(value, Instant.now()));
                 refreshTooltip();
             }
 
@@ -141,14 +151,37 @@ final class CentralPane {
         });
     }
 
-    static String compactNodeText(CentralSystemSimulator.NodeView node) {
+    static String compactNodeText(
+            CentralSystemSimulator.NodeView node,
+            Instant now) {
+        if (node == null) {
+            throw new IllegalArgumentException("node must not be null");
+        }
+        if (now == null) {
+            throw new IllegalArgumentException("now must not be null");
+        }
+
         StringBuilder text = new StringBuilder(node.nodeId())
                 .append(" · ")
                 .append(node.lifecycleState());
         if (node.locationId() != null) {
             text.append(" · Location ").append(node.locationId());
         }
+        text.append(" · ").append(heartbeatAgeText(node.lastHeartbeat(), now));
         return text.toString();
+    }
+
+    static String heartbeatAgeText(Instant lastHeartbeat, Instant now) {
+        if (now == null) {
+            throw new IllegalArgumentException("now must not be null");
+        }
+        if (lastHeartbeat == null) {
+            return "H ---";
+        }
+
+        long ageSeconds = java.time.Duration.between(lastHeartbeat, now).getSeconds();
+        ageSeconds = Math.max(0L, Math.min(999L, ageSeconds));
+        return "H -" + ageSeconds + "s";
     }
 
     static String nodeDetailText(CentralSystemSimulator.NodeView node) {
@@ -308,5 +341,10 @@ final class CentralPane {
 
     private static String instant(Instant value) {
         return value == null ? "—" : value.toString();
+    }
+
+    @Override
+    public void close() {
+        heartbeatAgeRefresh.stop();
     }
 }
