@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restructure the left Engineering Client explorer into two vertically stacked sections: **System** above and **Central** below, with Central containing **Nodes** and **Locations** tabs. Remove the older `A|Systems` / `C|Nodes` / `C|Locations` prefixes while keeping the underlying views unchanged.
+
 - Improve Central Messages batch inspection: keep the retained IF-06 payload unchanged, but present multi-record TIMING_DATA detail with one compact TimingRecord per line; single-record and non-TIMING_DATA detail remain unchanged.
 
 - Add a reconstructed Central LogBook viewer independent from the bounded Central Messages journal: retain every accepted contiguous inbound TimingRecord once across reconnect, clear it on target reset, show one row per record with the same IF-05 Type/Code/Location/Registration/time semantics as the existing LogBook, support Node filtering and follow-end, and expose canonical IF-05 JSON for selected records.

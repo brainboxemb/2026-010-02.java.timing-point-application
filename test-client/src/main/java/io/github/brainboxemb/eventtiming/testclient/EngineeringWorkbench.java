@@ -91,6 +91,10 @@ final class EngineeringWorkbench {
                 simulation,
                 scripts);
         Node centralControls = createCentralControls(centralRaceData);
+        Node centralExplorer =
+                createCentralExplorer(
+                        centralNodes,
+                        centralLocations);
         Node nodeViewerContent = createNodeViewer(
                 registrations,
                 logBook,
@@ -107,7 +111,9 @@ final class EngineeringWorkbench {
 
         DockContainerBranch leftColumn = builder.branch("left-column");
         DockContainerBranch leftTop = builder.branch("left-top");
-        DockContainerLeaf explorerLeaf = builder.leaf("explorer");
+        DockContainerBranch explorerBranch = builder.branch("explorer");
+        DockContainerLeaf systemLeaf = builder.leaf("explorer-system");
+        DockContainerLeaf centralLeaf = builder.leaf("explorer-central");
         DockContainerLeaf controlsLeaf = builder.leaf("controls");
         DockContainerLeaf deviceLogLeaf = builder.leaf("device-log");
         DockContainerLeaf terminalLeaf = builder.leaf("terminal");
@@ -118,6 +124,7 @@ final class EngineeringWorkbench {
         root.setOrientation(Orientation.HORIZONTAL);
         leftColumn.setOrientation(Orientation.VERTICAL);
         leftTop.setOrientation(Orientation.HORIZONTAL);
+        explorerBranch.setOrientation(Orientation.VERTICAL);
         rightColumn.setOrientation(Orientation.HORIZONTAL);
 
         root.addContainers(leftColumn, rightColumn);
@@ -126,10 +133,14 @@ final class EngineeringWorkbench {
                 deviceLogLeaf,
                 terminalLeaf,
                 clientLogLeaf);
-        leftTop.addContainers(explorerLeaf, controlsLeaf);
+        leftTop.addContainers(explorerBranch, controlsLeaf);
+        explorerBranch.addContainers(systemLeaf, centralLeaf);
         rightColumn.addContainers(viewerLeaf);
 
-        registerHomeOrder(leftTop, explorerLeaf, controlsLeaf);
+        registerHomeOrder(
+                explorerBranch,
+                systemLeaf,
+                centralLeaf);
         registerHomeOrder(
                 leftColumn,
                 deviceLogLeaf,
@@ -137,7 +148,8 @@ final class EngineeringWorkbench {
                 clientLogLeaf);
         registerHomeOrder(rightColumn, viewerLeaf);
 
-        configureLeaf(explorerLeaf);
+        configureLeaf(systemLeaf);
+        configureLeaf(centralLeaf);
         configureLeaf(controlsLeaf);
         configureLeaf(deviceLogLeaf);
         configureLeaf(terminalLeaf);
@@ -145,6 +157,8 @@ final class EngineeringWorkbench {
         configureLeaf(viewerLeaf);
 
         leftTop.setPruneWhenEmpty(false);
+        explorerBranch.setPruneWhenEmpty(false);
+        controlsLeaf.setPruneWhenEmpty(false);
         leftColumn.setPruneWhenEmpty(false);
         rightColumn.setPruneWhenEmpty(false);
 
@@ -152,23 +166,21 @@ final class EngineeringWorkbench {
         root.setDividerPositions(0.49);
         leftColumn.setDividerPositions(0.43, 0.64, 0.82);
         leftTop.setDividerPositions(0.28);
+        explorerBranch.setDividerPositions(0.48);
 
-        explorerLeaf.addDockables(
-                dockable(builder, explorerLeaf,
+        systemLeaf.addDockable(
+                dockable(builder, systemLeaf,
                         new WorkbenchPanel(
                                 "api-systems",
-                                "A|Systems",
-                                apiSystems)),
-                dockable(builder, explorerLeaf,
+                                "System",
+                                apiSystems)));
+
+        centralLeaf.addDockable(
+                dockable(builder, centralLeaf,
                         new WorkbenchPanel(
-                                "central-nodes",
-                                "C|Nodes",
-                                centralNodes)),
-                dockable(builder, explorerLeaf,
-                        new WorkbenchPanel(
-                                "central-locations",
-                                "C|Locations",
-                                centralLocations)));
+                                "central-explorer",
+                                "Central",
+                                centralExplorer)));
 
         controlsLeaf.addDockables(
                 dockable(builder, controlsLeaf,
@@ -234,6 +246,35 @@ final class EngineeringWorkbench {
         return nodeId == null || nodeId.isBlank()
                 ? perspective
                 : perspective + " " + nodeId.trim();
+    }
+
+    private Node createCentralExplorer(
+            Node centralNodes,
+            Node centralLocations) {
+        Bento bento = createBento();
+        DockBuilding builder = bento.dockBuilding();
+        DockContainerRootBranch explorerRoot =
+                builder.root("central-explorer-root");
+        DockContainerLeaf tabs =
+                builder.leaf("central-explorer-tabs");
+
+        explorerRoot.setOrientation(Orientation.HORIZONTAL);
+        explorerRoot.addContainers(tabs);
+        registerHomeOrder(explorerRoot, tabs);
+        configureLeaf(tabs);
+
+        tabs.addDockables(
+                dockable(builder, tabs,
+                        new WorkbenchPanel(
+                                "central-nodes",
+                                "Nodes",
+                                centralNodes)),
+                dockable(builder, tabs,
+                        new WorkbenchPanel(
+                                "central-locations",
+                                "Locations",
+                                centralLocations)));
+        return explorerRoot;
     }
 
     private Node createNodeControls(
