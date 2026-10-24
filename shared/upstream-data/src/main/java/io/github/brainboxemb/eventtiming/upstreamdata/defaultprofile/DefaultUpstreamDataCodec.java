@@ -47,7 +47,7 @@ public final class DefaultUpstreamDataCodec
             generator.writeNumberField("v", VERSION);
             generator.writeStringField("type", data.direction().name());
             generator.writeStringField("nodeId", data.timingNodeId().value());
-            generator.writeNumberField("pckNr", data.packetId());
+            generator.writeNumberField("pckNr", data.packetNr());
             generator.writeFieldName("msg");
             writeMessage(generator, data.message());
             generator.writeEndObject();
@@ -209,7 +209,7 @@ public final class DefaultUpstreamDataCodec
             UpstreamData.Receive receive)
             throws IOException {
         generator.writeStartObject();
-        generator.writeNumberField("rcvPckNr", receive.receivedPacketId());
+        generator.writeNumberField("rcvPckNr", receive.receivedPacketNr());
         generator.writeEndObject();
     }
 
@@ -254,7 +254,7 @@ public final class DefaultUpstreamDataCodec
             Integer version = null;
             String type = null;
             String nodeId = null;
-            Long packetId = null;
+            Long packetNr = null;
             byte[] message = null;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
@@ -276,10 +276,10 @@ public final class DefaultUpstreamDataCodec
                     }
                     nodeId = readString(parser, value, "nodeId");
                 } else if ("pckNr".equals(field)) {
-                    if (packetId != null) {
+                    if (packetNr != null) {
                         throw invalid("Duplicate pckNr", null);
                     }
-                    packetId = Long.valueOf(readLong(parser, value, "pckNr"));
+                    packetNr = Long.valueOf(readLong(parser, value, "pckNr"));
                 } else if ("msg".equals(field)) {
                     if (message != null) {
                         throw invalid("Duplicate msg", null);
@@ -298,7 +298,7 @@ public final class DefaultUpstreamDataCodec
             if (version == null
                     || type == null
                     || nodeId == null
-                    || packetId == null
+                    || packetNr == null
                     || message == null) {
                 throw invalid(
                         "v, type, nodeId, pckNr and msg are required",
@@ -337,7 +337,7 @@ public final class DefaultUpstreamDataCodec
                 return new UpstreamData(
                         direction,
                         parsedNodeId,
-                        packetId.longValue(),
+                        packetNr.longValue(),
                         decodedMessage);
             } catch (IllegalArgumentException ex) {
                 throw invalid("Invalid IF-06 packet", ex);
@@ -704,9 +704,9 @@ public final class DefaultUpstreamDataCodec
 
     private static UpstreamData.Receive decodeReceive(byte[] payload)
             throws CodecException {
-        Long packetId = readSingleLongObject(payload, "rcvPckNr");
+        Long packetNr = readSingleLongObject(payload, "rcvPckNr");
         try {
-            return DefaultUpstreamData.createReceive(packetId.longValue());
+            return DefaultUpstreamData.createReceive(packetNr.longValue());
         } catch (IllegalArgumentException ex) {
             throw invalid("Invalid RECV payload", ex);
         }
