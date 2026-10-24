@@ -161,12 +161,12 @@ public class WebSocketEndpointTest {
             assertTrue(initial.contains("\"eventType\":\"UPSTREAM_DATA\""));
             assertTrue(initial.contains("\"type\":\"UP_PACKET\""));
             assertTrue(initial.contains("\"type\":\"RECV\""));
-            assertTrue(initial.contains("\"receivedPacketNr\":0"));
+            assertTrue(initial.contains("\"rcvPckNr\":0"));
             assertTrue(initial.contains("\"type\":\"SEQ\""));
             assertTrue(initial.contains("\"op\":\"NTF\""));
             assertTrue(initial.contains("\"seq\":0"));
             assertTrue(initial.contains("\"type\":\"PING\""));
-            assertTrue(initial.contains("\"packetNr\":0"));
+            assertTrue(initial.contains("\"pckNr\":0"));
             assertTrue(initial.contains("\"op\":\"REQ\""));
             assertTrue(initial.contains("\"mode\":\"HB\""));
 
@@ -189,7 +189,7 @@ public class WebSocketEndpointTest {
             assertTrue(recvEvent.contains("\"eventType\":\"UPSTREAM_DATA\""));
             assertTrue(recvEvent.contains("\"type\":\"UP_PACKET\""));
             assertTrue(recvEvent.contains("\"type\":\"RECV\""));
-            assertTrue(recvEvent.contains("\"receivedPacketNr\":1"));
+            assertTrue(recvEvent.contains("\"rcvPckNr\":1"));
 
             assertEquals(
                     new TeamId("0042"),
