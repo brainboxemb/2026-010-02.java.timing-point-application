@@ -132,7 +132,7 @@ class ApiEventClientTest {
         assertEquals(
                 UpstreamData.Direction.UP_PACKET,
                 packet.direction());
-        assertEquals(0L, packet.packetId());
+        assertEquals(0L, packet.packetNr());
         assertEquals(
                 UpstreamData.PingOperation.REQ,
                 ping.operation());
