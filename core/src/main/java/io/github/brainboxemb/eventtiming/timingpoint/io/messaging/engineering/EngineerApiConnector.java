@@ -8,6 +8,9 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.RejectedExecutionException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -18,6 +21,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * routing stays in UpstreamGateway; IF-06 semantics and heartbeat state stay in NodeUpstream.</p>
  */
 public final class EngineerApiConnector extends UpstreamConnector {
+    private static final Logger LOG = LoggerFactory.getLogger(EngineerApiConnector.class);
     static final int DEFAULT_OUTPUT_CAPACITY = 64;
 
     /** The WebSocket adapter may reject a write without blocking the connector. */
@@ -59,6 +63,7 @@ public final class EngineerApiConnector extends UpstreamConnector {
             output = newOutput;
         }
 
+        LOG.info("Upstream connected: transport=engineering-api");
         publishConnected();
         return true;
     }
@@ -75,6 +80,8 @@ public final class EngineerApiConnector extends UpstreamConnector {
         }
 
         if (disconnected) {
+            LOG.info(
+                    "Upstream disconnected: transport=engineering-api, reason=peer-closed");
             publishDisconnected();
         }
     }
@@ -135,6 +142,8 @@ public final class EngineerApiConnector extends UpstreamConnector {
     /** Disconnect observers see the failed session only after connector-owned state is cleared. */
     private void disconnectAfterDeliveryFailure() {
         clearSession();
+        LOG.info(
+                "Upstream disconnected: transport=engineering-api, reason=delivery-failure");
         publishDisconnected();
     }
 

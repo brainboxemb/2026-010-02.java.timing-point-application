@@ -17,6 +17,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
@@ -35,6 +38,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * only a wake signal: live forwarding rereads the authoritative LogBook from its retained source cursor.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
+    private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
     private static final long HEARTBEAT_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(30L);
 
@@ -136,9 +140,88 @@ public final class NodeUpstream extends LifecycleComponent {
                 "UpstreamData NodeId does not match NodeUpstream");
 
         try {
-            stream.send(new String(codec.encode(data), StandardCharsets.UTF_8));
+            String encoded =
+                    new String(
+                            codec.encode(data),
+                            StandardCharsets.UTF_8);
+            String summary = logSummary(data);
+
+            LOG.info("Upstream queued: {}", summary);
+            LOG.debug(
+                    "Upstream payload: direction=OUT, node={}, payload={}",
+                    nodeId.value(),
+                    encoded);
+            stream.send(encoded);
+            LOG.info("Upstream sent: {}", summary);
         } catch (UpstreamDataCodec.CodecException ex) {
             throw new IllegalStateException("Could not encode UpstreamData for node " + nodeId.value(), ex);
+        }
+    }
+
+    /**
+     * Builds one compact stable summary at the semantic boundary before encoded data enters Messaging.
+     *
+     * <p>TIMING_DATA is summarized at the actual message/batch boundary, never once per contained record.</p>
+     */
+    private static String logSummary(UpstreamData data) {
+        String prefix =
+                "node=" + data.timingNodeId().value()
+                        + ", type=" + data.family().name();
+
+        switch (data.family()) {
+            case TIMING_DATA:
+                UpstreamData.TimingDataTransfer timingData =
+                        (UpstreamData.TimingDataTransfer) data;
+                int recordCount = timingData.records().size();
+                long firstSequence =
+                        timingData.records().get(0).sequenceNumber();
+                long lastSequence =
+                        timingData.records().get(recordCount - 1).sequenceNumber();
+                return prefix
+                        + ", seq=" + firstSequence + ".." + lastSequence
+                        + ", records=" + recordCount;
+
+            case RACE_DATA:
+                UpstreamData.RaceData raceData =
+                        (UpstreamData.RaceData) data;
+                return prefix
+                        + ", seq=" + raceData.sequence()
+                        + ", location=" + raceData.locationId().value()
+                        + ", changes="
+                        + (raceData.teamAssignmentChanges().size()
+                                + raceData.stageStartTimeChanges().size());
+
+            case SYNC:
+                UpstreamData.Sync sync =
+                        (UpstreamData.Sync) data;
+                return prefix
+                        + ", stream=" + sync.stream().name()
+                        + ", seq=" + sync.sequence();
+
+            case REQ:
+                UpstreamData.Req request =
+                        (UpstreamData.Req) data;
+                return prefix
+                        + ", stream=" + request.stream().name()
+                        + ", fromSeq=" + request.fromSequence();
+
+            case ACK:
+                UpstreamData.Ack ack =
+                        (UpstreamData.Ack) data;
+                return prefix
+                        + ", stream=" + ack.stream().name()
+                        + ", seq=" + ack.sequence();
+
+            case PING:
+                UpstreamData.Ping ping =
+                        (UpstreamData.Ping) data;
+                return prefix
+                        + ", op=" + ping.operation().name()
+                        + ", mode=" + (ping.mode() == null ? "-" : ping.mode().name())
+                        + ", pingId=" + (ping.pingId() == null ? "-" : ping.pingId());
+
+            default:
+                return prefix;
         }
     }
 
