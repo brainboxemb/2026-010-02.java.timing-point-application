@@ -19,10 +19,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,18 +31,6 @@ final class CentralMessagesPane {
     private static final String ALL = "ALL";
     private static final String TIME_ONLY = "Time";
     private static final String DATE_AND_TIME = "Date + time";
-    private static final DateTimeFormatter TIME_FORMAT =
-            new DateTimeFormatterBuilder()
-                    .appendPattern("HH:mm:ss")
-                    .appendFraction(ChronoField.NANO_OF_SECOND, 0, 3, true)
-                    .toFormatter(Locale.ROOT)
-                    .withZone(ZoneOffset.UTC);
-    private static final DateTimeFormatter DATE_TIME_FORMAT =
-            new DateTimeFormatterBuilder()
-                    .appendPattern("uuuu-MM-dd HH:mm:ss")
-                    .appendFraction(ChronoField.NANO_OF_SECOND, 0, 3, true)
-                    .toFormatter(Locale.ROOT)
-                    .withZone(ZoneOffset.UTC);
 
     record MessageRow(
             CentralSystemSimulator.MessageView message,
@@ -281,7 +265,7 @@ final class CentralMessagesPane {
         }
     }
 
-    /** Returns whether the selected presentation includes the UTC calendar date. */
+    /** Returns whether the selected presentation includes the local calendar date. */
     private boolean showDate() {
         return DATE_AND_TIME.equals(timeView.getValue());
     }
@@ -576,19 +560,23 @@ final class CentralMessagesPane {
                         || message.data().family().name().equals(typeValue));
     }
 
-    /**
-     * Formats Central message times in UTC without exposing sub-millisecond noise.
-     *
-     * <p>The underlying Instant is retained unchanged; only the table presentation is compacted.</p>
-     */
+    /** Formats Central message times in the Engineering Client's local timezone. */
     static String formatTime(
             Instant instant,
             boolean includeDate) {
-        if (instant == null) {
-            return "—";
-        }
-        return (includeDate ? DATE_TIME_FORMAT : TIME_FORMAT)
-                .format(instant);
+        return ViewerTime.instant(
+                instant,
+                includeDate);
+    }
+
+    static String formatTime(
+            Instant instant,
+            boolean includeDate,
+            java.time.ZoneId zone) {
+        return ViewerTime.instant(
+                instant,
+                includeDate,
+                zone);
     }
 
     static String directionText(CentralSystemSimulator.MessageView message) {
