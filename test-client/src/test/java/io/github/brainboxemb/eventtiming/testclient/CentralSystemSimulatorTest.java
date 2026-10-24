@@ -129,13 +129,24 @@ final class CentralSystemSimulatorTest {
                         new io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp(
                                 outboundMessageTime));
 
+        String inboundRaw =
+                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
+                        + "\"data\":{\"op\":\"REQ\",\"mode\":\"HB\","
+                        + "\"pingId\":\"hb-journal\"}}";
+        String outboundRaw =
+                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
+                        + "\"data\":{\"op\":\"ANS\",\"mode\":\"HB\","
+                        + "\"pingId\":\"hb-journal\"}}";
+
         simulator.accept(
                 inbound,
                 inboundEventTime,
-                inboundReceivedAt);
+                inboundReceivedAt,
+                inboundRaw);
         simulator.recordSent(
                 outbound,
-                RECEIVED.plusMillis(5));
+                RECEIVED.plusMillis(5),
+                outboundRaw);
 
         List<CentralSystemSimulator.MessageView> messages = simulator.messages();
         assertEquals(2, messages.size());
@@ -148,6 +159,7 @@ final class CentralSystemSimulatorTest {
         assertSame(inbound, received.data());
         assertEquals(inboundMessageTime, received.messageTime());
         assertEquals(inboundReceivedAt, received.receivedAt());
+        assertEquals(inboundRaw, received.rawPayloadJson());
 
         CentralSystemSimulator.MessageView sent =
                 messages.get(1);
@@ -157,6 +169,7 @@ final class CentralSystemSimulatorTest {
         assertSame(outbound, sent.data());
         assertEquals(outboundMessageTime, sent.messageTime());
         assertNull(sent.receivedAt());
+        assertEquals(outboundRaw, sent.rawPayloadJson());
 
         assertEquals(1L, received.ordinal());
         assertEquals(2L, sent.ordinal());
