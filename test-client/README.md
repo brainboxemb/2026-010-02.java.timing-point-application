@@ -267,14 +267,21 @@ The redundant `● Client Log` label is gone from the toolbar: Client Log
 is a local, always-running dock pane whose own tab identifies it.
 Individual boundary ports stay in the configuration.
 
+The **Events** dock is a WebSocket traffic inspector rather than a plain text log.
+Every frame is one row with explicit **IN** (SI-01 → SI-02) or **OUT**
+(SI-02 → SI-01) direction, semantic/event type, timestamp and payload. Direction
+and type filters are presentation-only; selecting a row shows the exact source/wire
+payload below the table. Upstream inbound event envelopes and outbound semantic
+IF-06 JSON therefore remain distinguishable during request/reply testing, with no
+artificial blank lines inserted between frames.
+
 The API control is deliberately clickable. IF-03 HTTP has no persistent connection, so
 the control performs an explicit availability **CHECK** and reports CHECKING, READY or
 UNREACHABLE instead of pretending that a long-lived HTTP session was opened. Events,
 Terminal and Device Log remain independently toggleable without changing button captions. Client-local
 logging is always available independently from SI-01. The Systems pane shows the
 current target and its reported TimingNodes, state and location, and provides
-**Sync view**. Click a node to select it for node-scoped controls.
-
+**Sync view**. NaN
 All built-in workbench tabs are non-closable: they intentionally have **no ✕
 in their tab header**. The tabs still switch, drag and detach normally, but
 the client cannot silently lose an essential live-status, log or diagnostic
