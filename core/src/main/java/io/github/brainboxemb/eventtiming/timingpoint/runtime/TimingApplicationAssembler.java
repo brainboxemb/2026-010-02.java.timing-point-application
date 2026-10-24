@@ -144,7 +144,8 @@ final class TimingApplicationAssembler {
                             upstreamConnectors,
                             loggingLevelControl,
                             consolePromptControl,
-                            shutdownSignal::request,
+                            shutdownSignal::requestStop,
+                            shutdownSignal::requestRestart,
                             consoleInput,
                             consoleOutput);
 
