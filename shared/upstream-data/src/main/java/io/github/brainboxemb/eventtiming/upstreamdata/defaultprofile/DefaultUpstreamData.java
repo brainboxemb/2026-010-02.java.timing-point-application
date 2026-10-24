@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
@@ -33,12 +34,14 @@ public final class DefaultUpstreamData {
     /** Creates one ordered RACE_DATA change message. */
     public static UpstreamData.RaceData raceData(
             NodeId nodeId,
+            LocationId locationId,
             long sequence,
             List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
             List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
 
         return new UpstreamData.RaceData(
                 nodeId,
+                locationId,
                 sequence,
                 teamAssignmentChanges,
                 stageStartTimeChanges);
