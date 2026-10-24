@@ -640,8 +640,10 @@ public final class TestClientFxApplication extends Application {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         setEventConnected(true, "CONNECTED");
                         if (upstreamRole) {
-                            centralSimulator.connected();
+                            List<UpstreamData> retry =
+                                    centralSimulator.connected();
                             setCentralConnected(true, "CONNECTED");
+                            resendOutstandingCentralPackets(retry);
                         } else {
                             centralSimulator.disconnected();
                             setCentralConnected(false, "CONNECT");
@@ -775,6 +777,34 @@ public final class TestClientFxApplication extends Application {
             }
         }
 
+    }
+
+    /** Resends exact normal downstream packets retained across one transport reconnect. */
+    private void resendOutstandingCentralPackets(
+            List<UpstreamData> packets) {
+        for (UpstreamData packet : packets) {
+            try {
+                sendUpstreamDataWithTraffic(packet)
+                        .whenComplete((ignored, error) -> {
+                            if (error != null) {
+                                Platform.runLater(() -> {
+                                    clientLog.error(
+                                            "Central DN_PACKET #"
+                                                    + packet.packetId()
+                                                    + " retry failed: "
+                                                    + rootMessage(error));
+                                    refreshCentralViews();
+                                });
+                            }
+                        });
+            } catch (RuntimeException ex) {
+                clientLog.error(
+                        "Central DN_PACKET #"
+                                + packet.packetId()
+                                + " retry failed: "
+                                + rootMessage(ex));
+            }
+        }
     }
 
     private long sendCentralTeamAssignmentSet(
