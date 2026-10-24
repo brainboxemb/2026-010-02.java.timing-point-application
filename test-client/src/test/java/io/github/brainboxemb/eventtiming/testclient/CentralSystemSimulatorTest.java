@@ -181,6 +181,35 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void rejectsRaceDataCreationWithoutOpenLocation() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7));
+        simulator.connected();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> simulator.createRaceData(
+                        NODE_A,
+                        List.of(
+                                DefaultUpstreamData.teamAssignmentSet(
+                                        "A0001",
+                                        "T001")),
+                        List.of()));
+
+        simulator.accept(timingData(opened(1L, 7)), RECEIVED);
+        simulator.accept(timingData(closed(2L, 7)), RECEIVED.plusSeconds(1));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> simulator.createRaceData(
+                        NODE_A,
+                        List.of(
+                                DefaultUpstreamData.teamAssignmentSet(
+                                        "A0001",
+                                        "T001")),
+                        List.of()));
+    }
+
+    @Test
     void createsOrderedRaceDataAndReplaysOriginalValues() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
         simulator.connected();
@@ -190,6 +219,8 @@ final class CentralSystemSimulatorTest {
         UpstreamData.RaceData second =
                 createRaceData(simulator, "A0002", "T002");
 
+        assertEquals(1, first.locationId().value());
+        assertEquals(1, second.locationId().value());
         assertEquals(1L, first.sequence());
         assertEquals(2L, second.sequence());
         assertEquals(2L, simulator.nodes().get(0).raceDataHead());
@@ -413,6 +444,18 @@ final class CentralSystemSimulatorTest {
             CentralSystemSimulator simulator,
             String registrationId,
             String teamId) {
+        CentralSystemSimulator.NodeView node =
+                simulator.nodes().stream()
+                        .filter(value -> "A".equals(value.nodeId()))
+                        .findFirst()
+                        .orElse(null);
+        if (node == null || node.locationId() == null) {
+            long nextSequence = node == null ? 1L : node.timingDataHead() + 1L;
+            simulator.accept(
+                    timingData(opened(nextSequence, 1)),
+                    RECEIVED.plusMillis(nextSequence));
+        }
+
         return simulator.createRaceData(
                 NODE_A,
                 List.of(

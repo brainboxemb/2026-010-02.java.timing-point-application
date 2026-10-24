@@ -198,6 +198,7 @@ public class WebSocketEndpointTest {
             UpstreamData.RaceData raceData =
                     DefaultUpstreamData.raceData(
                             nodeId,
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(

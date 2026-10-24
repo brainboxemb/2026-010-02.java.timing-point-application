@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -125,6 +126,7 @@ final class CentralMessagesPaneTest {
         UpstreamData.RaceData raceData =
                 DefaultUpstreamData.raceData(
                         NODE_A,
+                        new LocationId(1),
                         12L,
                         java.util.List.of(
                                 DefaultUpstreamData.teamAssignmentSet(
@@ -135,7 +137,7 @@ final class CentralMessagesPaneTest {
                                         "T002")),
                         java.util.List.of());
 
-        assertEquals("RACE_DATA #12", CentralMessagesPane.positionText(raceData));
+        assertEquals("RACE_DATA L1 #12", CentralMessagesPane.positionText(raceData));
         assertEquals(
                 "2 team change(s), 0 stage-start change(s)",
                 CentralMessagesPane.summaryText(raceData));

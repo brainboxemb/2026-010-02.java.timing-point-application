@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node.NodeUpstream;
@@ -110,6 +111,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentDelete(
@@ -166,6 +168,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
@@ -202,6 +205,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                             Collections.singletonList(
@@ -235,6 +239,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
+                            new LocationId(1),
                             1L,
                             Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                             Collections.singletonList(
@@ -262,6 +267,7 @@ public class TimingNodeRaceDataTest {
             String teamId) {
         return DefaultUpstreamData.raceData(
                 new NodeId("A"),
+                new LocationId(1),
                 sequence,
                 Collections.singletonList(
                         DefaultUpstreamData.teamAssignmentSet(

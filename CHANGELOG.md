@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tighten the shared IF-06 data contract: RACE_DATA now carries a required message-level LocationId, TIMING_DATA is limited to 16 TimingRecords per message, RACE_DATA is limited to 16 combined team/stage-start changes, and LogBook replay uses the same 16-record batch size. SI-02 Central creates RACE_DATA only for a currently OPEN location and shows the location in the semantic Messages position column.
+
 - Add an explicit follow-end mode to live SI-02 tables. Central Messages now has a visible `— Follow end —` row plus an **End** toolbar button; selecting a real message pauses following. Registrations and LogBook reuse their existing trailing follow row and expose **End** in a compact column header to resume following without extra toolbar space.
 
 - Clamp every detached Bento DragDropStage again after its first JavaFX layout, in addition to the existing Scene size cap. This prevents nested viewers such as Central <id> from expanding back to oversized source dimensions and repositions floating windows fully inside the target monitor visual bounds so the Windows title bar remains reachable.

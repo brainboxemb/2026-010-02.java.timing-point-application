@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonToken;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -50,7 +51,9 @@ public final class DefaultUpstreamDataCodec
 
             generator.writeStringField("nodeId", data.timingNodeId().value());
             if (data.family() == UpstreamData.Family.RACE_DATA) {
-                generator.writeNumberField("seq", ((UpstreamData.RaceData) data).sequence());
+                UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
+                generator.writeNumberField("locationId", raceData.locationId().value());
+                generator.writeNumberField("seq", raceData.sequence());
             }
 
             generator.writeFieldName("data");
@@ -103,6 +106,13 @@ public final class DefaultUpstreamDataCodec
         if (transfer.records() == null || transfer.records().isEmpty()) {
             throw encodeFailure(
                     "TIMING_DATA requires at least one record",
+                    null);
+        }
+        if (transfer.records().size() > UpstreamData.MAX_TIMING_DATA_RECORDS) {
+            throw encodeFailure(
+                    "TIMING_DATA supports at most "
+                            + UpstreamData.MAX_TIMING_DATA_RECORDS
+                            + " records",
                     null);
         }
 
@@ -322,6 +332,7 @@ public final class DefaultUpstreamDataCodec
             Integer version = null;
             String type = null;
             String nodeId = null;
+            Integer topLocationId = null;
             Long topSequence = null;
             byte[] payload = null;
 
@@ -347,6 +358,13 @@ public final class DefaultUpstreamDataCodec
                         throw invalid("Duplicate nodeId", null);
                     }
                     nodeId = readString(parser, value, "nodeId");
+                } else if ("locationId".equals(field)) {
+                    if (topLocationId != null) {
+                        parser.close();
+                        throw invalid("Duplicate top-level locationId", null);
+                    }
+                    topLocationId = Integer.valueOf(
+                            readInt(parser, value, "locationId"));
                 } else if ("seq".equals(field)) {
                     if (topSequence != null) {
                         parser.close();
@@ -383,6 +401,7 @@ public final class DefaultUpstreamDataCodec
             return decodeByType(
                     type,
                     nodeId,
+                    topLocationId,
                     topSequence,
                     payload);
         } catch (CodecException ex) {
@@ -395,46 +414,62 @@ public final class DefaultUpstreamDataCodec
     private UpstreamData decodeByType(
             String type,
             String nodeId,
+            Integer topLocationId,
             Long topSequence,
             byte[] payload)
             throws CodecException {
         if ("TIMING_DATA".equals(type)) {
+            rejectTopLocationId(topLocationId, type);
             rejectTopSequence(topSequence, type);
             return decodeTimingData(
                     requireNodeId(nodeId, type),
                     payload);
         }
         if ("RACE_DATA".equals(type)) {
+            if (topLocationId == null) {
+                throw invalid("RACE_DATA requires top-level locationId", null);
+            }
             if (topSequence == null) {
                 throw invalid("RACE_DATA requires top-level seq", null);
             }
             requirePositiveSequence(
                     topSequence.longValue(),
                     "RACE_DATA seq");
+            final LocationId locationId;
+            try {
+                locationId = new LocationId(topLocationId.intValue());
+            } catch (IllegalArgumentException ex) {
+                throw invalid("Invalid RACE_DATA locationId", ex);
+            }
             return decodeRaceData(
                     requireNodeId(nodeId, type),
+                    locationId,
                     topSequence.longValue(),
                     payload);
         }
         if ("SYNC".equals(type)) {
+            rejectTopLocationId(topLocationId, type);
             rejectTopSequence(topSequence, type);
             return decodeSync(
                     requireNodeId(nodeId, type),
                     payload);
         }
         if ("ACK".equals(type)) {
+            rejectTopLocationId(topLocationId, type);
             rejectTopSequence(topSequence, type);
             return decodeAck(
                     requireNodeId(nodeId, type),
                     payload);
         }
         if ("REQ".equals(type)) {
+            rejectTopLocationId(topLocationId, type);
             rejectTopSequence(topSequence, type);
             return decodeReq(
                     requireNodeId(nodeId, type),
                     payload);
         }
         if ("PING".equals(type)) {
+            rejectTopLocationId(topLocationId, type);
             rejectTopSequence(topSequence, type);
             return decodePing(
                     requireNodeId(nodeId, type),
@@ -460,6 +495,14 @@ public final class DefaultUpstreamDataCodec
 
             List<TimingRecord> records = new ArrayList<TimingRecord>();
             while (parser.nextToken() != JsonToken.END_ARRAY) {
+                if (records.size() >= UpstreamData.MAX_TIMING_DATA_RECORDS) {
+                    parser.close();
+                    throw invalid(
+                            "TIMING_DATA supports at most "
+                                    + UpstreamData.MAX_TIMING_DATA_RECORDS
+                                    + " records",
+                            null);
+                }
                 byte[] recordJson = captureCurrentValue(parser);
                 final TimingRecord record;
                 try {
@@ -482,6 +525,7 @@ public final class DefaultUpstreamDataCodec
 
     private UpstreamData.RaceData decodeRaceData(
             NodeId nodeId,
+            LocationId locationId,
             long sequence,
             byte[] payload)
             throws CodecException {
@@ -516,8 +560,20 @@ public final class DefaultUpstreamDataCodec
             }
             parser.close();
 
+            int changeCount =
+                    (reserveChanges == null ? 0 : reserveChanges.size())
+                            + (startChanges == null ? 0 : startChanges.size());
+            if (changeCount > UpstreamData.MAX_RACE_DATA_CHANGES) {
+                throw invalid(
+                        "RACE_DATA supports at most "
+                                + UpstreamData.MAX_RACE_DATA_CHANGES
+                                + " changes",
+                        null);
+            }
+
             return DefaultUpstreamData.raceData(
                     nodeId,
+                    locationId,
                     sequence,
                     reserveChanges,
                     startChanges);
@@ -929,6 +985,17 @@ public final class DefaultUpstreamDataCodec
             return UpstreamData.ChangeOperation.valueOf(text);
         } catch (IllegalArgumentException ex) {
             throw invalid("Unsupported change op " + text, ex);
+        }
+    }
+
+    private static void rejectTopLocationId(
+            Integer locationId,
+            String type)
+            throws CodecException {
+        if (locationId != null) {
+            throw invalid(
+                    type + " must not carry top-level locationId",
+                    null);
         }
     }
 

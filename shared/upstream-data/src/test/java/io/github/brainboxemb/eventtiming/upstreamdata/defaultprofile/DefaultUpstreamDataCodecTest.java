@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
@@ -69,6 +70,7 @@ public class DefaultUpstreamDataCodecTest {
         UpstreamData.RaceData original =
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
+                        new LocationId(1),
                         123L,
                         Arrays.asList(
                                 DefaultUpstreamData.teamAssignmentSet(
@@ -88,6 +90,7 @@ public class DefaultUpstreamDataCodecTest {
 
         String json = text(codec.encode(original));
         assertTrue(json.contains("\"type\":\"RACE_DATA\""));
+        assertTrue(json.contains("\"locationId\":1"));
         assertTrue(json.contains("\"seq\":123"));
         assertTrue(json.contains("\"teamAssignments\""));
         assertTrue(json.contains("\"stageStartTimes\""));
@@ -102,6 +105,7 @@ public class DefaultUpstreamDataCodecTest {
 
         UpstreamData.RaceData decoded =
                 (UpstreamData.RaceData) codec.decode(bytes(json));
+        assertEquals(new LocationId(1), decoded.locationId());
         assertEquals(123L, decoded.sequence());
         assertEquals(
                 original.teamAssignmentChanges(),
@@ -112,21 +116,29 @@ public class DefaultUpstreamDataCodecTest {
     }
 
     @Test
-    public void raceDataRequiresAtLeastOneChange() throws Exception {
+    public void raceDataRequiresTopLevelLocationId() throws Exception {
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"seq\":1,\"data\":{\"teamAssignments\":["
+                        + "{\"op\":\"SET\",\"regId\":\"A0001\",\"teamId\":\"0001\"}]}}");
+    }
+
+    @Test
+    public void raceDataRequiresAtLeastOneChange() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":1,\"data\":{}}");
     }
 
     @Test
     public void raceDataRejectsInvalidSetAndDeleteShapes() throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":1,\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"R0001\"}]}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":2,\"data\":{\"stageStartTimes\":["
                         + "{\"op\":\"DEL\",\"regId\":\"R0001\","
                         + "\"start\":\"12:00:00\"}]}}");
@@ -135,7 +147,7 @@ public class DefaultUpstreamDataCodecTest {
     @Test
     public void raceDataRejectsLegacyTeamIdOnlyStageStartKey() throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":3,\"data\":{\"stageStartTimes\":["
                         + "{\"op\":\"SET\",\"teamId\":\"0042\","
                         + "\"start\":\"12:00:00\"}]}}");
@@ -146,6 +158,7 @@ public class DefaultUpstreamDataCodecTest {
         UpstreamData.RaceData data =
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
+                        new LocationId(1),
                         1L,
                         Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                         Collections.singletonList(
@@ -166,6 +179,53 @@ public class DefaultUpstreamDataCodecTest {
                         .get(0)
                         .start()
                         .knowledge());
+    }
+
+
+    @Test
+    public void decoderRejectsSeventeenRaceDataChanges() throws Exception {
+        StringBuilder changes = new StringBuilder();
+        for (int i = 1; i <= 17; i++) {
+            if (i > 1) {
+                changes.append(',');
+            }
+            changes.append(
+                    "{\"op\":\"DEL\",\"regId\":\"R"
+                            + String.format("%04d", i)
+                            + "\"}");
+        }
+
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"locationId\":7,\"seq\":1,\"data\":{"
+                        + "\"teamAssignments\":["
+                        + changes
+                        + "]}}");
+    }
+
+    @Test
+    public void decoderRejectsSeventeenTimingDataRecords() throws Exception {
+        TimingRecord record =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1L,
+                        7,
+                        0L,
+                        0L);
+        String encodedRecord = text(timingCodec.encode(record));
+        StringBuilder records = new StringBuilder();
+        for (int i = 0; i < 17; i++) {
+            if (i > 0) {
+                records.append(',');
+            }
+            records.append(encodedRecord);
+        }
+
+        assertInvalid(
+                "{\"v\":1,\"type\":\"TIMING_DATA\",\"nodeId\":\"A\","
+                        + "\"data\":["
+                        + records
+                        + "]}");
     }
 
     @Test
@@ -348,7 +408,7 @@ public class DefaultUpstreamDataCodecTest {
     @Test
     public void rejectsDuplicateRaceDataKeysWithinOneMessage() throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":1,\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0042\"},"
                         + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0043\"}]}}");
