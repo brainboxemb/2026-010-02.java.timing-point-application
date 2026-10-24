@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -10,12 +11,7 @@ import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/**
- * Owns heartbeat protocol state for one NodeUpstream.
- *
- * <p>This helper owns semantic PING creation/response only. NodeUpstream wraps every PING
- * in packetId 0 and keeps heartbeat cadence serialized with the other protocol state.</p>
- */
+/** Owns heartbeat protocol state for one NodeUpstream. */
 final class Heartbeat {
     private final BooleanSupplier available;
     private final Consumer<UpstreamData.Message> sender;
@@ -35,9 +31,11 @@ final class Heartbeat {
                     false);
 
     Heartbeat(
+            NodeId nodeId,
             BooleanSupplier available,
             Consumer<UpstreamData.Message> sender,
             TimeSource timeSource) {
+        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sender != null, "sender must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
@@ -70,8 +68,7 @@ final class Heartbeat {
     }
 
     /** Handles peer PING requests and answers to this node's heartbeat request. */
-    void handle(
-            UpstreamData.Ping ping) {
+    void handle(UpstreamData.Ping ping) {
         failIfInvalidArgument(ping != null, "ping must not be null");
 
         if (ping.operation() == UpstreamData.PingOperation.REQ) {
@@ -92,17 +89,14 @@ final class Heartbeat {
         }
     }
 
-    /** Samples the composed timing source once for one newly created PING message. */
     private TimingTimestamp messageTime() {
         return new TimingTimestamp(timeSource.now());
     }
 
-    /** Returns the latest immutable heartbeat state published by the serial owner. */
     NodeUpstreamTypes.HeartbeatStatus status() {
         return publishedStatus;
     }
 
-    /** Publishes the current counters as one immutable direct-read snapshot. */
     private void publishStatus() {
         publishedStatus =
                 new NodeUpstreamTypes.HeartbeatStatus(
