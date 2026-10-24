@@ -27,7 +27,7 @@ final class CentralPaneTest {
                 node,
                 Instant.parse("2026-10-24T09:00:30Z"));
 
-        assertEquals("A [05] · H -30s · CNT 1157", compact);
+        assertEquals("A [05] · H - 30s · CNT 1157", compact);
         assertFalse(compact.contains("Timing"));
         assertFalse(compact.contains("Race"));
         assertFalse(compact.contains("\n"));
@@ -48,7 +48,7 @@ final class CentralPaneTest {
                         null);
 
         assertEquals(
-                "A [01] · H --- · CNT 12",
+                "A [01] · H --- · CNT  12",
                 CentralPane.compactNodeText(
                         node,
                         Instant.parse("2026-10-24T09:00:30Z")));
@@ -69,7 +69,7 @@ final class CentralPaneTest {
                         null);
 
         assertEquals(
-                "A [??] · H --- · CNT 0",
+                "A [??] · H --- · CNT   0",
                 CentralPane.compactNodeText(
                         node,
                         Instant.parse("2026-10-24T09:00:30Z")));
@@ -90,10 +90,25 @@ final class CentralPaneTest {
                         null);
 
         assertEquals(
-                "A [--] · H -30s · CNT 999",
+                "A [--] · H - 30s · CNT 999",
                 CentralPane.compactNodeText(
                         node,
                         Instant.parse("2026-10-24T09:00:30Z")));
+    }
+
+    @Test
+    void heartbeatAndCountUseLeadingSpacesForAlignment() {
+        Instant now = Instant.parse("2026-10-24T09:00:09Z");
+
+        assertEquals(
+                "H -  9s",
+                CentralPane.heartbeatAgeText(
+                        Instant.parse("2026-10-24T09:00:00Z"),
+                        now));
+        assertEquals("  9", CentralPane.paddedCount(9L));
+        assertEquals(" 99", CentralPane.paddedCount(99L));
+        assertEquals("999", CentralPane.paddedCount(999L));
+        assertEquals("1000", CentralPane.paddedCount(1000L));
     }
 
     @Test
@@ -106,7 +121,7 @@ final class CentralPaneTest {
                         Instant.parse("2026-10-24T08:00:00Z"),
                         now));
         assertEquals(
-                "H -0s",
+                "H -  0s",
                 CentralPane.heartbeatAgeText(
                         Instant.parse("2026-10-24T09:20:05Z"),
                         now));
