@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Preserve Central Messages historical inspection viewport during incoming traffic; shorten default IF-06 JSON wire keys to `seqNr`, `msg`, and `rcvSeqNr` without changing the typed packet contract.
+- Preserve Central Messages historical inspection viewport during incoming traffic; shorten default IF-06 JSON wire keys to `pckNr`, `msg`, and `rcvPckNr` without changing the typed packet contract.
 
 
 - Replace the unreleased flat IF-06 `SYNC`/`ACK`/`REQ` draft with the packet-oriented v1 development contract: explicit `UP_PACKET`/`DN_PACKET` identities, stop-and-wait downstream `RECV`/resend with idempotent duplicate handling, `PING` on packetId 0 without RECV, TIMING_DATA-only `SEQ`/`TIMING_DATA_REQ` LogBook synchronization, and current-state RACE_DATA delivery without an independent source-sequence history. Update the Central simulator, Engineering Client inspectors and protocol verification to the same model.
