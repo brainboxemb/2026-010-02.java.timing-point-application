@@ -274,8 +274,7 @@ public final class NodeUpstream extends LifecycleComponent {
                         this::isAvailable,
                         downstreamDelivery,
                         nodeService,
-                        packet.packetId(),
-                        (UpstreamData.RaceData) packet.message());
+                        packet);
 
             case TIMING_DATA_REQ:
                 return new TimingDataReplayTask(
