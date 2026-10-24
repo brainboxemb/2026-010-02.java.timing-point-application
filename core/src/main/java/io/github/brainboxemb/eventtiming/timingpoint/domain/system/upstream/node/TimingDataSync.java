@@ -25,7 +25,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * responsible for encoding and sending the semantic messages produced here.</p>
  */
 final class TimingDataSync {
-    private static final int MAX_RECORDS_PER_BATCH = 256;
+    private static final int MAX_RECORDS_PER_BATCH = UpstreamData.MAX_TIMING_DATA_RECORDS;
 
     private final NodeId nodeId;
     private final BooleanSupplier available;
