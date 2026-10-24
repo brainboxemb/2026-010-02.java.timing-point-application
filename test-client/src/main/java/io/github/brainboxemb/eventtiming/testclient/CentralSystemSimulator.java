@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -15,10 +16,10 @@ import java.util.Map;
 /**
  * Central-side IF-06 simulator state.
  *
- * <p>This service is intentionally independent from the direct IF-03/API view. It learns
- * nodes and locations only from typed UpstreamData received on the upstream-role session,
- * requests missing TimingData after source-head SYNC, answers PING requests and interprets
- * NODE_OPEN/NODE_CLOSE history.</p>
+ * <p>This service is intentionally independent from the direct IF-03/API view. It owns
+ * Central-side source/replay state while {@link ApiEventClient} owns only transport and codec
+ * adaptation. TIMING_DATA is consumed from SI-01; RACE_DATA is an independent Central-owned
+ * ordered source per NodeId.</p>
  */
 final class CentralSystemSimulator {
     record SystemView(
@@ -26,6 +27,8 @@ final class CentralSystemSimulator {
             boolean connected,
             Instant lastHeartbeat,
             long timingDataHead,
+            long raceDataHead,
+            long raceDataAcknowledged,
             Integer locationId,
             TimingRecord lastRecord) {
     }
@@ -64,8 +67,8 @@ final class CentralSystemSimulator {
      * Clears facts learned from the previous target while retaining simulator configuration.
      *
      * <p>A plain disconnect/reconnect intentionally does not call this method: Central then
-     * keeps its received source head and can request only the missing suffix. A target change
-     * is a different identity boundary and must not inherit NodeId or Location state.</p>
+     * keeps both TIMING_DATA receive-head and RACE_DATA source/replay state. A target change
+     * is a different identity boundary and must not inherit either protocol stream.</p>
      */
     void resetTargetState() {
         connected = false;
@@ -86,6 +89,41 @@ final class CentralSystemSimulator {
         return connected;
     }
 
+    /**
+     * Creates and retains the next ordered Central-to-node RACE_DATA value.
+     *
+     * <p>The caller owns transport delivery. Retaining the immutable value here lets a later
+     * RACE_DATA REQ replay exactly the original semantic change set.</p>
+     */
+    UpstreamData.RaceData createRaceData(
+            NodeId nodeId,
+            List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
+            List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
+        if (nodeId == null) {
+            throw new IllegalArgumentException("nodeId must not be null");
+        }
+        if (teamAssignmentChanges == null || stageStartTimeChanges == null) {
+            throw new IllegalArgumentException("RACE_DATA change lists must not be null");
+        }
+
+        SystemState system =
+                systems.computeIfAbsent(
+                        nodeId.value(),
+                        ignored -> new SystemState(nodeId.value()));
+
+        long sequence = system.raceDataHead + 1L;
+        UpstreamData.RaceData raceData =
+                DefaultUpstreamData.raceData(
+                        nodeId,
+                        sequence,
+                        teamAssignmentChanges,
+                        stageStartTimeChanges);
+
+        system.raceDataHead = sequence;
+        system.raceDataHistory.put(Long.valueOf(sequence), raceData);
+        return raceData;
+    }
+
     /** Applies one semantic IF-06 value and returns any Central-side protocol replies. */
     List<UpstreamData> accept(
             UpstreamData data,
@@ -103,6 +141,11 @@ final class CentralSystemSimulator {
         return switch (data.family()) {
             case PING -> handlePing(system, (UpstreamData.Ping) data, receivedAt);
             case SYNC -> handleSync(system, (UpstreamData.Sync) data);
+            case REQ -> handleReq(system, (UpstreamData.Req) data);
+            case ACK -> {
+                handleAck(system, (UpstreamData.Ack) data);
+                yield Collections.emptyList();
+            }
             case TIMING_DATA -> {
                 handleTimingData(
                         system,
@@ -122,6 +165,8 @@ final class CentralSystemSimulator {
                     connected,
                     state.lastHeartbeat,
                     state.timingDataHead,
+                    state.raceDataHead,
+                    state.raceDataAcknowledged,
                     state.locationId,
                     state.lastRecord));
         }
@@ -157,22 +202,96 @@ final class CentralSystemSimulator {
         return Collections.emptyList();
     }
 
+    /**
+     * Reconciles SI-01's TIMING_DATA head and advertises Central's RACE_DATA head.
+     *
+     * <p>SI-01 starts a node upstream session by advertising TIMING_DATA. Central answers
+     * with its own independent source head and requests any missing TimingData suffix.</p>
+     */
     private List<UpstreamData> handleSync(
             SystemState system,
             UpstreamData.Sync sync) {
         if (sync.stream() != UpstreamData.Stream.TIMING_DATA) {
-            return Collections.emptyList();
+            throw new UnsupportedOperationException(
+                    "Central inbound SYNC supports TIMING_DATA only");
         }
+
+        List<UpstreamData> replies = new ArrayList<>(2);
+        replies.add(
+                DefaultUpstreamData.sync(
+                        sync.timingNodeId(),
+                        UpstreamData.Stream.RACE_DATA,
+                        system.raceDataHead));
 
         long remoteHead = sync.sequence();
         if (remoteHead > system.timingDataHead) {
-            return List.of(
+            replies.add(
                     DefaultUpstreamData.req(
                             sync.timingNodeId(),
                             UpstreamData.Stream.TIMING_DATA,
                             system.timingDataHead + 1L));
+        } else if (remoteHead < system.timingDataHead) {
+            throw new IllegalStateException(
+                    "SI-01 TIMING_DATA source head "
+                            + remoteHead
+                            + " is behind Central receive head "
+                            + system.timingDataHead);
         }
-        return Collections.emptyList();
+        return List.copyOf(replies);
+    }
+
+    /** Replays retained Central-owned RACE_DATA from the requested inclusive sequence. */
+    private List<UpstreamData> handleReq(
+            SystemState system,
+            UpstreamData.Req request) {
+        if (request.stream() != UpstreamData.Stream.RACE_DATA) {
+            throw new UnsupportedOperationException(
+                    "Central inbound REQ supports RACE_DATA only");
+        }
+
+        long fromSequence = request.fromSequence();
+        if (fromSequence > system.raceDataHead) {
+            return Collections.emptyList();
+        }
+
+        List<UpstreamData> replay = new ArrayList<>();
+        for (long sequence = fromSequence;
+                sequence <= system.raceDataHead;
+                sequence++) {
+            UpstreamData.RaceData retained =
+                    system.raceDataHistory.get(Long.valueOf(sequence));
+            if (retained == null) {
+                throw new IllegalStateException(
+                        "Missing retained RACE_DATA sequence "
+                                + sequence
+                                + " for "
+                                + system.nodeId);
+            }
+            replay.add(retained);
+        }
+        return List.copyOf(replay);
+    }
+
+    /** Applies one cumulative RACE_DATA acknowledgement from SI-01. */
+    private void handleAck(
+            SystemState system,
+            UpstreamData.Ack acknowledgement) {
+        if (acknowledgement.stream() != UpstreamData.Stream.RACE_DATA) {
+            throw new UnsupportedOperationException(
+                    "Central inbound ACK supports RACE_DATA only");
+        }
+
+        long sequence = acknowledgement.sequence();
+        if (sequence > system.raceDataHead) {
+            throw new IllegalStateException(
+                    "RACE_DATA ACK "
+                            + sequence
+                            + " exceeds Central source head "
+                            + system.raceDataHead);
+        }
+        if (sequence > system.raceDataAcknowledged) {
+            system.raceDataAcknowledged = sequence;
+        }
     }
 
     private void handleTimingData(
@@ -238,8 +357,12 @@ final class CentralSystemSimulator {
 
     private static final class SystemState {
         private final String nodeId;
+        private final Map<Long, UpstreamData.RaceData> raceDataHistory =
+                new LinkedHashMap<>();
         private Instant lastHeartbeat;
         private long timingDataHead;
+        private long raceDataHead;
+        private long raceDataAcknowledged;
         private Integer locationId;
         private TimingRecord lastRecord;
 
