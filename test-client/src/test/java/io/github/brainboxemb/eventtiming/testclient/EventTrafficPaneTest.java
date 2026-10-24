@@ -50,6 +50,7 @@ final class EventTrafficPaneTest {
                 new ApiEventClient.UpstreamDataEvent(
                         "UPSTREAM_DATA",
                         TIME,
+                        TIME.plusMillis(3),
                         ping,
                         "{\"eventType\":\"UPSTREAM_DATA\"}");
 
