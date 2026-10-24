@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Log successfully decoded inbound IF-06 messages on the device side with the stable `Upstream received:` INFO prefix and the same compact semantic summary used for outbound queued/sent messages. This makes PING answers, replay REQ requests, RACE_DATA and SYNC visible without logging full protocol JSON.
+
 - Restructure the left Engineering Client explorer into two vertically stacked sections: **System** above and **Central** below, with Central containing **Nodes** and **Locations** tabs. Remove the older `A|Systems` / `C|Nodes` / `C|Locations` prefixes while keeping the underlying views unchanged.
 
 - Improve Central Messages batch inspection: keep the retained IF-06 payload unchanged, but present multi-record TIMING_DATA detail with one compact TimingRecord per line; single-record and non-TIMING_DATA detail remain unchanged.
