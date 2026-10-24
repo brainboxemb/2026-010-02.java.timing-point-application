@@ -293,18 +293,25 @@ final class CentralSystemSimulator {
                         node.raceDataHead));
 
         long remoteHead = sync.sequence();
-        if (remoteHead > node.timingDataHead) {
-            replies.add(
-                    DefaultUpstreamData.req(
-                            sync.timingNodeId(),
-                            UpstreamData.Stream.TIMING_DATA,
-                            node.timingDataHead + 1L));
-        } else if (remoteHead < node.timingDataHead) {
+        if (remoteHead < node.timingDataHead) {
             throw new IllegalStateException(
                     "SI-01 TIMING_DATA source head "
                             + remoteHead
                             + " is behind Central receive head "
                             + node.timingDataHead);
+        }
+
+        /*
+         * REQ is also the replay-to-live handoff barrier when Central is already caught up.
+         * SI-01 captures its newer current LogBook head while handling this request, so records
+         * committed between SYNC and REQ join replay instead of arriving early as live data.
+         */
+        if (node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
+            replies.add(
+                    DefaultUpstreamData.req(
+                            sync.timingNodeId(),
+                            UpstreamData.Stream.TIMING_DATA,
+                            node.timingDataHead + 1L));
         }
         return List.copyOf(replies);
     }

@@ -23,10 +23,14 @@ public final class UpstreamStream {
     private final UpstreamConnector connector;
     private final Deque<String> input = new ArrayDeque<String>();
     private final Event<UpstreamStream> connectedEvent = new Event<UpstreamStream>();
+    private final Event<UpstreamStream> disconnectedEvent = new Event<UpstreamStream>();
     private final Event<UpstreamStream> dataAvailableEvent = new Event<UpstreamStream>();
 
     /** Sender identity is the already composed node stream; NodeId is not repeated in the event. */
     public final EventSource<UpstreamStream> CONNECTED = connectedEvent;
+
+    /** Session input has already been cleared when this event is delivered. */
+    public final EventSource<UpstreamStream> DISCONNECTED = disconnectedEvent;
 
     /** This is a wake signal; the bounded input queue remains the authoritative pending-data state. */
     public final EventSource<UpstreamStream> DATA_AVAILABLE = dataAvailableEvent;
@@ -92,8 +96,11 @@ public final class UpstreamStream {
     }
 
     /** Unread data belongs to the ended transport session and must not survive reconnect. */
-    synchronized void disconnected() {
-        input.clear();
+    void disconnected() {
+        synchronized (this) {
+            input.clear();
+        }
+        disconnectedEvent.emit(this);
     }
 
     /** Gateway construction rejects a routing table that pairs this stream with another binding. */

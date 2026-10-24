@@ -29,6 +29,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>Heartbeat cadence is protocol behavior and is therefore scheduled here on the same Runtime-owned scheduler used
  * by this node's task runner. The transport connector only reports connection state; it does not know about PING.</p>
+ *
+ * <p>TimingSystem also binds this endpoint to the matching TimingNode's post-commit TimingData event. That event is
+ * only a wake signal: live forwarding rereads the authoritative LogBook from its retained source cursor.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
     private static final int TASK_QUEUE_CAPACITY = 32;
@@ -43,6 +46,7 @@ public final class NodeUpstream extends LifecycleComponent {
     private final Heartbeat heartbeat;
     private final RaceDataSync raceDataSync;
     private final TimingDataSync timingDataSync;
+    private final TimingDataLiveTask timingDataLiveTask;
     private final UpstreamInputTask inputTask;
     private ScheduledFuture<?> heartbeatSchedule;
 
@@ -71,6 +75,7 @@ public final class NodeUpstream extends LifecycleComponent {
         this.heartbeat = new Heartbeat(nodeId, this::isAvailable, this::send);
         this.raceDataSync = new RaceDataSync(nodeId, this::isAvailable, this::send);
         this.timingDataSync = new TimingDataSync(nodeId, this::isAvailable, this::send, logBook);
+        this.timingDataLiveTask = new TimingDataLiveTask(nodeId, this::isAvailable, timingDataSync);
         this.inputTask = new UpstreamInputTask(nodeId, stream, this::isAvailable,
                 this::readMessage, this::createMessageTask,
                 this::cancelMessageState);
@@ -104,7 +109,8 @@ public final class NodeUpstream extends LifecycleComponent {
     protected void onDeactivate() {
         cancelHeartbeatSchedule();
         inputTask.cancel();
-        timingDataSync.cancelReplay();
+        timingDataLiveTask.cancel();
+        timingDataSync.sessionUnavailable();
         raceDataSync.cancelApply();
         taskRunner.close();
     }
@@ -155,7 +161,8 @@ public final class NodeUpstream extends LifecycleComponent {
                 return new TimingDataReplayTask(
                         this::isAvailable,
                         timingDataSync,
-                        (UpstreamData.Req) data);
+                        (UpstreamData.Req) data,
+                        this::wakeLiveTimingData);
 
             case SYNC:
                 return oneStepTask(() -> raceDataSync.handleSync((UpstreamData.Sync) data));
@@ -216,6 +223,29 @@ public final class NodeUpstream extends LifecycleComponent {
     }
 
     /**
+     * Handles the end of the transport session paired with this NodeUpstream by TimingSystem.
+     *
+     * <p>Unread stream input is already cleared by UpstreamStream. Cancelling semantic continuations
+     * here prevents replay or live output from an ended session from resuming after reconnect.</p>
+     */
+    public void connectionUnavailable() {
+        inputTask.cancel();
+        timingDataLiveTask.cancel();
+        timingDataSync.sessionUnavailable();
+        raceDataSync.cancelApply();
+    }
+
+    /**
+     * Handles a post-commit TimingData wake from the TimingNode paired by TimingSystem.
+     *
+     * <p>The event payload is deliberately not copied into an outbound queue. The live task reads
+     * the authoritative LogBook by source sequence after the SYNC/REQ handoff has completed.</p>
+     */
+    public void timingDataChanged() {
+        wakeLiveTimingData();
+    }
+
+    /**
      * Handles a data-available fact from the stream paired with this NodeUpstream by TimingSystem.
      *
      * <p>The stream already owns the queued encoded data. This input only wakes semantic admission.</p>
@@ -251,6 +281,13 @@ public final class NodeUpstream extends LifecycleComponent {
     private void queueHeartbeat() {
         if (isAvailable()) {
             taskRunner.executeOrWarn(heartbeat::tick, "heartbeat tick");
+        }
+    }
+
+    /** Wakes bounded live LogBook catch-up when the session and task lane can accept work. */
+    private void wakeLiveTimingData() {
+        if (taskRunner.isRunning() && isAvailable()) {
+            timingDataLiveTask.wake(taskRunner);
         }
     }
 

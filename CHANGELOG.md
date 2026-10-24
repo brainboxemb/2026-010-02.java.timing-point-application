@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Complete the TIMING_DATA synchronization handoff: Central now sends a TIMING_DATA REQ after every source-head SYNC, including when already caught up; SI-01 replays through a captured LogBook head before enabling proactive bounded live LogBook catch-up, and disconnect cancels old-session replay/live continuations.
+
 - Tighten the shared IF-06 data contract: RACE_DATA now carries a required message-level LocationId, TIMING_DATA is limited to 16 TimingRecords per message, RACE_DATA is limited to 16 combined team/stage-start changes, and LogBook replay uses the same 16-record batch size. SI-02 Central creates RACE_DATA only for a currently OPEN location and shows the location in the semantic Messages position column.
 
 - Add an explicit follow-end mode to live SI-02 tables. Central Messages now has a visible `— Follow end —` row plus an **End** toolbar button; selecting a real message pauses following. Registrations and LogBook reuse their existing trailing follow row and expose **End** in a compact column header to resume following without extra toolbar space.
