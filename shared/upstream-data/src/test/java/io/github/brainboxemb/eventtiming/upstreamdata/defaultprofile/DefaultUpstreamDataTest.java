@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile;
 
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
 import java.util.Arrays;
@@ -17,6 +18,7 @@ public class DefaultUpstreamDataTest {
         try {
             DefaultUpstreamData.raceData(
                     new NodeId("A"),
+                    new LocationId(1),
                     1L,
                     Arrays.asList(
                             DefaultUpstreamData.teamAssignmentSet(
@@ -36,6 +38,7 @@ public class DefaultUpstreamDataTest {
         try {
             DefaultUpstreamData.raceData(
                     new NodeId("A"),
+                    new LocationId(1),
                     1L,
                     Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                     Arrays.asList(
