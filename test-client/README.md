@@ -278,7 +278,7 @@ presentation-only; selecting a row shows the exact frame payload.
 
 **Messages** is the Central semantic IF-06 inspector. It shows typed messages received
 from and sent to nodes, including `SYNC`, `REQ`, `ACK`, `PING`, `TIMING_DATA`
-and `RACE_DATA`. The table ends with one presentation-only `— Follow end —` row:
+and `RACE_DATA`. RACE_DATA positions include their message-level LocationId (for example `RACE_DATA L7 #12`). The shared IF-06 profile bounds TIMING_DATA to 16 TimingRecords per message and RACE_DATA to 16 combined changes per message. The table ends with one presentation-only `— Follow end —` row:
 while that row is selected, new messages keep the table scrolled to the end; selecting
 a real message suspends follow. The **End** button at the far right of the filters resumes
 follow. The bounded message journal is inspection state only; retained Central RACE_DATA
