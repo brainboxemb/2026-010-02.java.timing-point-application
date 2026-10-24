@@ -230,15 +230,18 @@ public class DefaultUpstreamDataCodecTest {
 
     @Test
     public void roundTripsHeartbeatAndManualPing() throws Exception {
+        TimingTimestamp messageTime =
+                TimingTimestamp.parseAbsolute("2026-10-24T14:12:00.123Z");
         UpstreamData.Ping heartbeat =
                 DefaultUpstreamData.ping(
                         new NodeId("A"),
                         UpstreamData.PingOperation.REQ,
                         UpstreamData.PingMode.HB,
-                        "p-0001");
+                        "p-0001",
+                        messageTime);
 
         assertEquals(
-                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\",\"data\":{\"op\":\"REQ\",\"mode\":\"HB\",\"pingId\":\"p-0001\"}}",
+                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\",\"data\":{\"op\":\"REQ\",\"mode\":\"HB\",\"time\":\"2026-10-24T14:12:00.123Z\",\"pingId\":\"p-0001\"}}",
                 text(codec.encode(heartbeat)));
 
         UpstreamData.Ping decodedHeartbeat =
@@ -253,6 +256,7 @@ public class DefaultUpstreamDataCodecTest {
                 UpstreamData.PingMode.HB,
                 decodedHeartbeat.mode());
         assertEquals("p-0001", decodedHeartbeat.pingId());
+        assertEquals(messageTime, decodedHeartbeat.time());
 
         UpstreamData.Ping manual =
                 (UpstreamData.Ping) codec.decode(
@@ -260,6 +264,14 @@ public class DefaultUpstreamDataCodecTest {
         assertSame(UpstreamData.PingOperation.ANS, manual.operation());
         assertNull(manual.mode());
         assertNull(manual.pingId());
+        assertNull(manual.time());
+    }
+
+    @Test
+    public void rejectsNonAbsolutePingTime() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\","
+                        + "\"data\":{\"op\":\"REQ\",\"time\":\"14:12:00\"}}");
     }
 
     @Test

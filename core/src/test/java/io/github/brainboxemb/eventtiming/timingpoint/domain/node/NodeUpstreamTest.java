@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -188,6 +189,9 @@ public class NodeUpstreamTest {
                     UpstreamData.PingMode.HB,
                     first.mode());
             assertEquals("hb-1", first.pingId());
+            assertEquals(
+                    Instant.parse("2026-10-13T12:00:00Z"),
+                    first.time().instant());
 
             stream.disconnect();
             stream.connect();
@@ -369,7 +373,9 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             UpstreamData.PingOperation.REQ,
                             UpstreamData.PingMode.HB,
-                            "peer-42"));
+                            "peer-42",
+                            TimingTimestamp.parseAbsolute(
+                                    "2026-10-13T11:59:00Z")));
 
             UpstreamData.Ping answer =
                     (UpstreamData.Ping) stream.takeSent();
@@ -377,6 +383,9 @@ public class NodeUpstreamTest {
                     UpstreamData.PingOperation.ANS,
                     answer.operation());
             assertEquals("peer-42", answer.pingId());
+            assertEquals(
+                    Instant.parse("2026-10-13T12:00:00Z"),
+                    answer.time().instant());
         } finally {
             deactivate(node.nodeUpstream());
             deactivate(node.node());

@@ -5,7 +5,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -68,6 +70,34 @@ final class CentralSystemSimulatorTest {
                 (UpstreamData.Req) replies.get(1);
         assertSame(UpstreamData.Stream.TIMING_DATA, request.stream());
         assertEquals(2L, request.fromSequence());
+    }
+
+    @Test
+    void pingAnswerUsesCentralMessageTimeInsteadOfEchoingRequestTime() {
+        Instant answerTime = Instant.parse("2026-10-24T14:13:00Z");
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(
+                        List.of(),
+                        Clock.fixed(answerTime, ZoneOffset.UTC));
+        simulator.connected();
+
+        UpstreamData.Ping request =
+                DefaultUpstreamData.ping(
+                        NODE_A,
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        "hb-1",
+                        new io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp(
+                                RECEIVED));
+
+        List<UpstreamData> replies =
+                simulator.accept(request, RECEIVED.plusMillis(10));
+
+        assertEquals(1, replies.size());
+        UpstreamData.Ping answer = (UpstreamData.Ping) replies.get(0);
+        assertEquals(answerTime, answer.time().instant());
+        assertEquals("hb-1", answer.pingId());
+        assertSame(UpstreamData.PingMode.HB, answer.mode());
     }
 
     @Test

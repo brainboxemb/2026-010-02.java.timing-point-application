@@ -344,7 +344,8 @@ public final class TimingNodeFixture {
                         new DefaultUpstreamDataCodec(
                                 new DefaultTimingDataCodec()),
                         logBook,
-                        nodeService);
+                        nodeService,
+                        timeSource);
 
         upstreamStream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
         upstreamStream.DISCONNECTED.subscribe(ignored -> nodeUpstream.connectionUnavailable());

@@ -3,9 +3,11 @@ package io.github.brainboxemb.eventtiming.testclient;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,6 +60,7 @@ final class CentralSystemSimulator {
     private static final int MAX_MESSAGE_HISTORY = 2000;
 
     private final List<Integer> configuredLocationIds;
+    private final Clock clock;
     private final Map<String, NodeState> nodes = new LinkedHashMap<>();
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
     private final List<MessageView> messages = new ArrayList<>();
@@ -65,8 +68,15 @@ final class CentralSystemSimulator {
     private long nextMessageOrdinal = 1L;
 
     CentralSystemSimulator(Collection<Integer> configuredLocationIds) {
+        this(configuredLocationIds, Clock.systemUTC());
+    }
+
+    CentralSystemSimulator(Collection<Integer> configuredLocationIds, Clock clock) {
         if (configuredLocationIds == null) {
             throw new IllegalArgumentException("configuredLocationIds must not be null");
+        }
+        if (clock == null) {
+            throw new IllegalArgumentException("clock must not be null");
         }
         List<Integer> validated = new ArrayList<>();
         for (Integer locationId : configuredLocationIds) {
@@ -78,6 +88,7 @@ final class CentralSystemSimulator {
             }
         }
         this.configuredLocationIds = List.copyOf(validated);
+        this.clock = clock;
         restoreConfiguredLocations();
     }
 
@@ -266,7 +277,8 @@ final class CentralSystemSimulator {
                             ping.timingNodeId(),
                             UpstreamData.PingOperation.ANS,
                             ping.mode(),
-                            ping.pingId()));
+                            ping.pingId(),
+                            new TimingTimestamp(clock.instant())));
         }
         return Collections.emptyList();
     }

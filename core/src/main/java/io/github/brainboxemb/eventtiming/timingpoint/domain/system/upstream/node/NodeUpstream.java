@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
@@ -57,7 +58,8 @@ public final class NodeUpstream extends LifecycleComponent {
             UpstreamStream stream,
             UpstreamDataCodec codec,
             LogBookAccessor logBook,
-            NodeService nodeService) {
+            NodeService nodeService,
+            TimeSource timeSource) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
@@ -65,6 +67,7 @@ public final class NodeUpstream extends LifecycleComponent {
         failIfInvalidArgument(codec != null, "codec must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
+        failIfInvalidArgument(timeSource != null, "timeSource must not be null");
 
         this.nodeId = nodeId;
         this.scheduler = scheduler;
@@ -72,7 +75,7 @@ public final class NodeUpstream extends LifecycleComponent {
         this.stream = stream;
         this.codec = codec;
         this.nodeService = nodeService;
-        this.heartbeat = new Heartbeat(nodeId, this::isAvailable, this::send);
+        this.heartbeat = new Heartbeat(nodeId, this::isAvailable, this::send, timeSource);
         this.raceDataSync = new RaceDataSync(nodeId, this::isAvailable, this::send);
         this.timingDataSync = new TimingDataSync(nodeId, this::isAvailable, this::send, logBook);
         this.timingDataLiveTask = new TimingDataLiveTask(nodeId, this::isAvailable, timingDataSync);

@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -21,6 +23,7 @@ final class Heartbeat {
     private final NodeId nodeId;
     private final BooleanSupplier available;
     private final Consumer<UpstreamData> sender;
+    private final TimeSource timeSource;
 
     private long requestsSent;
     private long answersReceived;
@@ -38,13 +41,16 @@ final class Heartbeat {
     Heartbeat(
             NodeId nodeId,
             BooleanSupplier available,
-            Consumer<UpstreamData> sender) {
+            Consumer<UpstreamData> sender,
+            TimeSource timeSource) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sender != null, "sender must not be null");
+        failIfInvalidArgument(timeSource != null, "timeSource must not be null");
         this.nodeId = nodeId;
         this.available = available;
         this.sender = sender;
+        this.timeSource = timeSource;
     }
 
     /**
@@ -72,7 +78,8 @@ final class Heartbeat {
                         nodeId,
                         UpstreamData.PingOperation.REQ,
                         UpstreamData.PingMode.HB,
-                        pendingPingId));
+                        pendingPingId,
+                        messageTime()));
     }
 
     /** Handles peer PING requests and answers to this node's heartbeat request. */
@@ -86,7 +93,8 @@ final class Heartbeat {
                             nodeId,
                             UpstreamData.PingOperation.ANS,
                             ping.mode(),
-                            ping.pingId()));
+                            ping.pingId(),
+                            messageTime()));
         } else if (ping.operation() == UpstreamData.PingOperation.ANS
                 && ping.mode() == UpstreamData.PingMode.HB
                 && answerPending
@@ -96,6 +104,11 @@ final class Heartbeat {
             answersReceived++;
             publishStatus();
         }
+    }
+
+    /** Samples the composed timing source once for one newly created PING message. */
+    private TimingTimestamp messageTime() {
+        return new TimingTimestamp(timeSource.now());
     }
 
     /** Returns the latest immutable heartbeat state published by the serial owner. */
