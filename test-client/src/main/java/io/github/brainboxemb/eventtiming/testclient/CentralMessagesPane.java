@@ -46,7 +46,7 @@ final class CentralMessagesPane {
             return new MessageRow(message, false);
         }
 
-        static MessageRow followEnd() {
+        static MessageRow endRow() {
             return new MessageRow(null, true);
         }
     }
@@ -149,14 +149,19 @@ final class CentralMessagesPane {
             types.add(message.data().family().name());
         }
 
-        nodeFilter.getItems().setAll(nodes);
-        typeFilter.getItems().setAll(types);
-        nodeFilter.setValue(
-                selectedNode != null && nodes.contains(selectedNode) ? selectedNode : ALL);
-        typeFilter.setValue(
-                selectedType != null && types.contains(selectedType) ? selectedType : ALL);
-        directionFilter.setValue(
-                selectedDirection == null ? ALL : selectedDirection);
+        rebuildingRows = true;
+        try {
+            nodeFilter.getItems().setAll(nodes);
+            typeFilter.getItems().setAll(types);
+            nodeFilter.setValue(
+                    selectedNode != null && nodes.contains(selectedNode) ? selectedNode : ALL);
+            typeFilter.setValue(
+                    selectedType != null && types.contains(selectedType) ? selectedType : ALL);
+            directionFilter.setValue(
+                    selectedDirection == null ? ALL : selectedDirection);
+        } finally {
+            rebuildingRows = false;
+        }
 
         rebuildRows(selectedOrdinal, wasFollowing);
     }
@@ -283,6 +288,7 @@ final class CentralMessagesPane {
             }
         }
         table.getSelectionModel().clearSelection();
+        rawMessage.clear();
     }
 
     private Long selectedMessageOrdinal() {
@@ -304,7 +310,7 @@ final class CentralMessagesPane {
                 result.add(MessageRow.message(message));
             }
         }
-        result.add(MessageRow.followEnd());
+        result.add(MessageRow.endRow());
         return List.copyOf(result);
     }
 
