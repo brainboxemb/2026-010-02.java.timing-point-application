@@ -113,7 +113,7 @@ public class DefaultUpstreamDataTest {
     }
 
     @Test
-    public void packetDirectionAndPingIdentityAreValidated() {
+    public void packetDirectionAndPingNumberAreValidated() {
         NodeId nodeId = new NodeId("A");
         UpstreamData.Ping ping =
                 DefaultUpstreamData.createPing(
