@@ -1,5 +1,7 @@
 # Changelog
 
+- Present Engineering Client viewer timestamps in the host's local timezone while retaining exact canonical UTC in raw IF-03/IF-05/IF-06 payloads. Central TIMING_DATA Messages now use IF-05 `recTime` as source Time (last record for a batch) instead of falling back to the near-identical UPSTREAM_DATA event/receive time.
+
 - Make the existing IF-05 UTC record timestamps explicit in upstream verification and single-record TIMING_DATA INFO summaries: `time` remains effective UTC and `recTime` remains recorded-at UTC; no new IF-06 timing representation is introduced.
 
 - Add terminal `reboot`: request a full application RESTART distinct from `quit`/`exit` STOP, cleanly deactivate the current runtime and process-level presentation/logging resources, reload the YAML configuration, and compose/activate a new SI-01 application in the same JVM.
@@ -24,7 +26,7 @@
 
 - Make Central Messages a true IF-06 message inspector: retain the raw IF-06 payload separately from the IF-03 event envelope for inbound and outbound rows, show that retained payload on selection instead of re-encoding the semantic value, and keep multi-record TIMING_DATA positions to the sequence range only while single-record messages may show the compact IF-05 record type.
 
-- Improve Engineering Client Central Messages timing: retain semantic/source message time separately from local receive time, use PING.time when available, capture receive time at the WebSocket boundary, show separate Time/Received columns, default to compact UTC time-only formatting with at most millisecond precision, and allow switching to a date+time view.
+- Improve Engineering Client Central Messages timing: retain semantic/source message time separately from local receive time, use PING.time when available, capture receive time at the WebSocket boundary, show separate Time/Received columns, default to compact local time-only formatting with at most millisecond precision, and allow switching to a date+time view.
 
 - Standardize normal operational INFO logging across registration, durable LogBook persistence and upstream delivery: use stable `Registration accepted`, `LogBook persisted`, `Upstream queued`, `Upstream sent`, `Upstream connected` and `Upstream disconnected` prefixes; summarize TIMING_DATA once per actual message batch (sequence range + record count) without logging the full encoded payload.
 
