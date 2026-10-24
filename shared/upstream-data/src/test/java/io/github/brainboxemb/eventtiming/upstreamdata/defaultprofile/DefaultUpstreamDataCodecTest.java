@@ -255,6 +255,35 @@ public class DefaultUpstreamDataCodecTest {
     }
 
     @Test
+    public void pingWriterTruncatesToMillisButReaderAcceptsNanoseconds()
+            throws Exception {
+        String fullPrecision = "2026-10-24T20:12:04.8234159Z";
+        UpstreamData original =
+                DefaultUpstreamData.createUpPacket(
+                        new NodeId("A"),
+                        0L,
+                        DefaultUpstreamData.createPing(
+                                UpstreamData.PingOperation.REQ,
+                                UpstreamData.PingMode.HB,
+                                "hb-2",
+                                TimingTimestamp.parseAbsolute(fullPrecision)));
+
+        String encoded = text(codec.encode(original));
+        assertTrue(encoded.contains("2026-10-24T20:12:04.823Z"));
+
+        String legacyEncoded = encoded.replace(
+                "2026-10-24T20:12:04.823Z",
+                fullPrecision);
+        UpstreamData decoded = codec.decode(bytes(legacyEncoded));
+        assertEquals(
+                TimingTimestamp.parseAbsolute(fullPrecision),
+                ((UpstreamData.Ping) decoded.message()).time());
+        assertEquals(
+                encoded,
+                text(codec.encode(decoded)));
+    }
+
+    @Test
     public void rejectsPacketAndMessageContractViolations()
             throws Exception {
         assertInvalid(
