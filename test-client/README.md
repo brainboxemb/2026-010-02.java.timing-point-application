@@ -279,12 +279,17 @@ event/semantic type, timestamp and source/wire payload. Direction and type filte
 presentation-only; selecting a row shows the exact frame payload.
 
 **Messages** is the Central semantic IF-06 inspector. It shows typed messages received
-from and sent to nodes, including `SYNC`, `REQ`, `ACK`, `PING`, `TIMING_DATA`
-and `RACE_DATA`. RACE_DATA positions include their message-level LocationId (for example `RACE_DATA L7 #12`). The shared IF-06 profile bounds TIMING_DATA to 16 TimingRecords per message and RACE_DATA to 16 combined changes per message. The table ends with one presentation-only `— Follow end —` row:
-while that row is selected, new messages keep the table scrolled to the end; selecting
-a real message suspends follow. The **End** button at the far right of the filters resumes
-follow. The bounded message journal is inspection state only; retained Central RACE_DATA
-source history remains independent for replay.
+from and sent to nodes, including `SEQ`, `TIMING_DATA_REQ`, `RECV`, `PING`,
+`TIMING_DATA` and `RACE_DATA`. The Packet / position column shows the packet number
+separately from any TIMING_DATA/LogBook sequence; RACE_DATA also shows its message-level
+LocationId. The shared IF-06 profile bounds TIMING_DATA to 16 TimingRecords per message
+and RACE_DATA to 16 combined changes per message. The table ends with one presentation-only
+`— Follow end —` row: while that row is selected, new messages keep the table scrolled
+to the end; selecting a real message suspends follow and preserves the inspected viewport
+while later messages arrive. The **End** button at the far right of the filters resumes
+follow. The bounded message journal is inspection state only. Central RACE_DATA is current
+state plus at most one outstanding normal DN_PACKET for retry; there is no retained
+RACE_DATA source-sequence history.
 
 **Central LogBook** is independent from that bounded Messages journal. Every accepted
 contiguous TIMING_DATA record is retained once in receive order, regardless of whether it
@@ -361,28 +366,33 @@ The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/fil
 editor. The Engineering Client still does not expose arbitrary TagObservation injection,
 TagProcessor/filter mutation or StageStartTimes/NextUpTeams editors. The first Central RACE_DATA editor is now available separately as **C|RaceData**.
 
-The narrow explorer deliberately contains three different projections. **A|Systems** is
-the direct IF-03/API system view of SI-01. **C|Nodes** does not invent a Central system
-aggregate: Central currently only discovers NodeIds through typed `UPSTREAM_DATA` on the
-explicit `/api/v1/events?role=upstream` session. It therefore shows a flat compact node
-list such as `A [05] · H - 30s · CNT 1157`; heartbeat, TimingData head, RACE_DATA source/ACK
-heads and latest LogBook record remain available on the node tooltip. In the compact row, `[05]` means currently OPEN at LocationId 5, `[--]` means known CLOSED and `[??]` means the lifecycle/location is not known yet. `H -NNNs` is the locally observed heartbeat age, right-aligned to three digits with leading spaces (refreshed every 10 seconds and capped at 999s) and `CNT` is the received contiguous TimingData/LogBook head, right-aligned to at least three digits.
+The narrow explorer deliberately contains separate **System** and **Central** projections.
+System is the direct IF-03/API system view of SI-01. Central currently discovers NodeIds
+through typed `UPSTREAM_DATA` on the explicit `/api/v1/events?role=upstream` session.
+Its Nodes tab therefore shows a flat compact list such as
+`A [05] · H - 30s · CNT 1157`; heartbeat, TimingData head, last acknowledged downstream
+packet number, any outstanding downstream packet number and the latest LogBook record
+remain available on the node tooltip. In the compact row, `[05]` means currently OPEN at LocationId 5, `[--]` means known CLOSED and `[??]` means the lifecycle/location is not known yet. `H -NNNs` is the locally observed heartbeat age, right-aligned to three digits with leading spaces (refreshed every 10 seconds and capped at 999s) and `CNT` is the received contiguous TimingData/LogBook head, right-aligned to at least three digits.
 
-**C|Locations** is another compact Central projection, for example
+**Central → Locations** is another compact Central projection, for example
 `5 · OPEN · A` or `6 · UNKNOWN`. Sequence and transition timestamps remain internal
 projection state and are not permanent explorer columns. A later NODE_OPEN for the same
 NodeId at another LocationId implicitly closes the previously active location.
 
-**C|RaceData** is an operator form rather than an explorer and therefore lives in the
-wide controls/form dock beside TimingNode, API, Registration, Simulation and Scripts.
-It selects an observed Central NodeId and sends only RegistrationId-to-TeamId SET/DEL
-changes for now. Each operator action creates the next
-Central-owned RACE_DATA sequence, shows the source head and cumulative ACK, and is rejected
-unless the explicit Central `role=upstream` session is active. Stage-start editing remains
-deliberately separate because its time-only/date+time conversion must reuse the accepted
-UTC/civil-time rules. The two models do not share state, so an API/upstream mismatch
-remains visible during testing. On a TIMING_DATA source-head SYNC the simulator requests
-replay from its own next sequence, and heartbeat PING requests are answered with the same
+**Central Controls → RaceData** is an operator form rather than an explorer. It selects
+an observed Central NodeId and applies RegistrationId-to-TeamId SET/DEL changes to the
+Central-owned current RaceData state. When no normal DN_PACKET is outstanding, the next
+required state delta is sent with the next downstream packet number; while a packet is
+outstanding it remains immutable and later state changes wait behind it. The pane shows
+the last acknowledged downstream packet and any pending packet. It is rejected unless
+the explicit Central `role=upstream` session is active.
+
+Stage-start editing remains deliberately separate because its time-only/date+time conversion
+must reuse the accepted UTC/civil-time rules. The API and upstream models do not share
+state, so a mismatch remains visible during testing. A fresh SI-01 runtime reports
+`RECV 0` to request a rebuild of current downstream state and publishes a TIMING_DATA
+`SEQ NTF`; Central then issues `TIMING_DATA_REQ` from its own next contiguous LogBook
+sequence. Heartbeat PING requests are answered directly with packet number 0 and the same
 mode/correlation id.
 
 ### Current IF-03 resources used
