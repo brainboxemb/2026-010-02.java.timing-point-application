@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clamp every detached Bento DragDropStage again after its first JavaFX layout, in addition to the existing Scene size cap. This prevents nested viewers such as Central <id> from expanding back to oversized source dimensions and repositions floating windows fully inside the target monitor visual bounds so the Windows title bar remains reachable.
+
 - Refine the SI-02 desktop split into left-side explorer/Node Controls/Central Controls plus the original stacked Device Log, Terminal and Client Log docks, with a dedicated right-side viewer leaf for detachable Node <id> / Central <id> viewers. Apply one Bento SceneFactory policy to all floating panes so already-small panes keep their size while detached windows are bounded to 480–960 × 320–640 px instead of inheriting an oversized source dock.
 
 - Reorganize SI-02 into top-level `Node <id>` and `Central <id>` perspectives with independent Bento workspaces and shared Device Log/Terminal/Client Log tools. Replace the Events raw text log with an IN/OUT WebSocket traffic inspector, add a separate Central semantic IF-06 Messages inspector with bounded journal state independent from RACE_DATA replay history, and make RegistrationId the primary Registrations identity while retaining optional TeamId separately.
