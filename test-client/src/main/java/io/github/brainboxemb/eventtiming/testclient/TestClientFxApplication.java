@@ -745,7 +745,7 @@ public final class TestClientFxApplication extends Application {
                 for (UpstreamData reply
                         : centralSimulator.accept(
                                 upstreamEvent.upstreamData(),
-                                upstreamEvent.occurredAt())) {
+                                java.time.Instant.now())) {
                     system.eventClient()
                             .sendUpstreamData(reply)
                             .whenComplete((ignored, error) -> {
@@ -1198,6 +1198,9 @@ public final class TestClientFxApplication extends Application {
     public void stop() {
         if (apiPane != null) {
             apiPane.close();
+        }
+        if (centralPane != null) {
+            centralPane.close();
         }
         if (system != null) {
             system.close();
