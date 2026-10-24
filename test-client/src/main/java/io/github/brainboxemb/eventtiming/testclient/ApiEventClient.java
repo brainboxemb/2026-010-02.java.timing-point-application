@@ -229,7 +229,7 @@ public final class ApiEventClient implements AutoCloseable {
                 rawJson);
     }
 
-    private static boolean isUpstreamRole(URI endpoint) {
+    static boolean isUpstreamRole(URI endpoint) {
         String query = endpoint.getQuery();
         if (query == null) {
             return false;
