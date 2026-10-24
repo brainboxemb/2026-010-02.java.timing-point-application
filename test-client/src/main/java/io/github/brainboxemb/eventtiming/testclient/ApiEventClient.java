@@ -256,8 +256,8 @@ public final class ApiEventClient implements AutoCloseable {
         if (webSocket == socket) {
             webSocket = null;
             upstreamRole = false;
+            connecting = false;
         }
-        connecting = false;
     }
 
     @Override
