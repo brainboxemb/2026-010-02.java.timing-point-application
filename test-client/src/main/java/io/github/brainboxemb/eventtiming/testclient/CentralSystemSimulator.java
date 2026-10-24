@@ -143,16 +143,16 @@ final class CentralSystemSimulator {
         NodeState node = nodes.computeIfAbsent(nodeId, NodeState::new);
 
         return switch (data.family()) {
-            case PING -> handlePing(system, (UpstreamData.Ping) data, receivedAt);
-            case SYNC -> handleSync(system, (UpstreamData.Sync) data);
-            case REQ -> handleReq(system, (UpstreamData.Req) data);
+            case PING -> handlePing(node, (UpstreamData.Ping) data, receivedAt);
+            case SYNC -> handleSync(node, (UpstreamData.Sync) data);
+            case REQ -> handleReq(node, (UpstreamData.Req) data);
             case ACK -> {
-                handleAck(system, (UpstreamData.Ack) data);
+                handleAck(node, (UpstreamData.Ack) data);
                 yield Collections.emptyList();
             }
             case TIMING_DATA -> {
                 handleTimingData(
-                        system,
+                        node,
                         (UpstreamData.TimingDataTransfer) data,
                         receivedAt);
                 yield Collections.emptyList();
@@ -320,7 +320,7 @@ final class CentralSystemSimulator {
 
             node.timingDataHead = sequence;
             node.lastRecord = record;
-            applyLifecycle(system, record, receivedAt);
+            applyLifecycle(node, record, receivedAt);
         }
     }
 
@@ -330,7 +330,7 @@ final class CentralSystemSimulator {
             Instant receivedAt) {
         if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
             closePreviousLocationOnMove(
-                    system,
+                    node,
                     record.locationId(),
                     record.sequenceNumber(),
                     receivedAt);
