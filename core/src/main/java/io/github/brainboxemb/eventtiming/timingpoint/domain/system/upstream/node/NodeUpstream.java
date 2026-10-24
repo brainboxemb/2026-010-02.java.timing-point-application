@@ -262,7 +262,11 @@ public final class NodeUpstream extends LifecycleComponent {
     private UpstreamData readMessage() {
         String encoded = stream.read();
         try {
-            return codec.decode(encoded.getBytes(StandardCharsets.UTF_8));
+            UpstreamData data =
+                    codec.decode(
+                            encoded.getBytes(StandardCharsets.UTF_8));
+            LOG.info("Upstream received: {}", logSummary(data));
+            return data;
         } catch (UpstreamDataCodec.CodecException ex) {
             throw new IllegalArgumentException("Invalid UpstreamData for node " + nodeId.value(), ex);
         }
