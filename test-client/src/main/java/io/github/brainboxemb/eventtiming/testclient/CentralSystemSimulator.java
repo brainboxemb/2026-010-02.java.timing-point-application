@@ -329,6 +329,12 @@ final class CentralSystemSimulator {
             TimingRecord record,
             Instant receivedAt) {
         if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
+            closePreviousLocationOnMove(
+                    system,
+                    record.locationId(),
+                    record.sequenceNumber(),
+                    receivedAt);
+
             system.lifecycleState = "OPEN";
             system.locationId = Integer.valueOf(record.locationId());
             LocationState location = locations.computeIfAbsent(
@@ -352,6 +358,38 @@ final class CentralSystemSimulator {
             location.sequence = record.sequenceNumber();
             location.changedAt = receivedAt;
         }
+    }
+
+    /**
+     * A TimingNode can only represent one active location at a time.
+     *
+     * <p>Central therefore treats a later NODE_OPEN for another LocationId as an
+     * implicit close of the previously active location, even when no explicit
+     * NODE_CLOSE record was emitted between both OPEN records.</p>
+     */
+    private void closePreviousLocationOnMove(
+            SystemState system,
+            int nextLocationId,
+            long sequence,
+            Instant changedAt) {
+        Integer previousLocationId = system.locationId;
+        if (previousLocationId == null
+                || previousLocationId.intValue() == nextLocationId) {
+            return;
+        }
+
+        LocationState previous = locations.computeIfAbsent(
+                previousLocationId.intValue(),
+                LocationState::new);
+        if (previous.nodeId != null
+                && !previous.nodeId.equals(system.nodeId)) {
+            return;
+        }
+
+        previous.state = "CLOSED";
+        previous.nodeId = system.nodeId;
+        previous.sequence = sequence;
+        previous.changedAt = changedAt;
     }
 
     private void restoreConfiguredLocations() {

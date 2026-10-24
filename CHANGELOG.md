@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix the Central location projection so a NODE_OPEN for a new LocationId implicitly closes the same NodeId's previously active location even when no explicit NODE_CLOSE record exists; the new OPEN sequence/time becomes the inferred close transition, leaving at most one interpreted OPEN location per node.
+
 - Make `C|Systems` a compact explorer for the narrow left workbench column, matching the role of `A|Systems`: show target system plus one `NodeId · lifecycle · Location` row, retain UNKNOWN until lifecycle TimingData arrives, hide the redundant connected banner, and move heartbeat/Timing/Race/ACK/last-LogBook diagnostics into the node tooltip.
 
 - Add the first visible Central backend mutation pane as `C|RaceData`: select an observed NodeId, send canonical RegistrationId-to-TeamId SET/DEL through the explicit Central `role=upstream` session, allocate the next retained RACE_DATA source sequence only after the connection gate passes, and show source-head versus cumulative ACK. Keep StageStartTime editing deferred until SI-02 reuses the accepted time-only/date+time UTC interpretation path.
