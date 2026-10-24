@@ -11,8 +11,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class CentralSystemSimulatorTest {
@@ -21,7 +23,7 @@ final class CentralSystemSimulatorTest {
     private static final NodeId NODE_A = new NodeId("A");
 
     @Test
-    void requestsMissingTimingDataFromItsOwnNextSequence() {
+    void timingDataSyncAdvertisesRaceDataHeadAndRequestsMissingTimingSuffix() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7));
         simulator.connected();
 
@@ -32,32 +34,121 @@ final class CentralSystemSimulatorTest {
                         4L),
                 RECEIVED);
 
-        UpstreamData.Req request =
-                (UpstreamData.Req) replies.get(0);
-        assertSame(UpstreamData.Stream.TIMING_DATA, request.stream());
-        assertEquals(1L, request.fromSequence());
-        assertEquals(NODE_A, request.timingNodeId());
+        assertEquals(2, replies.size());
+
+        UpstreamData.Sync raceSync =
+                (UpstreamData.Sync) replies.get(0);
+        assertSame(UpstreamData.Stream.RACE_DATA, raceSync.stream());
+        assertEquals(0L, raceSync.sequence());
+
+        UpstreamData.Req timingRequest =
+                (UpstreamData.Req) replies.get(1);
+        assertSame(UpstreamData.Stream.TIMING_DATA, timingRequest.stream());
+        assertEquals(1L, timingRequest.fromSequence());
+        assertEquals(NODE_A, timingRequest.timingNodeId());
     }
 
     @Test
-    void reconnectRequestsOnlyTheMissingTimingDataSuffix() {
+    void reconnectPreservesBothProtocolHeads() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7));
         simulator.accept(
                 timingData(opened(1L, 7)),
                 RECEIVED);
+        UpstreamData.RaceData raceData = createRaceData(simulator, "A0001", "T001");
+        assertEquals(1L, raceData.sequence());
+
         simulator.disconnected();
         simulator.connected();
 
-        UpstreamData.Req request =
-                (UpstreamData.Req) simulator.accept(
-                        DefaultUpstreamData.sync(
-                                NODE_A,
-                                UpstreamData.Stream.TIMING_DATA,
-                                4L),
-                        RECEIVED.plusSeconds(1))
-                        .get(0);
+        List<UpstreamData> replies = simulator.accept(
+                DefaultUpstreamData.sync(
+                        NODE_A,
+                        UpstreamData.Stream.TIMING_DATA,
+                        4L),
+                RECEIVED.plusSeconds(1));
 
-        assertEquals(2L, request.fromSequence());
+        UpstreamData.Sync raceSync =
+                (UpstreamData.Sync) replies.get(0);
+        assertEquals(1L, raceSync.sequence());
+
+        UpstreamData.Req timingRequest =
+                (UpstreamData.Req) replies.get(1);
+        assertEquals(2L, timingRequest.fromSequence());
+    }
+
+    @Test
+    void createsOrderedRaceDataAndReplaysOriginalValues() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+
+        UpstreamData.RaceData first =
+                createRaceData(simulator, "A0001", "T001");
+        UpstreamData.RaceData second =
+                createRaceData(simulator, "A0002", "T002");
+
+        assertEquals(1L, first.sequence());
+        assertEquals(2L, second.sequence());
+        assertEquals(2L, simulator.systems().get(0).raceDataHead());
+
+        List<UpstreamData> replay = simulator.accept(
+                DefaultUpstreamData.req(
+                        NODE_A,
+                        UpstreamData.Stream.RACE_DATA,
+                        1L),
+                RECEIVED);
+
+        assertEquals(2, replay.size());
+        assertSame(first, replay.get(0));
+        assertSame(second, replay.get(1));
+    }
+
+    @Test
+    void consumesCumulativeRaceDataAckWithoutDroppingReplayHistory() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+        UpstreamData.RaceData first =
+                createRaceData(simulator, "A0001", "T001");
+        UpstreamData.RaceData second =
+                createRaceData(simulator, "A0002", "T002");
+
+        simulator.accept(
+                DefaultUpstreamData.ack(
+                        NODE_A,
+                        UpstreamData.Stream.RACE_DATA,
+                        2L),
+                RECEIVED);
+
+        assertEquals(2L, simulator.systems().get(0).raceDataAcknowledged());
+
+        List<UpstreamData> replay = simulator.accept(
+                DefaultUpstreamData.req(
+                        NODE_A,
+                        UpstreamData.Stream.RACE_DATA,
+                        1L),
+                RECEIVED.plusSeconds(1));
+        assertSame(first, replay.get(0));
+        assertSame(second, replay.get(1));
+
+        simulator.accept(
+                DefaultUpstreamData.ack(
+                        NODE_A,
+                        UpstreamData.Stream.RACE_DATA,
+                        1L),
+                RECEIVED.plusSeconds(2));
+        assertEquals(2L, simulator.systems().get(0).raceDataAcknowledged());
+    }
+
+    @Test
+    void rejectsAckBeyondCentralRaceDataSourceHead() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+        createRaceData(simulator, "A0001", "T001");
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> simulator.accept(
+                        DefaultUpstreamData.ack(
+                                NODE_A,
+                                UpstreamData.Stream.RACE_DATA,
+                                2L),
+                        RECEIVED));
     }
 
     @Test
@@ -81,12 +172,13 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void targetChangeClearsLearnedStateButKeepsConfiguredLocations() {
+    void targetChangeClearsLearnedAndRaceDataStateButKeepsConfiguredLocations() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7, 8));
         simulator.connected();
         simulator.accept(
                 timingData(opened(1L, 7)),
                 RECEIVED);
+        createRaceData(simulator, "A0001", "T001");
 
         simulator.resetTargetState();
 
@@ -94,7 +186,7 @@ final class CentralSystemSimulatorTest {
         assertEquals("UNKNOWN", location(simulator, 7).state());
         assertEquals("UNKNOWN", location(simulator, 8).state());
         assertNull(location(simulator, 7).nodeId());
-        assertEquals(false, simulator.isConnected());
+        assertFalse(simulator.isConnected());
     }
 
     @Test
@@ -119,6 +211,19 @@ final class CentralSystemSimulatorTest {
                 TimingRecord.Kind.NODE_CLOSE,
                 simulator.systems().get(0).lastRecord().kind());
         assertEquals("UNKNOWN", location(simulator, 8).state());
+    }
+
+    private static UpstreamData.RaceData createRaceData(
+            CentralSystemSimulator simulator,
+            String registrationId,
+            String teamId) {
+        return simulator.createRaceData(
+                NODE_A,
+                List.of(
+                        DefaultUpstreamData.teamAssignmentSet(
+                                registrationId,
+                                teamId)),
+                List.of());
     }
 
     private static CentralSystemSimulator.LocationView location(
