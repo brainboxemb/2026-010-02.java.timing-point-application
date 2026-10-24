@@ -933,7 +933,7 @@ public final class TestClientFxApplication extends Application {
             centralConnectionEpoch.invalidate();
             apiCheckEpoch.invalidate();
             setEventConnected(false, "CONNECT");
-            centralSimulator.disconnected();
+            centralSimulator.resetTargetState();
             centralPane.refresh();
             setCentralConnected(false, "CONNECT");
             setShellConnected(false, "CONNECT");
