@@ -54,7 +54,7 @@ public final class TimingApplicationRuntime {
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
-    private final ShutdownSignal shutdownSignal;
+    private final ApplicationExitSignal shutdownSignal;
 
     private State state = State.NEW;
 
@@ -68,7 +68,7 @@ public final class TimingApplicationRuntime {
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
-            ShutdownSignal shutdownSignal) {
+            ApplicationExitSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
         this.timingNodes = timingNodes;
         this.configuration = configuration;
