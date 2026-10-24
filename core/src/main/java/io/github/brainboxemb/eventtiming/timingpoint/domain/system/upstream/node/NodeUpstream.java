@@ -185,7 +185,7 @@ public final class NodeUpstream extends LifecycleComponent {
     }
 
     /** Builds one compact summary at the semantic packet boundary. */
-    private static String logSummary(UpstreamData packet) {
+    static String logSummary(UpstreamData packet) {
         String prefix =
                 "node=" + packet.timingNodeId().value()
                         + ", packetId=" + packet.packetId()
