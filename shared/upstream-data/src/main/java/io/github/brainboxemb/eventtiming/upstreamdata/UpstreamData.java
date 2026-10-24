@@ -15,51 +15,103 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Transport-independent immutable IF-06 message value.
+ * Transport-independent immutable IF-06 packet.
  *
- * <p>Every current IF-06 message is node-scoped, so the NodeId lives once in this base value.
- * Concrete message classes contain only the fields needed by that message family. There is no
- * secondary implementation hierarchy behind the public semantic types.</p>
+ * <p>One packet has one direction, one node, one delivery identity and exactly one semantic
+ * message. Packet identity is deliberately separate from TIMING_DATA/LogBook sequence identity.</p>
  */
-public abstract class UpstreamData {
+public final class UpstreamData {
     public static final int MAX_TIMING_DATA_RECORDS = 16;
     public static final int MAX_RACE_DATA_CHANGES = 16;
 
+    private final Direction direction;
     private final NodeId timingNodeId;
+    private final long packetId;
+    private final Message message;
 
-    private UpstreamData(NodeId timingNodeId) {
+    public UpstreamData(
+            Direction direction,
+            NodeId timingNodeId,
+            long packetId,
+            Message message) {
+        if (direction == null) {
+            throw new IllegalArgumentException("direction must not be null");
+        }
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
+        if (message == null) {
+            throw new IllegalArgumentException("message must not be null");
+        }
+        if (packetId < 0L) {
+            throw new IllegalArgumentException("packetId must be zero or positive");
+        }
+
+        if (message.family() == Family.PING) {
+            if (packetId != 0L) {
+                throw new IllegalArgumentException("PING requires packetId 0");
+            }
+        } else if (packetId == 0L) {
+            throw new IllegalArgumentException("packetId 0 is reserved for PING");
+        }
+
+        requireDirection(direction, message.family());
+        validateNodeScopedMessage(timingNodeId, message);
+
+        this.direction = direction;
         this.timingNodeId = timingNodeId;
+        this.packetId = packetId;
+        this.message = message;
     }
 
-    /** Returns the node whose upstream protocol state this message belongs to. */
-    public final NodeId timingNodeId() {
+    public Direction direction() {
+        return direction;
+    }
+
+    /** Returns the node whose upstream protocol state this packet belongs to. */
+    public NodeId timingNodeId() {
         return timingNodeId;
     }
 
-    /** Returns the IF-06 message family used for wire dispatch. */
-    public abstract Family family();
+    /** Returns the delivery/debug identity of this packet. PING uses zero. */
+    public long packetId() {
+        return packetId;
+    }
+
+    /** Returns the single semantic message carried by this packet. */
+    public Message message() {
+        return message;
+    }
+
+    /** Convenience dispatch value for the contained semantic message. */
+    public Family family() {
+        return message.family();
+    }
+
+    public enum Direction {
+        UP_PACKET,
+        DN_PACKET
+    }
 
     public enum Family {
         TIMING_DATA,
+        TIMING_DATA_REQ,
+        SEQ,
         RACE_DATA,
-        SYNC,
-        ACK,
-        REQ,
+        RECV,
         PING,
         STATUS
-    }
-
-    public enum Stream {
-        TIMING_DATA,
-        RACE_DATA
     }
 
     public enum ChangeOperation {
         SET,
         DEL
+    }
+
+    public enum SequenceOperation {
+        REQ,
+        ANS,
+        NTF
     }
 
     public enum PingOperation {
@@ -71,13 +123,20 @@ public abstract class UpstreamData {
         HB
     }
 
+    /** Base for one semantic message carried by an IF-06 packet. */
+    public abstract static class Message {
+        private Message() {
+        }
+
+        public abstract Family family();
+    }
+
     /** One TIMING_DATA transfer containing one or more scalar TimingRecords. */
-    public static final class TimingDataTransfer extends UpstreamData {
+    public static final class TimingDataTransfer extends Message {
         private final List<TimingRecord> records;
 
-        public TimingDataTransfer(NodeId nodeId, List<TimingRecord> records) {
-            super(nodeId);
-            this.records = copyTimingData(nodeId, records);
+        public TimingDataTransfer(List<TimingRecord> records) {
+            this.records = copyTimingData(records);
         }
 
         @Override
@@ -90,26 +149,21 @@ public abstract class UpstreamData {
         }
     }
 
-    /** One ordered Central-to-node RACE_DATA change set. */
-    public static final class RaceData extends UpstreamData {
+    /** One Central-to-node RACE_DATA change set. */
+    public static final class RaceData extends Message {
         private final LocationId locationId;
-        private final long sequence;
         private final List<TeamAssignmentChange> teamAssignmentChanges;
         private final List<StageStartTimeChange> stageStartTimeChanges;
 
         public RaceData(
-                NodeId nodeId,
                 LocationId locationId,
-                long sequence,
                 List<TeamAssignmentChange> teamAssignmentChanges,
                 List<StageStartTimeChange> stageStartTimeChanges) {
 
-            super(nodeId);
             if (locationId == null) {
                 throw new IllegalArgumentException("RACE_DATA locationId must not be null");
             }
             this.locationId = locationId;
-            this.sequence = requirePositiveSequence(sequence, "RaceData sequence");
             this.teamAssignmentChanges = copyTeamAssignmentChanges(teamAssignmentChanges);
             this.stageStartTimeChanges = copyStageStartTimeChanges(stageStartTimeChanges);
 
@@ -136,10 +190,6 @@ public abstract class UpstreamData {
             return locationId;
         }
 
-        public long sequence() {
-            return sequence;
-        }
-
         public List<TeamAssignmentChange> teamAssignmentChanges() {
             return teamAssignmentChanges;
         }
@@ -149,74 +199,20 @@ public abstract class UpstreamData {
         }
     }
 
-    /** One stream-head synchronization value. */
-    public static final class Sync extends UpstreamData {
-        private final Stream stream;
-        private final long sequence;
-
-        public Sync(NodeId nodeId, Stream stream, long sequence) {
-            super(nodeId);
-            this.stream = requireStream(stream);
-            this.sequence = requireSyncSequence(sequence);
-        }
-
-        @Override
-        public Family family() {
-            return Family.SYNC;
-        }
-
-        public Stream stream() {
-            return stream;
-        }
-
-        public long sequence() {
-            return sequence;
-        }
-    }
-
-    /** One cumulative acknowledgement. */
-    public static final class Ack extends UpstreamData {
-        private final Stream stream;
-        private final long sequence;
-
-        public Ack(NodeId nodeId, Stream stream, long sequence) {
-            super(nodeId);
-            this.stream = requireStream(stream);
-            this.sequence = requirePositiveSequence(sequence, "ACK sequence");
-        }
-
-        @Override
-        public Family family() {
-            return Family.ACK;
-        }
-
-        public Stream stream() {
-            return stream;
-        }
-
-        public long sequence() {
-            return sequence;
-        }
-    }
-
-    /** One replay request starting at an inclusive sequence. */
-    public static final class Req extends UpstreamData {
-        private final Stream stream;
+    /** One request for retained TIMING_DATA beginning at an inclusive LogBook sequence. */
+    public static final class TimingDataRequest extends Message {
         private final long fromSequence;
 
-        public Req(NodeId nodeId, Stream stream, long fromSequence) {
-            super(nodeId);
-            this.stream = requireStream(stream);
-            this.fromSequence = requirePositiveSequence(fromSequence, "REQ fromSequence");
+        public TimingDataRequest(long fromSequence) {
+            this.fromSequence =
+                    requirePositiveTimingSequence(
+                            fromSequence,
+                            "TIMING_DATA_REQ fromSequence");
         }
 
         @Override
         public Family family() {
-            return Family.REQ;
-        }
-
-        public Stream stream() {
-            return stream;
+            return Family.TIMING_DATA_REQ;
         }
 
         public long fromSequence() {
@@ -224,25 +220,87 @@ public abstract class UpstreamData {
         }
     }
 
+    /** One TIMING_DATA position request, answer or notification. */
+    public static final class Sequence extends Message {
+        private final SequenceOperation operation;
+        private final Long sequence;
+
+        public Sequence(
+                SequenceOperation operation,
+                Long sequence) {
+            if (operation == null) {
+                throw new IllegalArgumentException("SEQ operation must not be null");
+            }
+            if (operation == SequenceOperation.REQ) {
+                if (sequence != null) {
+                    throw new IllegalArgumentException("SEQ REQ must not carry seq");
+                }
+            } else {
+                if (sequence == null) {
+                    throw new IllegalArgumentException(
+                            "SEQ " + operation + " requires seq");
+                }
+                requireTimingPosition(sequence.longValue());
+            }
+
+            this.operation = operation;
+            this.sequence = sequence;
+        }
+
+        @Override
+        public Family family() {
+            return Family.SEQ;
+        }
+
+        public SequenceOperation operation() {
+            return operation;
+        }
+
+        /** Null only for REQ. */
+        public Long sequence() {
+            return sequence;
+        }
+    }
+
+    /** One cumulative report of the last successfully processed normal DN_PACKET. */
+    public static final class Receive extends Message {
+        private final long receivedPacketId;
+
+        public Receive(long receivedPacketId) {
+            if (receivedPacketId < 0L) {
+                throw new IllegalArgumentException(
+                        "receivedPacketId must be zero or positive");
+            }
+            this.receivedPacketId = receivedPacketId;
+        }
+
+        @Override
+        public Family family() {
+            return Family.RECV;
+        }
+
+        public long receivedPacketId() {
+            return receivedPacketId;
+        }
+    }
+
     /** One PING request or answer with optional compatibility fields around its required operation. */
-    public static final class Ping extends UpstreamData {
+    public static final class Ping extends Message {
         private final PingOperation operation;
         private final PingMode mode;
         private final String pingId;
         private final TimingTimestamp time;
 
         /** Creates a PING without message time for compatibility with older peers. */
-        public Ping(NodeId nodeId, PingOperation operation, PingMode mode, String pingId) {
-            this(nodeId, operation, mode, pingId, null);
+        public Ping(PingOperation operation, PingMode mode, String pingId) {
+            this(operation, mode, pingId, null);
         }
 
         public Ping(
-                NodeId nodeId,
                 PingOperation operation,
                 PingMode mode,
                 String pingId,
                 TimingTimestamp time) {
-            super(nodeId);
             if (operation == null) {
                 throw new IllegalArgumentException("operation must not be null");
             }
@@ -413,14 +471,56 @@ public abstract class UpstreamData {
         }
     }
 
-    private static Stream requireStream(Stream stream) {
-        if (stream == null) {
-            throw new IllegalArgumentException("stream must not be null");
+    private static void requireDirection(
+            Direction direction,
+            Family family) {
+        switch (family) {
+            case TIMING_DATA:
+            case RECV:
+                if (direction != Direction.UP_PACKET) {
+                    throw new IllegalArgumentException(
+                            family + " requires UP_PACKET");
+                }
+                return;
+
+            case TIMING_DATA_REQ:
+            case RACE_DATA:
+                if (direction != Direction.DN_PACKET) {
+                    throw new IllegalArgumentException(
+                            family + " requires DN_PACKET");
+                }
+                return;
+
+            case SEQ:
+            case PING:
+            case STATUS:
+                return;
+
+            default:
+                throw new IllegalArgumentException(
+                        "Unsupported IF-06 message family " + family);
         }
-        return stream;
     }
 
-    private static long requirePositiveSequence(long sequence, String name) {
+    private static void validateNodeScopedMessage(
+            NodeId nodeId,
+            Message message) {
+        if (message.family() != Family.TIMING_DATA) {
+            return;
+        }
+
+        TimingDataTransfer transfer = (TimingDataTransfer) message;
+        for (TimingRecord record : transfer.records()) {
+            if (record.nodeId() != nodeId.value().charAt(0)) {
+                throw new IllegalArgumentException(
+                        "TIMING_DATA record nodeId does not match packet nodeId");
+            }
+        }
+    }
+
+    private static long requirePositiveTimingSequence(
+            long sequence,
+            String name) {
         if (sequence < 1L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
             throw new IllegalArgumentException(
                     name + " must be in range 1.." + TimingRecord.MAX_SEQUENCE_NUMBER);
@@ -428,15 +528,14 @@ public abstract class UpstreamData {
         return sequence;
     }
 
-    private static long requireSyncSequence(long sequence) {
+    private static void requireTimingPosition(long sequence) {
         if (sequence < 0L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
             throw new IllegalArgumentException(
-                    "SYNC sequence must be in range 0.." + TimingRecord.MAX_SEQUENCE_NUMBER);
+                    "SEQ position must be in range 0.." + TimingRecord.MAX_SEQUENCE_NUMBER);
         }
-        return sequence;
     }
 
-    private static List<TimingRecord> copyTimingData(NodeId nodeId, List<TimingRecord> records) {
+    private static List<TimingRecord> copyTimingData(List<TimingRecord> records) {
         if (records == null || records.isEmpty()) {
             throw new IllegalArgumentException("TIMING_DATA requires at least one record");
         }
@@ -451,10 +550,6 @@ public abstract class UpstreamData {
         for (TimingRecord record : records) {
             if (record == null) {
                 throw new IllegalArgumentException("TIMING_DATA records must not contain null");
-            }
-            if (record.nodeId() != nodeId.value().charAt(0)) {
-                throw new IllegalArgumentException(
-                        "TIMING_DATA record nodeId does not match message nodeId");
             }
             copy.add(record);
         }

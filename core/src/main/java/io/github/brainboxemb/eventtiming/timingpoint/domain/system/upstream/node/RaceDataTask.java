@@ -11,48 +11,47 @@ import java.util.function.BooleanSupplier;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Applies one RACE_DATA message through NodeService before acknowledging it.
- *
- * <p>The task has exactly one asynchronous wait: NodeService.applyRaceData().
- * While that future is incomplete, SerialTaskRunner releases the shared worker.
- * UpstreamInputTask keeps this semantic task active and does not consume the next
- * queued upstream message until this task completes.</p>
+ * Applies one new RACE_DATA message through NodeService before confirming its DN_PACKET.
  */
 final class RaceDataTask implements YieldingTask {
     private final BooleanSupplier available;
-    private final RaceDataSync sync;
+    private final DownstreamDelivery delivery;
     private final NodeService nodeService;
+    private final UpstreamData packet;
     private final UpstreamData.RaceData raceData;
 
     private CompletableFuture<Void> applyFuture;
 
     RaceDataTask(
             BooleanSupplier available,
-            RaceDataSync sync,
+            DownstreamDelivery delivery,
             NodeService nodeService,
-            UpstreamData.RaceData raceData) {
+            UpstreamData packet) {
         failIfInvalidArgument(available != null, "available must not be null");
-        failIfInvalidArgument(sync != null, "sync must not be null");
+        failIfInvalidArgument(delivery != null, "delivery must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
-        failIfInvalidArgument(raceData != null, "raceData must not be null");
+        failIfInvalidArgument(packet != null, "packet must not be null");
+        failIfInvalidArgument(
+                packet.family() == UpstreamData.Family.RACE_DATA,
+                "packet must carry RACE_DATA");
         this.available = available;
-        this.sync = sync;
+        this.delivery = delivery;
         this.nodeService = nodeService;
-        this.raceData = raceData;
+        this.packet = packet;
+        this.raceData = (UpstreamData.RaceData) packet.message();
     }
 
     @Override
     public TaskStep runStep() {
         if (applyFuture == null) {
-            if (!available.getAsBoolean()
-                    || !sync.beginApply(raceData)) {
+            if (!available.getAsBoolean()) {
+                delivery.cancelPending();
                 return TaskStep.done();
             }
 
-            applyFuture =
-                    nodeService.applyRaceData(raceData);
+            applyFuture = nodeService.applyRaceData(raceData);
             if (applyFuture == null) {
-                sync.cancelApply();
+                delivery.cancelPending();
                 throw new IllegalStateException(
                         "NodeService returned no RACE_DATA completion");
             }
@@ -60,7 +59,7 @@ final class RaceDataTask implements YieldingTask {
         }
 
         applyFuture.join();
-        sync.completeApply(raceData.sequence());
+        delivery.complete(packet);
         return TaskStep.done();
     }
 }

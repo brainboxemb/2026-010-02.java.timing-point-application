@@ -17,19 +17,19 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Owns TIMING_DATA synchronization and live source-cursor state for one NodeUpstream.
+ * Owns TIMING_DATA position exchange, replay and live source-cursor state for one NodeUpstream.
  *
- * <p>The LogBook remains the authoritative source. Sending SYNC disables live forwarding.
- * The peer's following REQ captures one replay head; replay never crosses that head. Only
- * after that request has completed does the live cursor continue from the next LogBook
- * sequence. Post-commit events are therefore wake signals rather than a second outbound queue.</p>
+ * <p>The LogBook remains authoritative. A fresh source-head notification disables live
+ * forwarding. The peer's following TIMING_DATA_REQ captures one replay head; replay never
+ * crosses that head. Only after the captured replay completes does the live cursor continue
+ * from the next LogBook sequence.</p>
  */
 final class TimingDataSync {
     private static final int MAX_RECORDS_PER_BATCH = UpstreamData.MAX_TIMING_DATA_RECORDS;
 
     private final NodeId nodeId;
     private final BooleanSupplier available;
-    private final Consumer<UpstreamData> sender;
+    private final Consumer<UpstreamData.Message> sender;
     private final LogBookAccessor logBook;
 
     private boolean replayActive;
@@ -38,11 +38,12 @@ final class TimingDataSync {
 
     private boolean liveActive;
     private long nextLiveSequence;
+    private long centralProcessedSequence;
 
     TimingDataSync(
             NodeId nodeId,
             BooleanSupplier available,
-            Consumer<UpstreamData> sender,
+            Consumer<UpstreamData.Message> sender,
             LogBookAccessor logBook) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(available != null, "available must not be null");
@@ -54,17 +55,45 @@ final class TimingDataSync {
         this.logBook = logBook;
     }
 
-    /** Starts a fresh handoff and advertises the current TIMING_DATA source head. */
-    synchronized void sendSourceHead() {
+    /** Starts a fresh handoff and notifies the current TIMING_DATA source head. */
+    synchronized void sendSourceHeadNotification() {
         replayActive = false;
         liveActive = false;
 
         if (available.getAsBoolean()) {
             sender.accept(
-                    DefaultUpstreamData.sync(
-                            nodeId,
-                            UpstreamData.Stream.TIMING_DATA,
+                    DefaultUpstreamData.createSequenceNotification(
                             headSequence()));
+        }
+    }
+
+    /** Handles one peer TIMING_DATA sequence request, answer or notification. */
+    synchronized void handleSequence(UpstreamData.Sequence sequence) {
+        failIfInvalidArgument(sequence != null, "sequence must not be null");
+
+        switch (sequence.operation()) {
+            case REQ:
+                if (available.getAsBoolean()) {
+                    sender.accept(
+                            DefaultUpstreamData.createSequenceAnswer(
+                                    headSequence()));
+                }
+                return;
+
+            case ANS:
+            case NTF:
+                long peerSequence = sequence.sequence().longValue();
+                failIfIllegalState(
+                        peerSequence <= headSequence(),
+                        "Central TIMING_DATA sequence %s exceeds local LogBook head %s",
+                        peerSequence,
+                        headSequence());
+                centralProcessedSequence = peerSequence;
+                return;
+
+            default:
+                throw new IllegalArgumentException(
+                        "Unsupported SEQ operation " + sequence.operation());
         }
     }
 
@@ -75,6 +104,11 @@ final class TimingDataSync {
                 ReadConsistency.CURRENT);
     }
 
+    /** Returns the latest peer processed position learned through SEQ. */
+    synchronized long centralProcessedSequence() {
+        return centralProcessedSequence;
+    }
+
     /**
      * Starts one replay at the inclusive sequence requested by the peer.
      *
@@ -82,18 +116,14 @@ final class TimingDataSync {
      * caught up. It completes the synchronization handoff immediately and enables live forwarding
      * from that sequence. A request further beyond the current head does not establish live state.</p>
      */
-    synchronized void startReplay(UpstreamData.Req req) {
-        failIfInvalidArgument(req != null, "req must not be null");
-        if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
-            throw new UnsupportedOperationException(
-                    "Inbound REQ supports TIMING_DATA only");
-        }
+    synchronized void startReplay(UpstreamData.TimingDataRequest request) {
+        failIfInvalidArgument(request != null, "request must not be null");
 
-        long fromSequence = req.fromSequence();
+        long fromSequence = request.fromSequence();
         failIfInvalidArgument(
                 fromSequence >= 1L
                         && fromSequence <= TimingRecord.MAX_SEQUENCE_NUMBER,
-                "REQ fromSequence is outside the supported range");
+                "TIMING_DATA_REQ fromSequence is outside the supported range");
 
         replayActive = false;
         liveActive = false;
@@ -130,7 +160,7 @@ final class TimingDataSync {
     /** Submits the next ordered replay batch without blocking NodeUpstream. */
     synchronized CompletableFuture<List<TimingRecord>> submitNextBatch() {
         failIfIllegalState(replayActive,
-                "No TIMING_DATA synchronization is active");
+                "No TIMING_DATA replay is active");
 
         int limit =
                 (int) Math.min(
@@ -151,12 +181,11 @@ final class TimingDataSync {
                 records,
                 nextReplaySequence,
                 replayHead,
-                "synchronization");
+                "replay");
 
         TimingRecord last = records.get(records.size() - 1);
         sender.accept(
-                DefaultUpstreamData.timingData(
-                        nodeId,
+                DefaultUpstreamData.createTimingData(
                         records));
 
         if (last.sequenceNumber() >= replayHead) {
@@ -202,8 +231,7 @@ final class TimingDataSync {
 
         TimingRecord last = records.get(records.size() - 1);
         sender.accept(
-                DefaultUpstreamData.timingData(
-                        nodeId,
+                DefaultUpstreamData.createTimingData(
                         records));
 
         if (last.sequenceNumber() >= TimingRecord.MAX_SEQUENCE_NUMBER) {

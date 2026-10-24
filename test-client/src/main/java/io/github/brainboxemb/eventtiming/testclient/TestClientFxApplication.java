@@ -39,6 +39,7 @@ import javafx.stage.Stage;
 
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -783,15 +784,17 @@ public final class TestClientFxApplication extends Application {
             String teamId) {
         requireCentralUpstreamRole();
 
-        UpstreamData.RaceData raceData =
-                centralSimulator.createRaceData(
+        List<UpstreamData> packets =
+                centralSimulator.updateRaceData(
                         new NodeId(nodeId),
                         java.util.List.of(
-                                DefaultUpstreamData.teamAssignmentSet(
+                                DefaultUpstreamData.createTeamAssignmentSet(
                                         registrationId,
                                         teamId)),
                         java.util.List.of());
-        return sendCentralRaceData(raceData);
+        return sendCentralPackets(
+                nodeId,
+                packets);
     }
 
     private long sendCentralTeamAssignmentDelete(
@@ -799,46 +802,67 @@ public final class TestClientFxApplication extends Application {
             String registrationId) {
         requireCentralUpstreamRole();
 
-        UpstreamData.RaceData raceData =
-                centralSimulator.createRaceData(
+        List<UpstreamData> packets =
+                centralSimulator.updateRaceData(
                         new NodeId(nodeId),
                         java.util.List.of(
-                                DefaultUpstreamData.teamAssignmentDelete(
+                                DefaultUpstreamData.createTeamAssignmentDelete(
                                         registrationId)),
                         java.util.List.of());
-        return sendCentralRaceData(raceData);
+        return sendCentralPackets(
+                nodeId,
+                packets);
     }
 
-    private long sendCentralRaceData(UpstreamData.RaceData raceData) {
-        try {
-            sendUpstreamDataWithTraffic(raceData)
-                    .whenComplete((ignored, error) -> {
-                        if (error != null) {
-                            Platform.runLater(() -> {
-                                clientLog.error(
-                                        "Central RACE_DATA #"
-                                                + raceData.sequence()
-                                                + " send failed: "
-                                                + rootMessage(error));
-                                feedback.setText(
-                                        "Central RACE_DATA send failed: "
-                                                + rootMessage(error));
-                                refreshCentralViews();
-                            });
-                        }
-                    });
-        } catch (RuntimeException ex) {
-            refreshCentralViews();
-            throw ex;
+    /**
+     * Sends packets that became eligible after one Central state update.
+     *
+     * @return the new packet id, or 0 when the state is waiting behind an outstanding packet
+     */
+    private long sendCentralPackets(
+            String nodeId,
+            List<UpstreamData> packets) {
+        long packetId = 0L;
+        for (UpstreamData packet : packets) {
+            packetId = packet.packetId();
+            final long sentPacketId = packetId;
+            try {
+                sendUpstreamDataWithTraffic(packet)
+                        .whenComplete((ignored, error) -> {
+                            if (error != null) {
+                                Platform.runLater(() -> {
+                                    clientLog.error(
+                                            "Central DN_PACKET #"
+                                                    + sentPacketId
+                                                    + " send failed: "
+                                                    + rootMessage(error));
+                                    feedback.setText(
+                                            "Central packet send failed: "
+                                                    + rootMessage(error));
+                                    refreshCentralViews();
+                                });
+                            }
+                        });
+            } catch (RuntimeException ex) {
+                refreshCentralViews();
+                throw ex;
+            }
         }
 
         refreshCentralViews();
-        clientLog.info(
-                "Central RACE_DATA #"
-                        + raceData.sequence()
-                        + " queued for node "
-                        + raceData.timingNodeId().value());
-        return raceData.sequence();
+        if (packetId == 0L) {
+            clientLog.info(
+                    "Central RaceData state updated for node "
+                            + nodeId
+                            + "; waiting behind outstanding DN_PACKET");
+        } else {
+            clientLog.info(
+                    "Central DN_PACKET #"
+                            + packetId
+                            + " queued for node "
+                            + nodeId);
+        }
+        return packetId;
     }
 
     private CompletableFuture<Void> sendUpstreamDataWithTraffic(

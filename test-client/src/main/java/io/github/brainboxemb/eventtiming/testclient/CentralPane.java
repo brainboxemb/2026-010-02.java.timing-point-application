@@ -39,8 +39,8 @@ final class CentralPane implements AutoCloseable {
     private final TextField raceTeam = new TextField();
     private final Button raceSet = new Button("Set team");
     private final Button raceDelete = new Button("Delete team");
-    private final Label raceHead = new Label("0");
-    private final Label raceAck = new Label("0");
+    private final Label downstreamAck = new Label("0");
+    private final Label downstreamPending = new Label("—");
     private final Label raceFeedback = new Label("Central upstream not connected");
     private final VBox nodesPane;
     private final VBox locationsPane;
@@ -206,8 +206,11 @@ final class CentralPane implements AutoCloseable {
                 + "\nLink " + (node.connected() ? "CONNECTED" : "STALE")
                 + "\nHeartbeat " + instant(node.lastHeartbeat())
                 + "\nTiming head " + node.timingDataHead()
-                + "\nRace head " + node.raceDataHead()
-                + "\nRace ACK " + node.raceDataAcknowledged()
+                + "\nDN ack " + node.lastDnPacketAcknowledged()
+                + "\nDN pending "
+                + (node.outstandingDnPacketId() == null
+                        ? "—"
+                        : node.outstandingDnPacketId())
                 + "\nLocation "
                 + (node.locationId() == null ? "—" : node.locationId())
                 + "\nLast LogBook " + lastRecord(node);
@@ -254,8 +257,8 @@ final class CentralPane implements AutoCloseable {
         HBox actions = new HBox(8, raceSet, raceDelete);
         HBox protocol = new HBox(
                 12,
-                new Label("Race head"), raceHead,
-                new Label("ACK"), raceAck);
+                new Label("DN ack"), downstreamAck,
+                new Label("DN pending"), downstreamPending);
 
         VBox pane = new VBox(
                 10,
@@ -278,7 +281,10 @@ final class CentralPane implements AutoCloseable {
                     ? raceDataActions.deleteTeamAssignment(nodeId, registrationId)
                     : raceDataActions.setTeamAssignment(nodeId, registrationId, teamId);
             raceFeedback.setText(
-                    "RACE_DATA #" + sequence + (delete ? " DEL queued" : " SET queued"));
+                    sequence == 0L
+                            ? "RaceData state updated; waiting behind pending DN_PACKET"
+                            : "DN_PACKET #" + sequence
+                                    + (delete ? " DEL queued" : " SET queued"));
             refresh();
         } catch (RuntimeException ex) {
             String message = ex.getMessage();
@@ -312,8 +318,14 @@ final class CentralPane implements AutoCloseable {
                 .findFirst()
                 .orElse(null);
 
-        raceHead.setText(view == null ? "0" : Long.toString(view.raceDataHead()));
-        raceAck.setText(view == null ? "0" : Long.toString(view.raceDataAcknowledged()));
+        downstreamAck.setText(
+                view == null
+                        ? "0"
+                        : Long.toString(view.lastDnPacketAcknowledged()));
+        downstreamPending.setText(
+                view == null || view.outstandingDnPacketId() == null
+                        ? "—"
+                        : Long.toString(view.outstandingDnPacketId()));
 
         boolean enabled = simulator.isConnected() && view != null;
         raceNode.setDisable(!simulator.isConnected() || simulator.nodes().isEmpty());

@@ -1,7 +1,9 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -9,20 +11,23 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Central-side IF-06 simulator state.
  *
- * <p>This service is intentionally independent from the direct IF-03/API view. It owns
- * Central-side source/replay state while {@link ApiEventClient} owns only transport and codec
- * adaptation. TIMING_DATA is consumed from SI-01; RACE_DATA is an independent Central-owned
- * ordered source per NodeId.</p>
+ * <p>TIMING_DATA receive progress is durable protocol state for this simulator session.
+ * Central-owned RACE_DATA is current state rather than a packet history: per node the
+ * simulator keeps the authoritative state, the last confirmed baseline and at most one
+ * immutable normal DN_PACKET outstanding.</p>
  */
 final class CentralSystemSimulator {
     enum MessageDirection {
@@ -59,8 +64,8 @@ final class CentralSystemSimulator {
             boolean connected,
             Instant lastHeartbeat,
             long timingDataHead,
-            long raceDataHead,
-            long raceDataAcknowledged,
+            long lastDnPacketAcknowledged,
+            Long outstandingDnPacketId,
             String lifecycleState,
             Integer locationId,
             TimingRecord lastRecord) {
@@ -82,6 +87,7 @@ final class CentralSystemSimulator {
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
     private final List<MessageView> messages = new ArrayList<>();
     private final List<TimingRecord> timingRecords = new ArrayList<>();
+
     private boolean connected;
     private long nextMessageOrdinal = 1L;
 
@@ -89,34 +95,34 @@ final class CentralSystemSimulator {
         this(configuredLocationIds, Clock.systemUTC());
     }
 
-    CentralSystemSimulator(Collection<Integer> configuredLocationIds, Clock clock) {
+    CentralSystemSimulator(
+            Collection<Integer> configuredLocationIds,
+            Clock clock) {
         if (configuredLocationIds == null) {
-            throw new IllegalArgumentException("configuredLocationIds must not be null");
+            throw new IllegalArgumentException(
+                    "configuredLocationIds must not be null");
         }
         if (clock == null) {
             throw new IllegalArgumentException("clock must not be null");
         }
+
         List<Integer> validated = new ArrayList<>();
         for (Integer locationId : configuredLocationIds) {
             if (locationId == null || locationId.intValue() <= 0) {
-                throw new IllegalArgumentException("LocationId must be positive");
+                throw new IllegalArgumentException(
+                        "LocationId must be positive");
             }
             if (!validated.contains(locationId)) {
                 validated.add(locationId);
             }
         }
+
         this.configuredLocationIds = List.copyOf(validated);
         this.clock = clock;
         restoreConfiguredLocations();
     }
 
-    /**
-     * Clears facts learned from the previous target while retaining simulator configuration.
-     *
-     * <p>A plain disconnect/reconnect intentionally does not call this method: Central then
-     * keeps both TIMING_DATA receive-head and RACE_DATA source/replay state. A target change
-     * is a different identity boundary and must not inherit either protocol stream.</p>
-     */
+    /** Clears facts learned from the previous target while retaining simulator configuration. */
     void resetTargetState() {
         connected = false;
         nodes.clear();
@@ -140,23 +146,23 @@ final class CentralSystemSimulator {
     }
 
     /**
-     * Creates and retains the next ordered Central-to-node RACE_DATA value.
+     * Applies one Central-owned RaceData state update and returns any packet that became sendable.
      *
-     * <p>The caller owns transport delivery. Retaining the immutable value here lets a later
-     * RACE_DATA REQ replay exactly the original semantic change set.</p>
+     * <p>If another normal DN_PACKET is outstanding the authoritative state changes now, but that
+     * packet remains immutable. The resulting RaceData delta is built only after the outstanding
+     * packet is confirmed.</p>
      */
-    UpstreamData.RaceData createRaceData(
+    List<UpstreamData> updateRaceData(
             NodeId nodeId,
             List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
             List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
-        if (!connected) {
-            throw new IllegalStateException("Central upstream is not connected");
-        }
+        requireConnected();
         if (nodeId == null) {
             throw new IllegalArgumentException("nodeId must not be null");
         }
         if (teamAssignmentChanges == null || stageStartTimeChanges == null) {
-            throw new IllegalArgumentException("RACE_DATA change lists must not be null");
+            throw new IllegalArgumentException(
+                    "RACE_DATA change lists must not be null");
         }
 
         NodeState node =
@@ -166,30 +172,27 @@ final class CentralSystemSimulator {
 
         if (node.locationId == null || !"OPEN".equals(node.lifecycleState)) {
             throw new IllegalStateException(
-                    "RACE_DATA requires an OPEN LocationId for " + nodeId.value());
+                    "RACE_DATA requires an OPEN LocationId for "
+                            + nodeId.value());
         }
 
-        LocationId locationId = new LocationId(node.locationId.intValue());
-        long sequence = node.raceDataHead + 1L;
-        UpstreamData.RaceData raceData =
-                DefaultUpstreamData.raceData(
-                        nodeId,
-                        locationId,
-                        sequence,
-                        teamAssignmentChanges,
-                        stageStartTimeChanges);
-
-        node.raceDataHead = sequence;
-        node.raceDataHistory.put(Long.valueOf(sequence), raceData);
-        return raceData;
+        applyCurrentRaceData(
+                node,
+                teamAssignmentChanges,
+                stageStartTimeChanges);
+        return sendNextNormalPacketIfPossible(node);
     }
 
-    /**
-     * Applies one semantic IF-06 value using one timestamp for legacy/test callers.
-     *
-     * <p>Production reception supplies the distinct IF-03 event time and local receive time
-     * through the three-argument overload.</p>
-     */
+    /** Returns the exact outstanding normal downstream packet for an explicit retry. */
+    UpstreamData outstandingPacket(NodeId nodeId) {
+        if (nodeId == null) {
+            throw new IllegalArgumentException("nodeId must not be null");
+        }
+        NodeState node = nodes.get(nodeId.value());
+        return node == null ? null : node.outstanding;
+    }
+
+    /** Applies one received SI-01 packet using one timestamp for test callers. */
     List<UpstreamData> accept(
             UpstreamData data,
             Instant receivedAt) {
@@ -201,10 +204,10 @@ final class CentralSystemSimulator {
     }
 
     /**
-     * Applies one semantic IF-06 value and retains source/message time separately from receipt time.
+     * Applies one received SI-01 packet and returns newly sendable Central packets.
      *
-     * <p>PING carries its own semantic message time. Other families use the IF-03 event time as
-     * their message-time fallback because IF-06 defines no common message timestamp for them.</p>
+     * <p>PING answers bypass the normal downstream stop-and-wait lane. All other Central
+     * semantic output is queued and becomes one positive-ID DN_PACKET at a time.</p>
      */
     List<UpstreamData> accept(
             UpstreamData data,
@@ -221,7 +224,12 @@ final class CentralSystemSimulator {
             throw new IllegalArgumentException("receivedAt must not be null");
         }
         if (rawPayloadJson == null || rawPayloadJson.isBlank()) {
-            throw new IllegalArgumentException("rawPayloadJson must not be blank");
+            throw new IllegalArgumentException(
+                    "rawPayloadJson must not be blank");
+        }
+        if (data.direction() != UpstreamData.Direction.UP_PACKET) {
+            throw new IllegalArgumentException(
+                    "Central accepts UP_PACKET only");
         }
 
         recordMessage(
@@ -232,34 +240,44 @@ final class CentralSystemSimulator {
                 rawPayloadJson);
 
         String nodeId = data.timingNodeId().value();
-        NodeState node = nodes.computeIfAbsent(nodeId, NodeState::new);
+        NodeState node =
+                nodes.computeIfAbsent(
+                        nodeId,
+                        NodeState::new);
 
-        return switch (data.family()) {
-            case PING -> handlePing(node, (UpstreamData.Ping) data, receivedAt);
-            case SYNC -> handleSync(node, (UpstreamData.Sync) data);
-            case REQ -> handleReq(node, (UpstreamData.Req) data);
-            case ACK -> {
-                handleAck(node, (UpstreamData.Ack) data);
-                yield Collections.emptyList();
-            }
-            case TIMING_DATA -> {
+        switch (data.family()) {
+            case PING:
+                return handlePing(
+                        node,
+                        data,
+                        (UpstreamData.Ping) data.message(),
+                        receivedAt);
+
+            case RECV:
+                return handleReceive(
+                        node,
+                        (UpstreamData.Receive) data.message());
+
+            case SEQ:
+                return handleSequence(
+                        node,
+                        (UpstreamData.Sequence) data.message());
+
+            case TIMING_DATA:
                 handleTimingData(
                         node,
-                        (UpstreamData.TimingDataTransfer) data,
+                        (UpstreamData.TimingDataTransfer) data.message(),
                         receivedAt);
-                yield Collections.emptyList();
-            }
-            default -> Collections.emptyList();
-        };
+                return Collections.emptyList();
+
+            default:
+                throw new UnsupportedOperationException(
+                        "Central inbound family is not implemented: "
+                                + data.family());
+        }
     }
 
-    /**
-     * Records one semantic Central-to-node message after transport send has been requested.
-     *
-     * <p>The bounded message journal is inspection state only. RACE_DATA replay uses the
-     * independent retained source history and is therefore not affected when old journal
-     * rows are evicted.</p>
-     */
+    /** Records one Central-to-node packet after transport send has been requested. */
     void recordSent(
             UpstreamData data,
             Instant sentAt) {
@@ -280,8 +298,10 @@ final class CentralSystemSimulator {
             throw new IllegalArgumentException("sentAt must not be null");
         }
         if (rawPayloadJson == null || rawPayloadJson.isBlank()) {
-            throw new IllegalArgumentException("rawPayloadJson must not be blank");
+            throw new IllegalArgumentException(
+                    "rawPayloadJson must not be blank");
         }
+
         recordMessage(
                 MessageDirection.OUT,
                 data,
@@ -294,14 +314,491 @@ final class CentralSystemSimulator {
         return List.copyOf(messages);
     }
 
-    /**
-     * Returns the complete reconstructed Central LogBook in accepted receive order.
-     *
-     * <p>This history is independent from the bounded message-inspection journal. Duplicate replay
-     * records at or below the contiguous receive head never enter this list.</p>
-     */
+    /** Returns the complete reconstructed Central LogBook in accepted receive order. */
     List<TimingRecord> timingRecords() {
         return List.copyOf(timingRecords);
+    }
+
+    List<NodeView> nodes() {
+        List<NodeView> result = new ArrayList<>(nodes.size());
+        for (NodeState state : nodes.values()) {
+            result.add(
+                    new NodeView(
+                            state.nodeId,
+                            connected,
+                            state.lastHeartbeat,
+                            state.timingDataHead,
+                            state.lastDnPacketAcknowledged,
+                            state.outstanding == null
+                                    ? null
+                                    : Long.valueOf(
+                                            state.outstanding.packetId()),
+                            state.lifecycleState,
+                            state.locationId,
+                            state.lastRecord));
+        }
+        return List.copyOf(result);
+    }
+
+    List<LocationView> locations() {
+        List<LocationView> result = new ArrayList<>(locations.size());
+        for (LocationState state : locations.values()) {
+            result.add(
+                    new LocationView(
+                            state.locationId,
+                            state.state,
+                            state.nodeId,
+                            state.sequence,
+                            state.changedAt));
+        }
+        return List.copyOf(result);
+    }
+
+    private List<UpstreamData> handlePing(
+            NodeState node,
+            UpstreamData packet,
+            UpstreamData.Ping ping,
+            Instant receivedAt) {
+        if (ping.operation() != UpstreamData.PingOperation.REQ) {
+            return Collections.emptyList();
+        }
+
+        node.lastHeartbeat = receivedAt;
+        return List.of(
+                DefaultUpstreamData.createDnPacket(
+                        packet.timingNodeId(),
+                        0L,
+                        DefaultUpstreamData.createPing(
+                                UpstreamData.PingOperation.ANS,
+                                ping.mode(),
+                                ping.pingId(),
+                                new TimingTimestamp(clock.instant()))));
+    }
+
+    private List<UpstreamData> handleSequence(
+            NodeState node,
+            UpstreamData.Sequence sequence) {
+        if (sequence.operation() == UpstreamData.SequenceOperation.REQ) {
+            node.pendingMessages.addLast(
+                    DefaultUpstreamData.createSequenceAnswer(
+                            node.timingDataHead));
+            return outstandingOrNext(node);
+        }
+
+        long sourceHead = sequence.sequence().longValue();
+        if (sourceHead < node.timingDataHead) {
+            throw new IllegalStateException(
+                    "SI-01 TIMING_DATA source head "
+                            + sourceHead
+                            + " is behind Central receive head "
+                            + node.timingDataHead);
+        }
+
+        /*
+         * TIMING_DATA_REQ remains the replay-to-live handoff barrier even when Central is
+         * already caught up. SI-01 captures the LogBook head when processing this request.
+         */
+        if (node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
+            node.pendingMessages.addLast(
+                    DefaultUpstreamData.createTimingDataRequest(
+                            node.timingDataHead + 1L));
+        }
+        return outstandingOrNext(node);
+    }
+
+    /** Retries the exact outstanding packet, or starts the next queued normal packet. */
+    private List<UpstreamData> outstandingOrNext(NodeState node) {
+        if (node.outstanding != null) {
+            return List.of(node.outstanding);
+        }
+        return sendNextNormalPacketIfPossible(node);
+    }
+
+    private List<UpstreamData> handleReceive(
+            NodeState node,
+            UpstreamData.Receive receive) {
+        long receivedPacketId = receive.receivedPacketId();
+
+        if (receivedPacketId == 0L) {
+            resetDownstreamState(node);
+            return sendNextNormalPacketIfPossible(node);
+        }
+
+        if (node.outstanding == null) {
+            if (receivedPacketId == node.lastDnPacketAcknowledged) {
+                return Collections.emptyList();
+            }
+            throw new IllegalStateException(
+                    "RECV "
+                            + receivedPacketId
+                            + " has no matching outstanding DN_PACKET for "
+                            + node.nodeId);
+        }
+
+        long outstandingId = node.outstanding.packetId();
+        if (receivedPacketId < outstandingId) {
+            return List.of(node.outstanding);
+        }
+        if (receivedPacketId > outstandingId) {
+            throw new IllegalStateException(
+                    "RECV "
+                            + receivedPacketId
+                            + " exceeds outstanding DN_PACKET "
+                            + outstandingId);
+        }
+
+        applyAcknowledgedPacket(
+                node,
+                node.outstanding);
+        node.lastDnPacketAcknowledged = receivedPacketId;
+        node.outstanding = null;
+        return sendNextNormalPacketIfPossible(node);
+    }
+
+    /**
+     * Resets the assumed downstream baseline after a fresh-node RECV 0.
+     *
+     * <p>The current SI-01 sends RECV 0 only before it has processed a normal downstream
+     * packet in this runtime. Central therefore rebuilds from an empty RaceData baseline
+     * and starts the downstream packet sequence again at 1.</p>
+     */
+    private void resetDownstreamState(NodeState node) {
+        node.outstanding = null;
+        node.pendingMessages.clear();
+        node.lastDnPacketAcknowledged = 0L;
+        node.nextDnPacketId = 1L;
+        node.acknowledgedTeams.clear();
+        node.acknowledgedStageStarts.clear();
+    }
+
+    private void handleTimingData(
+            NodeState node,
+            UpstreamData.TimingDataTransfer transfer,
+            Instant receivedAt) {
+        for (TimingRecord record : transfer.records()) {
+            long sequence = record.sequenceNumber();
+            if (sequence <= node.timingDataHead) {
+                continue;
+            }
+            if (sequence != node.timingDataHead + 1L) {
+                throw new IllegalArgumentException(
+                        "TIMING_DATA sequence gap for "
+                                + node.nodeId
+                                + ": expected "
+                                + (node.timingDataHead + 1L)
+                                + " but got "
+                                + sequence);
+            }
+
+            node.timingDataHead = sequence;
+            node.lastRecord = record;
+            timingRecords.add(record);
+            applyLifecycle(
+                    node,
+                    record,
+                    receivedAt);
+        }
+    }
+
+    private List<UpstreamData> sendNextNormalPacketIfPossible(
+            NodeState node) {
+        if (!connected || node.outstanding != null) {
+            return Collections.emptyList();
+        }
+
+        UpstreamData.Message message = node.pendingMessages.pollFirst();
+        if (message == null) {
+            message = createNextRaceDataDelta(node);
+        }
+        if (message == null) {
+            return Collections.emptyList();
+        }
+
+        UpstreamData packet =
+                DefaultUpstreamData.createDnPacket(
+                        new NodeId(node.nodeId),
+                        nextDnPacketId(node),
+                        message);
+        node.outstanding = packet;
+        return List.of(packet);
+    }
+
+    /** Builds at most one bounded delta from the last confirmed RaceData baseline. */
+    private UpstreamData.RaceData createNextRaceDataDelta(
+            NodeState node) {
+        if (node.locationId == null
+                || !"OPEN".equals(node.lifecycleState)) {
+            return null;
+        }
+
+        List<UpstreamData.TeamAssignmentChange> teamChanges =
+                new ArrayList<>();
+        List<UpstreamData.StageStartTimeChange> startChanges =
+                new ArrayList<>();
+
+        for (Map.Entry<RegistrationId, TeamId> entry
+                : node.acknowledgedTeams.entrySet()) {
+            if (!node.currentTeams.containsKey(entry.getKey())) {
+                teamChanges.add(
+                        new UpstreamData.TeamAssignmentChange(
+                                UpstreamData.ChangeOperation.DEL,
+                                entry.getKey(),
+                                null));
+                if (changeCount(teamChanges, startChanges)
+                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
+                    return createRaceData(
+                            node,
+                            teamChanges,
+                            startChanges);
+                }
+            }
+        }
+
+        for (Map.Entry<RegistrationId, TeamId> entry
+                : node.currentTeams.entrySet()) {
+            if (!Objects.equals(
+                    entry.getValue(),
+                    node.acknowledgedTeams.get(entry.getKey()))) {
+                teamChanges.add(
+                        new UpstreamData.TeamAssignmentChange(
+                                UpstreamData.ChangeOperation.SET,
+                                entry.getKey(),
+                                entry.getValue()));
+                if (changeCount(teamChanges, startChanges)
+                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
+                    return createRaceData(
+                            node,
+                            teamChanges,
+                            startChanges);
+                }
+            }
+        }
+
+        for (Map.Entry<RegistrationId, TimingTimestamp> entry
+                : node.acknowledgedStageStarts.entrySet()) {
+            if (!node.currentStageStarts.containsKey(entry.getKey())) {
+                startChanges.add(
+                        new UpstreamData.StageStartTimeChange(
+                                UpstreamData.ChangeOperation.DEL,
+                                entry.getKey(),
+                                null));
+                if (changeCount(teamChanges, startChanges)
+                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
+                    return createRaceData(
+                            node,
+                            teamChanges,
+                            startChanges);
+                }
+            }
+        }
+
+        for (Map.Entry<RegistrationId, TimingTimestamp> entry
+                : node.currentStageStarts.entrySet()) {
+            if (!Objects.equals(
+                    entry.getValue(),
+                    node.acknowledgedStageStarts.get(entry.getKey()))) {
+                startChanges.add(
+                        new UpstreamData.StageStartTimeChange(
+                                UpstreamData.ChangeOperation.SET,
+                                entry.getKey(),
+                                entry.getValue()));
+                if (changeCount(teamChanges, startChanges)
+                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
+                    return createRaceData(
+                            node,
+                            teamChanges,
+                            startChanges);
+                }
+            }
+        }
+
+        if (teamChanges.isEmpty() && startChanges.isEmpty()) {
+            return null;
+        }
+        return createRaceData(
+                node,
+                teamChanges,
+                startChanges);
+    }
+
+    private static UpstreamData.RaceData createRaceData(
+            NodeState node,
+            List<UpstreamData.TeamAssignmentChange> teamChanges,
+            List<UpstreamData.StageStartTimeChange> startChanges) {
+        return DefaultUpstreamData.createRaceData(
+                new LocationId(node.locationId.intValue()),
+                teamChanges,
+                startChanges);
+    }
+
+    private static int changeCount(
+            List<UpstreamData.TeamAssignmentChange> teamChanges,
+            List<UpstreamData.StageStartTimeChange> startChanges) {
+        return teamChanges.size() + startChanges.size();
+    }
+
+    private static void applyCurrentRaceData(
+            NodeState node,
+            List<UpstreamData.TeamAssignmentChange> teamChanges,
+            List<UpstreamData.StageStartTimeChange> startChanges) {
+        for (UpstreamData.TeamAssignmentChange change : teamChanges) {
+            if (change == null) {
+                throw new IllegalArgumentException(
+                        "team assignment change must not be null");
+            }
+            switch (change.operation()) {
+                case SET:
+                    node.currentTeams.put(
+                            change.registrationId(),
+                            change.teamId());
+                    break;
+                case DEL:
+                    node.currentTeams.remove(change.registrationId());
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                            "Unsupported team assignment operation "
+                                    + change.operation());
+            }
+        }
+
+        for (UpstreamData.StageStartTimeChange change : startChanges) {
+            if (change == null) {
+                throw new IllegalArgumentException(
+                        "stage-start change must not be null");
+            }
+            switch (change.operation()) {
+                case SET:
+                    node.currentStageStarts.put(
+                            change.registrationId(),
+                            change.start());
+                    break;
+                case DEL:
+                    node.currentStageStarts.remove(
+                            change.registrationId());
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                            "Unsupported stage-start operation "
+                                    + change.operation());
+            }
+        }
+    }
+
+    private static void applyAcknowledgedPacket(
+            NodeState node,
+            UpstreamData packet) {
+        if (packet.family() != UpstreamData.Family.RACE_DATA) {
+            return;
+        }
+
+        UpstreamData.RaceData raceData =
+                (UpstreamData.RaceData) packet.message();
+        for (UpstreamData.TeamAssignmentChange change
+                : raceData.teamAssignmentChanges()) {
+            if (change.operation() == UpstreamData.ChangeOperation.SET) {
+                node.acknowledgedTeams.put(
+                        change.registrationId(),
+                        change.teamId());
+            } else {
+                node.acknowledgedTeams.remove(
+                        change.registrationId());
+            }
+        }
+
+        for (UpstreamData.StageStartTimeChange change
+                : raceData.stageStartTimeChanges()) {
+            if (change.operation() == UpstreamData.ChangeOperation.SET) {
+                node.acknowledgedStageStarts.put(
+                        change.registrationId(),
+                        change.start());
+            } else {
+                node.acknowledgedStageStarts.remove(
+                        change.registrationId());
+            }
+        }
+    }
+
+    private static long nextDnPacketId(NodeState node) {
+        if (node.nextDnPacketId <= 0L) {
+            throw new IllegalStateException(
+                    "DN_PACKET id space exhausted for "
+                            + node.nodeId);
+        }
+
+        long result = node.nextDnPacketId;
+        node.nextDnPacketId =
+                result == Long.MAX_VALUE
+                        ? 0L
+                        : result + 1L;
+        return result;
+    }
+
+    private void applyLifecycle(
+            NodeState node,
+            TimingRecord record,
+            Instant receivedAt) {
+        if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
+            closePreviousLocationOnMove(
+                    node,
+                    record.locationId(),
+                    record.sequenceNumber(),
+                    receivedAt);
+
+            node.lifecycleState = "OPEN";
+            node.locationId = Integer.valueOf(record.locationId());
+
+            LocationState location =
+                    locations.computeIfAbsent(
+                            record.locationId(),
+                            LocationState::new);
+            location.state = "OPEN";
+            location.nodeId = node.nodeId;
+            location.sequence = record.sequenceNumber();
+            location.changedAt = receivedAt;
+        } else if (record.kind() == TimingRecord.Kind.NODE_CLOSE) {
+            node.lifecycleState = "CLOSED";
+            if (node.locationId != null
+                    && node.locationId.intValue()
+                            == record.locationId()) {
+                node.locationId = null;
+            }
+
+            LocationState location =
+                    locations.computeIfAbsent(
+                            record.locationId(),
+                            LocationState::new);
+            location.state = "CLOSED";
+            location.nodeId = node.nodeId;
+            location.sequence = record.sequenceNumber();
+            location.changedAt = receivedAt;
+        }
+    }
+
+    private void closePreviousLocationOnMove(
+            NodeState node,
+            int nextLocationId,
+            long sequence,
+            Instant changedAt) {
+        Integer previousLocationId = node.locationId;
+        if (previousLocationId == null
+                || previousLocationId.intValue() == nextLocationId) {
+            return;
+        }
+
+        LocationState previous =
+                locations.computeIfAbsent(
+                        previousLocationId.intValue(),
+                        LocationState::new);
+        if (previous.nodeId != null
+                && !previous.nodeId.equals(node.nodeId)) {
+            return;
+        }
+
+        previous.state = "CLOSED";
+        previous.nodeId = node.nodeId;
+        previous.sequence = sequence;
+        previous.changedAt = changedAt;
     }
 
     private void recordMessage(
@@ -329,252 +826,12 @@ final class CentralSystemSimulator {
             Instant fallback) {
         if (data.family() == UpstreamData.Family.PING) {
             UpstreamData.Ping ping =
-                    (UpstreamData.Ping) data;
+                    (UpstreamData.Ping) data.message();
             if (ping.time() != null) {
                 return ping.time().instant();
             }
         }
         return fallback;
-    }
-
-    List<NodeView> nodes() {
-        List<NodeView> result = new ArrayList<>(nodes.size());
-        for (NodeState state : nodes.values()) {
-            result.add(new NodeView(
-                    state.nodeId,
-                    connected,
-                    state.lastHeartbeat,
-                    state.timingDataHead,
-                    state.raceDataHead,
-                    state.raceDataAcknowledged,
-                    state.lifecycleState,
-                    state.locationId,
-                    state.lastRecord));
-        }
-        return List.copyOf(result);
-    }
-
-    List<LocationView> locations() {
-        List<LocationView> result = new ArrayList<>(locations.size());
-        for (LocationState state : locations.values()) {
-            result.add(new LocationView(
-                    state.locationId,
-                    state.state,
-                    state.nodeId,
-                    state.sequence,
-                    state.changedAt));
-        }
-        return List.copyOf(result);
-    }
-
-    private List<UpstreamData> handlePing(
-            NodeState node,
-            UpstreamData.Ping ping,
-            Instant receivedAt) {
-        if (ping.operation() == UpstreamData.PingOperation.REQ) {
-            node.lastHeartbeat = receivedAt;
-            return List.of(
-                    DefaultUpstreamData.ping(
-                            ping.timingNodeId(),
-                            UpstreamData.PingOperation.ANS,
-                            ping.mode(),
-                            ping.pingId(),
-                            new TimingTimestamp(clock.instant())));
-        }
-        return Collections.emptyList();
-    }
-
-    /**
-     * Reconciles SI-01's TIMING_DATA head and advertises Central's RACE_DATA head.
-     *
-     * <p>SI-01 starts a node upstream session by advertising TIMING_DATA. Central answers
-     * with its own independent source head and requests any missing TimingData suffix.</p>
-     */
-    private List<UpstreamData> handleSync(
-            NodeState node,
-            UpstreamData.Sync sync) {
-        if (sync.stream() != UpstreamData.Stream.TIMING_DATA) {
-            throw new UnsupportedOperationException(
-                    "Central inbound SYNC supports TIMING_DATA only");
-        }
-
-        List<UpstreamData> replies = new ArrayList<>(2);
-        replies.add(
-                DefaultUpstreamData.sync(
-                        sync.timingNodeId(),
-                        UpstreamData.Stream.RACE_DATA,
-                        node.raceDataHead));
-
-        long remoteHead = sync.sequence();
-        if (remoteHead < node.timingDataHead) {
-            throw new IllegalStateException(
-                    "SI-01 TIMING_DATA source head "
-                            + remoteHead
-                            + " is behind Central receive head "
-                            + node.timingDataHead);
-        }
-
-        /*
-         * REQ is also the replay-to-live handoff barrier when Central is already caught up.
-         * SI-01 captures its newer current LogBook head while handling this request, so records
-         * committed between SYNC and REQ join replay instead of arriving early as live data.
-         */
-        if (node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
-            replies.add(
-                    DefaultUpstreamData.req(
-                            sync.timingNodeId(),
-                            UpstreamData.Stream.TIMING_DATA,
-                            node.timingDataHead + 1L));
-        }
-        return List.copyOf(replies);
-    }
-
-    /** Replays retained Central-owned RACE_DATA from the requested inclusive sequence. */
-    private List<UpstreamData> handleReq(
-            NodeState node,
-            UpstreamData.Req request) {
-        if (request.stream() != UpstreamData.Stream.RACE_DATA) {
-            throw new UnsupportedOperationException(
-                    "Central inbound REQ supports RACE_DATA only");
-        }
-
-        long fromSequence = request.fromSequence();
-        if (fromSequence > node.raceDataHead) {
-            return Collections.emptyList();
-        }
-
-        List<UpstreamData> replay = new ArrayList<>();
-        for (long sequence = fromSequence;
-                sequence <= node.raceDataHead;
-                sequence++) {
-            UpstreamData.RaceData retained =
-                    node.raceDataHistory.get(Long.valueOf(sequence));
-            if (retained == null) {
-                throw new IllegalStateException(
-                        "Missing retained RACE_DATA sequence "
-                                + sequence
-                                + " for "
-                                + node.nodeId);
-            }
-            replay.add(retained);
-        }
-        return List.copyOf(replay);
-    }
-
-    /** Applies one cumulative RACE_DATA acknowledgement from SI-01. */
-    private void handleAck(
-            NodeState node,
-            UpstreamData.Ack acknowledgement) {
-        if (acknowledgement.stream() != UpstreamData.Stream.RACE_DATA) {
-            throw new UnsupportedOperationException(
-                    "Central inbound ACK supports RACE_DATA only");
-        }
-
-        long sequence = acknowledgement.sequence();
-        if (sequence > node.raceDataHead) {
-            throw new IllegalStateException(
-                    "RACE_DATA ACK "
-                            + sequence
-                            + " exceeds Central source head "
-                            + node.raceDataHead);
-        }
-        if (sequence > node.raceDataAcknowledged) {
-            node.raceDataAcknowledged = sequence;
-        }
-    }
-
-    private void handleTimingData(
-            NodeState node,
-            UpstreamData.TimingDataTransfer transfer,
-            Instant receivedAt) {
-        for (TimingRecord record : transfer.records()) {
-            long sequence = record.sequenceNumber();
-            if (sequence <= node.timingDataHead) {
-                continue;
-            }
-            if (sequence != node.timingDataHead + 1L) {
-                throw new IllegalArgumentException(
-                        "TIMING_DATA sequence gap for "
-                                + node.nodeId
-                                + ": expected "
-                                + (node.timingDataHead + 1L)
-                                + " but got "
-                                + sequence);
-            }
-
-            node.timingDataHead = sequence;
-            node.lastRecord = record;
-            timingRecords.add(record);
-            applyLifecycle(node, record, receivedAt);
-        }
-    }
-
-    private void applyLifecycle(
-            NodeState node,
-            TimingRecord record,
-            Instant receivedAt) {
-        if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
-            closePreviousLocationOnMove(
-                    node,
-                    record.locationId(),
-                    record.sequenceNumber(),
-                    receivedAt);
-
-            node.lifecycleState = "OPEN";
-            node.locationId = Integer.valueOf(record.locationId());
-            LocationState location = locations.computeIfAbsent(
-                    record.locationId(),
-                    LocationState::new);
-            location.state = "OPEN";
-            location.nodeId = node.nodeId;
-            location.sequence = record.sequenceNumber();
-            location.changedAt = receivedAt;
-        } else if (record.kind() == TimingRecord.Kind.NODE_CLOSE) {
-            node.lifecycleState = "CLOSED";
-            if (node.locationId != null
-                    && node.locationId.intValue() == record.locationId()) {
-                node.locationId = null;
-            }
-            LocationState location = locations.computeIfAbsent(
-                    record.locationId(),
-                    LocationState::new);
-            location.state = "CLOSED";
-            location.nodeId = node.nodeId;
-            location.sequence = record.sequenceNumber();
-            location.changedAt = receivedAt;
-        }
-    }
-
-    /**
-     * A TimingNode can only represent one active location at a time.
-     *
-     * <p>Central therefore treats a later NODE_OPEN for another LocationId as an
-     * implicit close of the previously active location, even when no explicit
-     * NODE_CLOSE record was emitted between both OPEN records.</p>
-     */
-    private void closePreviousLocationOnMove(
-            NodeState node,
-            int nextLocationId,
-            long sequence,
-            Instant changedAt) {
-        Integer previousLocationId = node.locationId;
-        if (previousLocationId == null
-                || previousLocationId.intValue() == nextLocationId) {
-            return;
-        }
-
-        LocationState previous = locations.computeIfAbsent(
-                previousLocationId.intValue(),
-                LocationState::new);
-        if (previous.nodeId != null
-                && !previous.nodeId.equals(node.nodeId)) {
-            return;
-        }
-
-        previous.state = "CLOSED";
-        previous.nodeId = node.nodeId;
-        previous.sequence = sequence;
-        previous.changedAt = changedAt;
     }
 
     private void restoreConfiguredLocations() {
@@ -585,14 +842,32 @@ final class CentralSystemSimulator {
         }
     }
 
+    private void requireConnected() {
+        if (!connected) {
+            throw new IllegalStateException(
+                    "Central upstream is not connected");
+        }
+    }
+
     private static final class NodeState {
         private final String nodeId;
-        private final Map<Long, UpstreamData.RaceData> raceDataHistory =
+
+        private final Map<RegistrationId, TeamId> currentTeams =
                 new LinkedHashMap<>();
+        private final Map<RegistrationId, TimingTimestamp> currentStageStarts =
+                new LinkedHashMap<>();
+        private final Map<RegistrationId, TeamId> acknowledgedTeams =
+                new LinkedHashMap<>();
+        private final Map<RegistrationId, TimingTimestamp> acknowledgedStageStarts =
+                new LinkedHashMap<>();
+        private final Deque<UpstreamData.Message> pendingMessages =
+                new ArrayDeque<>();
+
         private Instant lastHeartbeat;
         private long timingDataHead;
-        private long raceDataHead;
-        private long raceDataAcknowledged;
+        private long nextDnPacketId = 1L;
+        private long lastDnPacketAcknowledged;
+        private UpstreamData outstanding;
         private String lifecycleState = "UNKNOWN";
         private Integer locationId;
         private TimingRecord lastRecord;

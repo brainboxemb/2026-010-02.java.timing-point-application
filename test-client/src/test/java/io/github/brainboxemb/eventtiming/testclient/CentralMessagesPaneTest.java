@@ -1,9 +1,9 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -22,34 +22,29 @@ final class CentralMessagesPaneTest {
 
     @Test
     void filtersDirectionNodeAndTypeIndependently() {
-        UpstreamData.Sync sync =
-                DefaultUpstreamData.sync(
+        UpstreamData packet =
+                DefaultUpstreamData.createDnPacket(
                         NODE_A,
-                        UpstreamData.Stream.RACE_DATA,
-                        7L);
+                        7L,
+                        DefaultUpstreamData.createSequenceNotification(4L));
         CentralSystemSimulator.MessageView message =
                 new CentralSystemSimulator.MessageView(
                         1L,
                         CentralSystemSimulator.MessageDirection.OUT,
                         TIME,
                         null,
-                        sync);
+                        packet);
 
         assertTrue(CentralMessagesPane.matches(message, "ALL", "ALL", "ALL"));
-        assertTrue(CentralMessagesPane.matches(message, "OUT", "A", "SYNC"));
-        assertFalse(CentralMessagesPane.matches(message, "IN", "A", "SYNC"));
-        assertFalse(CentralMessagesPane.matches(message, "OUT", "B", "SYNC"));
-        assertFalse(CentralMessagesPane.matches(message, "OUT", "A", "ACK"));
+        assertTrue(CentralMessagesPane.matches(message, "OUT", "A", "SEQ"));
+        assertFalse(CentralMessagesPane.matches(message, "IN", "A", "SEQ"));
+        assertFalse(CentralMessagesPane.matches(message, "OUT", "B", "SEQ"));
+        assertFalse(CentralMessagesPane.matches(message, "OUT", "A", "RECV"));
     }
 
     @Test
     void visibleRowsAlwaysEndWithFollowMarker() {
-        UpstreamData.Ping ping =
-                DefaultUpstreamData.ping(
-                        NODE_A,
-                        UpstreamData.PingOperation.REQ,
-                        UpstreamData.PingMode.HB,
-                        "hb-1");
+        UpstreamData ping = pingPacket(UpstreamData.Direction.UP_PACKET);
         CentralSystemSimulator.MessageView inbound =
                 new CentralSystemSimulator.MessageView(
                         1L,
@@ -73,12 +68,7 @@ final class CentralMessagesPaneTest {
 
     @Test
     void filteredOutMessagesStillLeaveFollowMarker() {
-        UpstreamData.Ping ping =
-                DefaultUpstreamData.ping(
-                        NODE_A,
-                        UpstreamData.PingOperation.REQ,
-                        UpstreamData.PingMode.HB,
-                        "hb-1");
+        UpstreamData ping = pingPacket(UpstreamData.Direction.UP_PACKET);
         CentralSystemSimulator.MessageView inbound =
                 new CentralSystemSimulator.MessageView(
                         1L,
@@ -120,31 +110,41 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
-    void syncReqAndAckExplainTheirSequenceMeaning() {
-        UpstreamData.Sync sync =
-                DefaultUpstreamData.sync(
+    void packetPositionExplainsSeqRequestAndReceiveSemantics() {
+        UpstreamData sequence =
+                DefaultUpstreamData.createDnPacket(
                         NODE_A,
-                        UpstreamData.Stream.RACE_DATA,
-                        7L);
-        UpstreamData.Req req =
-                DefaultUpstreamData.req(
+                        7L,
+                        DefaultUpstreamData.createSequenceAnswer(42L));
+        UpstreamData request =
+                DefaultUpstreamData.createDnPacket(
                         NODE_A,
-                        UpstreamData.Stream.RACE_DATA,
-                        4L);
-        UpstreamData.Ack ack =
-                DefaultUpstreamData.ack(
+                        8L,
+                        DefaultUpstreamData.createTimingDataRequest(43L));
+        UpstreamData receive =
+                DefaultUpstreamData.createUpPacket(
                         NODE_A,
-                        UpstreamData.Stream.RACE_DATA,
-                        6L);
+                        9L,
+                        DefaultUpstreamData.createReceive(8L));
 
-        assertEquals("RACE_DATA head 7", CentralMessagesPane.positionText(sync));
-        assertEquals("advertise source head", CentralMessagesPane.summaryText(sync));
-        assertEquals("RACE_DATA from 4", CentralMessagesPane.positionText(req));
-        assertEquals("request replay from sequence", CentralMessagesPane.summaryText(req));
-        assertEquals("RACE_DATA through 6", CentralMessagesPane.positionText(ack));
         assertEquals(
-                "acknowledge contiguous receive head",
-                CentralMessagesPane.summaryText(ack));
+                "P7 · ANS 42",
+                CentralMessagesPane.positionText(sequence));
+        assertEquals(
+                "TimingData position ANS",
+                CentralMessagesPane.summaryText(sequence));
+        assertEquals(
+                "P8 · from 43",
+                CentralMessagesPane.positionText(request));
+        assertEquals(
+                "request retained TimingData",
+                CentralMessagesPane.summaryText(request));
+        assertEquals(
+                "P9 · DN through 8",
+                CentralMessagesPane.positionText(receive));
+        assertEquals(
+                "report last processed DN_PACKET",
+                CentralMessagesPane.summaryText(receive));
     }
 
     @Test
@@ -162,14 +162,14 @@ final class CentralMessagesPaneTest {
                         TimingRecord.TagSource.API,
                         TimingRecord.AutomaticTimeSource.API);
 
-        UpstreamData.TimingDataTransfer transfer =
-                DefaultUpstreamData.timingData(
-                        NODE_A,
+        UpstreamData packet =
+                timingPacket(
+                        15L,
                         java.util.List.of(automatic));
 
         assertEquals(
-                "AUTO_REG #1186",
-                CentralMessagesPane.positionText(transfer));
+                "P15 · AUTO_REG #1186",
+                CentralMessagesPane.positionText(packet));
     }
 
     @Test
@@ -198,16 +198,16 @@ final class CentralMessagesPaneTest {
                         millis);
 
         assertEquals(
-                "#1186..1187",
+                "P16 · #1186..1187",
                 CentralMessagesPane.positionText(
-                        DefaultUpstreamData.timingData(
-                                NODE_A,
+                        timingPacket(
+                                16L,
                                 java.util.List.of(first, second))));
         assertEquals(
-                "#1186..1188",
+                "P17 · #1186..1188",
                 CentralMessagesPane.positionText(
-                        DefaultUpstreamData.timingData(
-                                NODE_A,
+                        timingPacket(
+                                17L,
                                 java.util.List.of(first, second, mixed))));
     }
 
@@ -228,16 +228,16 @@ final class CentralMessagesPaneTest {
                         1,
                         millis,
                         millis);
-        UpstreamData.TimingDataTransfer transfer =
-                DefaultUpstreamData.timingData(
-                        NODE_A,
+        UpstreamData packet =
+                timingPacket(
+                        18L,
                         java.util.List.of(first, second));
         String raw =
-                ApiEventClient.encodeUpstreamData(transfer);
+                ApiEventClient.encodeUpstreamData(packet);
 
         String displayed =
                 CentralMessagesPane.detailPayload(
-                        transfer,
+                        packet,
                         raw);
         String[] lines = displayed.split("\\R");
 
@@ -247,7 +247,7 @@ final class CentralMessagesPaneTest {
         assertTrue(lines[1].trim().endsWith("},"));
         assertTrue(lines[2].trim().startsWith("{"));
         assertTrue(lines[2].trim().endsWith("}"));
-        assertEquals("]}", lines[3]);
+        assertEquals("]}}", lines[3]);
         assertEquals(
                 raw,
                 displayed.replace("\n  ", "").replace("\n", ""));
@@ -263,50 +263,48 @@ final class CentralMessagesPaneTest {
                         1,
                         millis,
                         millis);
-        UpstreamData.TimingDataTransfer transfer =
-                DefaultUpstreamData.timingData(
-                        NODE_A,
+        UpstreamData packet =
+                timingPacket(
+                        19L,
                         java.util.List.of(record));
         String raw =
-                ApiEventClient.encodeUpstreamData(transfer);
+                ApiEventClient.encodeUpstreamData(packet);
 
         assertEquals(
                 raw,
                 CentralMessagesPane.detailPayload(
-                        transfer,
+                        packet,
                         raw));
     }
 
     @Test
-    void raceDataPositionIsMessageSequenceNotChangeCount() {
-        UpstreamData.RaceData raceData =
-                DefaultUpstreamData.raceData(
+    void raceDataPositionUsesPacketIdentityNotSourceSequence() {
+        UpstreamData packet =
+                DefaultUpstreamData.createDnPacket(
                         NODE_A,
-                        new LocationId(1),
                         12L,
-                        java.util.List.of(
-                                DefaultUpstreamData.teamAssignmentSet(
-                                        "A0001",
-                                        "T001"),
-                                DefaultUpstreamData.teamAssignmentSet(
-                                        "A0002",
-                                        "T002")),
-                        java.util.List.of());
+                        DefaultUpstreamData.createRaceData(
+                                new LocationId(1),
+                                java.util.List.of(
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0001",
+                                                "T001"),
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0002",
+                                                "T002")),
+                                java.util.List.of()));
 
-        assertEquals("RACE_DATA L1 #12", CentralMessagesPane.positionText(raceData));
+        assertEquals(
+                "P12 · RACE_DATA L1",
+                CentralMessagesPane.positionText(packet));
         assertEquals(
                 "2 team change(s), 0 stage-start change(s)",
-                CentralMessagesPane.summaryText(raceData));
+                CentralMessagesPane.summaryText(packet));
     }
 
     @Test
     void directionTextMakesCentralFlowVisible() {
-        UpstreamData.Ping ping =
-                DefaultUpstreamData.ping(
-                        NODE_A,
-                        UpstreamData.PingOperation.REQ,
-                        UpstreamData.PingMode.HB,
-                        "hb-1");
+        UpstreamData ping = pingPacket(UpstreamData.Direction.UP_PACKET);
 
         CentralSystemSimulator.MessageView inbound =
                 new CentralSystemSimulator.MessageView(
@@ -321,9 +319,42 @@ final class CentralMessagesPaneTest {
                         CentralSystemSimulator.MessageDirection.OUT,
                         TIME,
                         null,
-                        ping);
+                        DefaultUpstreamData.createDnPacket(
+                                NODE_A,
+                                0L,
+                                DefaultUpstreamData.createPing(
+                                        UpstreamData.PingOperation.ANS,
+                                        UpstreamData.PingMode.HB,
+                                        "hb-1")));
 
         assertEquals("IN ←", CentralMessagesPane.directionText(inbound));
         assertEquals("OUT →", CentralMessagesPane.directionText(outbound));
+    }
+
+    private static UpstreamData timingPacket(
+            long packetId,
+            java.util.List<TimingRecord> records) {
+        return DefaultUpstreamData.createUpPacket(
+                NODE_A,
+                packetId,
+                DefaultUpstreamData.createTimingData(records));
+    }
+
+    private static UpstreamData pingPacket(
+            UpstreamData.Direction direction) {
+        UpstreamData.Ping ping =
+                DefaultUpstreamData.createPing(
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        "hb-1");
+        return direction == UpstreamData.Direction.UP_PACKET
+                ? DefaultUpstreamData.createUpPacket(
+                        NODE_A,
+                        0L,
+                        ping)
+                : DefaultUpstreamData.createDnPacket(
+                        NODE_A,
+                        0L,
+                        ping);
     }
 }

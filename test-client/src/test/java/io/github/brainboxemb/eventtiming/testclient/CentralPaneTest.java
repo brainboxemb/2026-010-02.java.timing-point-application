@@ -145,8 +145,8 @@ final class CentralPaneTest {
 
         assertTrue(details.contains("Heartbeat 2026-10-24T09:00:00Z"));
         assertTrue(details.contains("Timing head 1157"));
-        assertTrue(details.contains("Race head 4"));
-        assertTrue(details.contains("Race ACK 3"));
+        assertTrue(details.contains("DN ack 4"));
+        assertTrue(details.contains("DN pending 3"));
         assertTrue(details.contains("Location 5"));
     }
 

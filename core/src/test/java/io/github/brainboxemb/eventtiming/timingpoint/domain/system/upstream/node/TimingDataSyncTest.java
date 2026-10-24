@@ -22,7 +22,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.Life
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class TimingDataSyncTest {
 
@@ -30,7 +29,7 @@ public class TimingDataSyncTest {
     public void liveCatchUpSplitsPendingSuffixIntoSixteenRecordBatches() {
         NodeId nodeId = new NodeId("A");
         LogBook logBook = emptyLogBook(nodeId);
-        List<UpstreamData> sent = new ArrayList<UpstreamData>();
+        List<UpstreamData.Message> sent = new ArrayList<UpstreamData.Message>();
         activate(logBook);
         try {
             for (int index = 0; index < 17; index++) {
@@ -46,9 +45,7 @@ public class TimingDataSyncTest {
                             sent::add,
                             logBook);
             sync.startReplay(
-                    DefaultUpstreamData.req(
-                            nodeId,
-                            UpstreamData.Stream.TIMING_DATA,
+                    DefaultUpstreamData.createTimingDataRequest(
                             18L));
             assertTrue(sync.liveReady());
 
@@ -77,25 +74,37 @@ public class TimingDataSyncTest {
     }
 
     @Test
-    public void raceDataReqIsNotOwnedByTimingDataSync() {
+    public void sequenceRequestReturnsCurrentLogBookHead() {
         NodeId nodeId = new NodeId("A");
-        TimingDataSync sync =
-                new TimingDataSync(
-                        nodeId,
-                        () -> true,
-                        data -> {
-                        },
-                        emptyLogBook(nodeId));
-
+        LogBook logBook = emptyLogBook(nodeId);
+        List<UpstreamData.Message> sent =
+                new ArrayList<UpstreamData.Message>();
+        activate(logBook);
         try {
-            sync.startReplay(
-                    DefaultUpstreamData.req(
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+
+            TimingDataSync sync =
+                    new TimingDataSync(
                             nodeId,
-                            UpstreamData.Stream.RACE_DATA,
-                            1L));
-            fail("expected unsupported REQ direction");
-        } catch (UnsupportedOperationException expected) {
-            assertTrue(expected.getMessage().contains("TIMING_DATA"));
+                            () -> true,
+                            sent::add,
+                            logBook);
+            sync.handleSequence(
+                    DefaultUpstreamData.createSequenceRequest());
+
+            assertEquals(1, sent.size());
+            UpstreamData.Sequence answer =
+                    (UpstreamData.Sequence) sent.get(0);
+            assertEquals(
+                    UpstreamData.SequenceOperation.ANS,
+                    answer.operation());
+            assertEquals(
+                    Long.valueOf(1L),
+                    answer.sequence());
+        } finally {
+            deactivate(logBook);
         }
     }
 

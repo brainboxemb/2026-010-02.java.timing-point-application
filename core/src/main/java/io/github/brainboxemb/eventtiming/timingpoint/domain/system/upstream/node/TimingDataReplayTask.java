@@ -12,17 +12,16 @@ import java.util.function.BooleanSupplier;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Serves one queued TIMING_DATA replay request from the retained LogBook.
+ * Serves one queued TIMING_DATA_REQ from the retained LogBook.
  *
- * <p>Each batch read yields while the LogBook Data Lane completes. Replay state stays in
- * TimingDataSync; this task owns only the asynchronous continuation. UpstreamInputTask keeps this
- * task active, so later stream messages remain queued until replay is finished. The completion
- * callback wakes live catch-up only after the captured replay head has been completely sent.</p>
+ * <p>Accepting the request and confirming its DN_PACKET is separate from serving the
+ * requested records. Each LogBook batch read may yield while the Data Lane completes.</p>
  */
 final class TimingDataReplayTask implements YieldingTask {
     private final BooleanSupplier available;
     private final TimingDataSync sync;
-    private final UpstreamData.Req request;
+    private final UpstreamData.TimingDataRequest request;
+    private final Runnable requestAccepted;
     private final Runnable handoffCompleted;
 
     private boolean started;
@@ -31,15 +30,18 @@ final class TimingDataReplayTask implements YieldingTask {
     TimingDataReplayTask(
             BooleanSupplier available,
             TimingDataSync sync,
-            UpstreamData.Req request,
+            UpstreamData.TimingDataRequest request,
+            Runnable requestAccepted,
             Runnable handoffCompleted) {
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sync != null, "sync must not be null");
         failIfInvalidArgument(request != null, "request must not be null");
+        failIfInvalidArgument(requestAccepted != null, "requestAccepted must not be null");
         failIfInvalidArgument(handoffCompleted != null, "handoffCompleted must not be null");
         this.available = available;
         this.sync = sync;
         this.request = request;
+        this.requestAccepted = requestAccepted;
         this.handoffCompleted = handoffCompleted;
     }
 
@@ -52,12 +54,12 @@ final class TimingDataReplayTask implements YieldingTask {
 
         if (!started) {
             sync.startReplay(request);
+            requestAccepted.run();
             started = true;
         }
 
         if (pendingBatch != null) {
-            List<TimingRecord> records =
-                    pendingBatch.join();
+            List<TimingRecord> records = pendingBatch.join();
             pendingBatch = null;
             sync.sendNextBatch(records);
         }
@@ -69,8 +71,7 @@ final class TimingDataReplayTask implements YieldingTask {
             return TaskStep.done();
         }
 
-        pendingBatch =
-                sync.submitNextBatch();
+        pendingBatch = sync.submitNextBatch();
         return TaskStep.await(pendingBatch);
     }
 }
