@@ -39,6 +39,7 @@ final class CentralSystemSimulator {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    private final List<Integer> configuredLocationIds;
     private final Map<String, SystemState> systems = new LinkedHashMap<>();
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
     private boolean connected;
@@ -47,14 +48,31 @@ final class CentralSystemSimulator {
         if (configuredLocationIds == null) {
             throw new IllegalArgumentException("configuredLocationIds must not be null");
         }
+        List<Integer> validated = new ArrayList<>();
         for (Integer locationId : configuredLocationIds) {
             if (locationId == null || locationId.intValue() <= 0) {
                 throw new IllegalArgumentException("LocationId must be positive");
             }
-            locations.putIfAbsent(
-                    locationId,
-                    new LocationState(locationId.intValue()));
+            if (!validated.contains(locationId)) {
+                validated.add(locationId);
+            }
         }
+        this.configuredLocationIds = List.copyOf(validated);
+        restoreConfiguredLocations();
+    }
+
+    /**
+     * Clears facts learned from the previous target while retaining simulator configuration.
+     *
+     * <p>A plain disconnect/reconnect intentionally does not call this method: Central then
+     * keeps its received source head and can request only the missing suffix. A target change
+     * is a different identity boundary and must not inherit NodeId or Location state.</p>
+     */
+    void resetTargetState() {
+        connected = false;
+        systems.clear();
+        locations.clear();
+        restoreConfiguredLocations();
     }
 
     void connected() {
@@ -223,6 +241,14 @@ final class CentralSystemSimulator {
             location.nodeId = system.nodeId;
             location.sequence = record.sequenceNumber();
             location.changedAt = receivedAt;
+        }
+    }
+
+    private void restoreConfiguredLocations() {
+        for (Integer locationId : configuredLocationIds) {
+            locations.put(
+                    locationId,
+                    new LocationState(locationId.intValue()));
         }
     }
 
