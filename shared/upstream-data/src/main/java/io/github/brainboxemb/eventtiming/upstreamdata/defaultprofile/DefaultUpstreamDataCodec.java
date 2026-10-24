@@ -301,6 +301,12 @@ public final class DefaultUpstreamDataCodec
             }
             generator.writeStringField("mode", ping.mode().name());
         }
+        if (ping.time() != null) {
+            if (!ping.time().isAbsolute()) {
+                throw encodeFailure("PING time must be absolute UTC", null);
+            }
+            generator.writeStringField("time", ping.time().toString());
+        }
         if (ping.pingId() != null) {
             if (ping.pingId().trim().isEmpty()) {
                 throw encodeFailure("pingId must not be blank", null);
@@ -850,8 +856,10 @@ public final class DefaultUpstreamDataCodec
             String operation = null;
             String mode = null;
             String pingId = null;
+            String time = null;
             boolean modeSeen = false;
             boolean pingIdSeen = false;
+            boolean timeSeen = false;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 String field = requireFieldName(parser);
@@ -876,6 +884,13 @@ public final class DefaultUpstreamDataCodec
                     }
                     pingIdSeen = true;
                     pingId = readString(parser, value, "pingId");
+                } else if ("time".equals(field)) {
+                    if (timeSeen) {
+                        parser.close();
+                        throw invalid("Duplicate PING time", null);
+                    }
+                    timeSeen = true;
+                    time = readString(parser, value, "time");
                 } else {
                     parser.skipChildren();
                 }
@@ -902,11 +917,21 @@ public final class DefaultUpstreamDataCodec
                 parsedMode = UpstreamData.PingMode.HB;
             }
 
+            TimingTimestamp parsedTime = null;
+            if (time != null) {
+                try {
+                    parsedTime = TimingTimestamp.parseAbsolute(time);
+                } catch (IllegalArgumentException ex) {
+                    throw invalid("PING time must be absolute UTC", ex);
+                }
+            }
+
             return DefaultUpstreamData.ping(
                     nodeId,
                     parsedOperation,
                     parsedMode,
-                    pingId);
+                    pingId,
+                    parsedTime);
         } catch (CodecException ex) {
             throw ex;
         } catch (IOException | IllegalArgumentException ex) {

@@ -77,7 +77,7 @@ public final class DefaultUpstreamData {
         return new UpstreamData.Req(nodeId, stream, fromSequence);
     }
 
-    /** Creates one manual or heartbeat PING request/answer value. */
+    /** Creates one compatibility PING value without message time. */
     public static UpstreamData.Ping ping(
             NodeId nodeId,
             UpstreamData.PingOperation operation,
@@ -85,6 +85,17 @@ public final class DefaultUpstreamData {
             String pingId) {
 
         return new UpstreamData.Ping(nodeId, operation, mode, pingId);
+    }
+
+    /** Creates one manual or heartbeat PING with its absolute UTC message time. */
+    public static UpstreamData.Ping ping(
+            NodeId nodeId,
+            UpstreamData.PingOperation operation,
+            UpstreamData.PingMode mode,
+            String pingId,
+            TimingTimestamp time) {
+
+        return new UpstreamData.Ping(nodeId, operation, mode, pingId, time);
     }
 
     /** Creates one team-assignment SET change. */

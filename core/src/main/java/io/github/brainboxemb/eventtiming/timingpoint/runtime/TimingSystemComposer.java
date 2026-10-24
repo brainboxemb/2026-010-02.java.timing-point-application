@@ -183,7 +183,8 @@ final class TimingSystemComposer {
                             stream,
                             new DefaultUpstreamDataCodec(system.timingDataCodec()),
                             composition.logBook(),
-                            composition.nodeService());
+                            composition.nodeService(),
+                            node.timeSource());
 
             nodeUpstreams.add(nodeUpstream);
         }

@@ -224,16 +224,30 @@ public abstract class UpstreamData {
         }
     }
 
-    /** One PING request or answer, optionally carrying heartbeat mode and correlation id. */
+    /** One PING request or answer with optional compatibility fields around its required operation. */
     public static final class Ping extends UpstreamData {
         private final PingOperation operation;
         private final PingMode mode;
         private final String pingId;
+        private final TimingTimestamp time;
 
+        /** Creates a PING without message time for compatibility with older peers. */
         public Ping(NodeId nodeId, PingOperation operation, PingMode mode, String pingId) {
+            this(nodeId, operation, mode, pingId, null);
+        }
+
+        public Ping(
+                NodeId nodeId,
+                PingOperation operation,
+                PingMode mode,
+                String pingId,
+                TimingTimestamp time) {
             super(nodeId);
             if (operation == null) {
                 throw new IllegalArgumentException("operation must not be null");
+            }
+            if (time != null && !time.isAbsolute()) {
+                throw new IllegalArgumentException("PING time must be absolute UTC");
             }
 
             String normalizedPingId = pingId == null ? null : pingId.trim();
@@ -244,6 +258,7 @@ public abstract class UpstreamData {
             this.operation = operation;
             this.mode = mode;
             this.pingId = normalizedPingId;
+            this.time = time;
         }
 
         @Override
@@ -263,6 +278,11 @@ public abstract class UpstreamData {
         /** Optional opaque correlation token. */
         public String pingId() {
             return pingId;
+        }
+
+        /** Optional absolute UTC creation/send time of this specific PING message. */
+        public TimingTimestamp time() {
+            return time;
         }
     }
 
