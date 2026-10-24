@@ -90,6 +90,7 @@ public class DefaultUpstreamDataCodecTest {
 
         String json = text(codec.encode(original));
         assertTrue(json.contains("\"type\":\"RACE_DATA\""));
+        assertTrue(json.contains("\"locationId\":1"));
         assertTrue(json.contains("\"seq\":123"));
         assertTrue(json.contains("\"teamAssignments\""));
         assertTrue(json.contains("\"stageStartTimes\""));
@@ -104,6 +105,7 @@ public class DefaultUpstreamDataCodecTest {
 
         UpstreamData.RaceData decoded =
                 (UpstreamData.RaceData) codec.decode(bytes(json));
+        assertEquals(new LocationId(1), decoded.locationId());
         assertEquals(123L, decoded.sequence());
         assertEquals(
                 original.teamAssignmentChanges(),
@@ -114,21 +116,29 @@ public class DefaultUpstreamDataCodecTest {
     }
 
     @Test
-    public void raceDataRequiresAtLeastOneChange() throws Exception {
+    public void raceDataRequiresTopLevelLocationId() throws Exception {
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"seq\":1,\"data\":{\"teamAssignments\":["
+                        + "{\"op\":\"SET\",\"regId\":\"A0001\",\"teamId\":\"0001\"}]}}");
+    }
+
+    @Test
+    public void raceDataRequiresAtLeastOneChange() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":1,\"data\":{}}");
     }
 
     @Test
     public void raceDataRejectsInvalidSetAndDeleteShapes() throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":1,\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"R0001\"}]}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":2,\"data\":{\"stageStartTimes\":["
                         + "{\"op\":\"DEL\",\"regId\":\"R0001\","
                         + "\"start\":\"12:00:00\"}]}}");
@@ -137,7 +147,7 @@ public class DefaultUpstreamDataCodecTest {
     @Test
     public void raceDataRejectsLegacyTeamIdOnlyStageStartKey() throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":3,\"data\":{\"stageStartTimes\":["
                         + "{\"op\":\"SET\",\"teamId\":\"0042\","
                         + "\"start\":\"12:00:00\"}]}}");
@@ -351,7 +361,7 @@ public class DefaultUpstreamDataCodecTest {
     @Test
     public void rejectsDuplicateRaceDataKeysWithinOneMessage() throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\",\"locationId\":1,"
                         + "\"seq\":1,\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0042\"},"
                         + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0043\"}]}}");
