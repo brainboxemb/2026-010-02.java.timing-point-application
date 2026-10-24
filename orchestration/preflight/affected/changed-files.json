@@ -1,0 +1,15 @@
+{
+  "files": [
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/domain/system/upstream/node/TimingDataSync.java",
+    "CHANGELOG.md"
+  ],
+  "options": {
+    "base": "07eb00f561d57135404105e3780bde1ff04e7263",
+    "defaultBranch": true,
+    "head": "d4a69670b449d6323413beee6f17a64e77968560",
+    "local": false,
+    "status": [],
+    "stdin": false
+  },
+  "shallow": false
+}

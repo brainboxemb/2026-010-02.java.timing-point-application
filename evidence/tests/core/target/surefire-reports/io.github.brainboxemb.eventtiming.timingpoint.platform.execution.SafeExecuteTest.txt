@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecuteTest
+-------------------------------------------------------------------------------
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecuteTest
