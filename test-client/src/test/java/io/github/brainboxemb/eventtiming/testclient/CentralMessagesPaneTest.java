@@ -39,6 +39,60 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
+    void visibleRowsAlwaysEndWithFollowMarker() {
+        UpstreamData.Ping ping =
+                DefaultUpstreamData.ping(
+                        NODE_A,
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        "hb-1");
+        CentralSystemSimulator.MessageView inbound =
+                new CentralSystemSimulator.MessageView(
+                        1L,
+                        CentralSystemSimulator.MessageDirection.IN,
+                        TIME,
+                        ping);
+
+        java.util.List<CentralMessagesPane.MessageRow> rows =
+                CentralMessagesPane.visibleRows(
+                        java.util.List.of(inbound),
+                        "IN",
+                        "A",
+                        "PING");
+
+        assertEquals(2, rows.size());
+        assertFalse(rows.get(0).followEnd());
+        assertEquals(1L, rows.get(0).message().ordinal());
+        assertTrue(rows.get(1).followEnd());
+    }
+
+    @Test
+    void filteredOutMessagesStillLeaveFollowMarker() {
+        UpstreamData.Ping ping =
+                DefaultUpstreamData.ping(
+                        NODE_A,
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        "hb-1");
+        CentralSystemSimulator.MessageView inbound =
+                new CentralSystemSimulator.MessageView(
+                        1L,
+                        CentralSystemSimulator.MessageDirection.IN,
+                        TIME,
+                        ping);
+
+        java.util.List<CentralMessagesPane.MessageRow> rows =
+                CentralMessagesPane.visibleRows(
+                        java.util.List.of(inbound),
+                        "OUT",
+                        "A",
+                        "PING");
+
+        assertEquals(1, rows.size());
+        assertTrue(rows.get(0).followEnd());
+    }
+
+    @Test
     void syncReqAndAckExplainTheirSequenceMeaning() {
         UpstreamData.Sync sync =
                 DefaultUpstreamData.sync(

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an explicit follow-end mode to live SI-02 tables. Central Messages now has a visible `— Follow end —` row plus an **End** toolbar button; selecting a real message pauses following. Registrations and LogBook reuse their existing trailing follow row and expose **End** in a compact column header to resume following without extra toolbar space.
+
 - Clamp every detached Bento DragDropStage again after its first JavaFX layout, in addition to the existing Scene size cap. This prevents nested viewers such as Central <id> from expanding back to oversized source dimensions and repositions floating windows fully inside the target monitor visual bounds so the Windows title bar remains reachable.
 
 - Refine the SI-02 desktop split into left-side explorer/Node Controls/Central Controls plus the original stacked Device Log, Terminal and Client Log docks, with a dedicated right-side viewer leaf for detachable Node <id> / Central <id> viewers. Apply one Bento SceneFactory policy to all floating panes so already-small panes keep their size while detached windows are bounded to 480–960 × 320–640 px instead of inheriting an oversized source dock.

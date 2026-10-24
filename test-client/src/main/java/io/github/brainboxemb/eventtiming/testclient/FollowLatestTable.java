@@ -46,6 +46,11 @@ final class FollowLatestTable<T> {
         requestScrollToLatest();
     }
 
+    void followEnd() {
+        following = true;
+        requestScrollToLatest();
+    }
+
     void update(List<T> newValues) {
         List<T> next = List.copyOf(newValues);
         if (next.equals(values)) return;

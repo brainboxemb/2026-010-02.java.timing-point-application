@@ -278,12 +278,18 @@ presentation-only; selecting a row shows the exact frame payload.
 
 **Messages** is the Central semantic IF-06 inspector. It shows typed messages received
 from and sent to nodes, including `SYNC`, `REQ`, `ACK`, `PING`, `TIMING_DATA`
-and `RACE_DATA`. The bounded message journal is inspection state only; retained
-Central RACE_DATA source history remains independent for replay.
+and `RACE_DATA`. The table ends with one presentation-only `— Follow end —` row:
+while that row is selected, new messages keep the table scrolled to the end; selecting
+a real message suspends follow. The **End** button at the far right of the filters resumes
+follow. The bounded message journal is inspection state only; retained Central RACE_DATA
+source history remains independent for replay.
 
 In **Registrations**, RegistrationId is the primary identity column. TeamId is a separate
 optional/interpreted value and may be unresolved (`-`); SI-02 never substitutes TeamId
 for RegistrationId. Revoke remains tied to the original RegistrationId/ADD source record.
+Registrations and LogBook already use the same presentation-only trailing-row follow
+pattern; their compact **End** column header resumes live following without consuming
+additional toolbar space.
 
 The main **Connect** action opens ordinary Events, Terminal and Device Log. **Central**
 remains an explicit separate role switch: only `/api/v1/events?role=upstream` makes

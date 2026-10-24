@@ -5,38 +5,67 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Function;
 
 /** Wide semantic IF-06 message inspector for the Central System Simulator. */
 final class CentralMessagesPane {
     private static final String ALL = "ALL";
 
+    record MessageRow(
+            CentralSystemSimulator.MessageView message,
+            boolean followEnd) {
+        MessageRow {
+            if (followEnd == (message != null)) {
+                throw new IllegalArgumentException(
+                        "Row must be either one message or the follow-end marker");
+            }
+        }
+
+        static MessageRow message(CentralSystemSimulator.MessageView message) {
+            if (message == null) {
+                throw new IllegalArgumentException("message must not be null");
+            }
+            return new MessageRow(message, false);
+        }
+
+        static MessageRow endRow() {
+            return new MessageRow(null, true);
+        }
+    }
+
     private final CentralSystemSimulator simulator;
     private final ObservableList<CentralSystemSimulator.MessageView> messages =
             FXCollections.observableArrayList();
-    private final FilteredList<CentralSystemSimulator.MessageView> visible =
-            new FilteredList<>(messages);
+    private final ObservableList<MessageRow> rows =
+            FXCollections.observableArrayList();
     private final ComboBox<String> directionFilter = new ComboBox<>();
     private final ComboBox<String> nodeFilter = new ComboBox<>();
     private final ComboBox<String> typeFilter = new ComboBox<>();
-    private final TableView<CentralSystemSimulator.MessageView> table =
-            new TableView<>(visible);
+    private final Button endButton = new Button("End");
+    private final TableView<MessageRow> table = new TableView<>(rows);
     private final TextArea rawMessage = new TextArea();
     private final VBox pane;
+
+    private boolean followEnd = true;
+    private boolean rebuildingRows;
 
     CentralMessagesPane(CentralSystemSimulator simulator) {
         if (simulator == null) {
@@ -60,6 +89,9 @@ final class CentralMessagesPane {
         nodeFilter.setOnAction(event -> applyFilter());
         typeFilter.setOnAction(event -> applyFilter());
 
+        endButton.setTooltip(new Tooltip("Follow new Central messages at the end"));
+        endButton.setOnAction(event -> selectFollowEnd());
+
         configureTable();
 
         rawMessage.setEditable(false);
@@ -67,13 +99,12 @@ final class CentralMessagesPane {
         rawMessage.setPromptText("Select a Central message to inspect its exact IF-06 JSON");
         rawMessage.setPrefRowCount(5);
         rawMessage.getStyleClass().add("engineering-raw-data");
-        table.getSelectionModel().selectedItemProperty().addListener(
-                (ignored, previous, selected) ->
-                        rawMessage.setText(
-                                selected == null
-                                        ? ""
-                                        : ApiEventClient.encodeUpstreamData(selected.data())));
 
+        table.getSelectionModel().selectedItemProperty().addListener(
+                (ignored, previous, selected) -> selectionChanged(selected));
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox filters = new HBox(
                 8,
                 new Label("Direction"),
@@ -81,7 +112,9 @@ final class CentralMessagesPane {
                 new Label("Node"),
                 nodeFilter,
                 new Label("Type"),
-                typeFilter);
+                typeFilter,
+                spacer,
+                endButton);
         filters.setAlignment(Pos.CENTER_LEFT);
         filters.getStyleClass().add("engineering-traffic-filters");
 
@@ -97,6 +130,9 @@ final class CentralMessagesPane {
     }
 
     void refresh() {
+        Long selectedOrdinal = selectedMessageOrdinal();
+        boolean wasFollowing = followEnd;
+
         String selectedDirection = directionFilter.getValue();
         String selectedNode = nodeFilter.getValue();
         String selectedType = typeFilter.getValue();
@@ -113,30 +149,56 @@ final class CentralMessagesPane {
             types.add(message.data().family().name());
         }
 
-        nodeFilter.getItems().setAll(nodes);
-        typeFilter.getItems().setAll(types);
-        nodeFilter.setValue(
-                selectedNode != null && nodes.contains(selectedNode) ? selectedNode : ALL);
-        typeFilter.setValue(
-                selectedType != null && types.contains(selectedType) ? selectedType : ALL);
-        directionFilter.setValue(
-                selectedDirection == null ? ALL : selectedDirection);
-        applyFilter();
+        rebuildingRows = true;
+        try {
+            nodeFilter.getItems().setAll(nodes);
+            typeFilter.getItems().setAll(types);
+            nodeFilter.setValue(
+                    selectedNode != null && nodes.contains(selectedNode) ? selectedNode : ALL);
+            typeFilter.setValue(
+                    selectedType != null && types.contains(selectedType) ? selectedType : ALL);
+            directionFilter.setValue(
+                    selectedDirection == null ? ALL : selectedDirection);
+        } finally {
+            rebuildingRows = false;
+        }
+
+        rebuildRows(selectedOrdinal, wasFollowing);
     }
 
     private void configureTable() {
-        TableColumn<CentralSystemSimulator.MessageView, String> direction =
-                column("Dir", CentralMessagesPane::directionText);
-        TableColumn<CentralSystemSimulator.MessageView, String> node =
-                column("Node", value -> value.data().timingNodeId().value());
-        TableColumn<CentralSystemSimulator.MessageView, String> type =
-                column("Type", value -> value.data().family().name());
-        TableColumn<CentralSystemSimulator.MessageView, String> position =
-                column("Stream / seq", value -> positionText(value.data()));
-        TableColumn<CentralSystemSimulator.MessageView, String> time =
-                column("Time", value -> value.timestamp().toString());
-        TableColumn<CentralSystemSimulator.MessageView, String> summary =
-                column("Summary", value -> summaryText(value.data()));
+        TableColumn<MessageRow, String> direction =
+                column("Dir", value -> messageValue(value, CentralMessagesPane::directionText));
+        TableColumn<MessageRow, String> node =
+                column(
+                        "Node",
+                        value -> messageValue(
+                                value,
+                                message -> message.data().timingNodeId().value()));
+        TableColumn<MessageRow, String> type =
+                column(
+                        "Type",
+                        value -> messageValue(
+                                value,
+                                message -> message.data().family().name()));
+        TableColumn<MessageRow, String> position =
+                column(
+                        "Stream / seq",
+                        value -> messageValue(
+                                value,
+                                message -> positionText(message.data())));
+        TableColumn<MessageRow, String> time =
+                column(
+                        "Time",
+                        value -> messageValue(
+                                value,
+                                message -> message.timestamp().toString()));
+        TableColumn<MessageRow, String> summary =
+                column(
+                        "Summary",
+                        value -> value.followEnd()
+                                ? "— Follow end —"
+                                : summaryText(value.message().data()));
 
         direction.setMinWidth(62);
         direction.setPrefWidth(62);
@@ -155,11 +217,101 @@ final class CentralMessagesPane {
     }
 
     private void applyFilter() {
-        String direction = directionFilter.getValue();
-        String node = nodeFilter.getValue();
-        String type = typeFilter.getValue();
-        visible.setPredicate(message ->
-                matches(message, direction, node, type));
+        if (rebuildingRows) {
+            return;
+        }
+        rebuildRows(selectedMessageOrdinal(), followEnd);
+    }
+
+    private void rebuildRows(Long selectedOrdinal, boolean keepFollowing) {
+        rebuildingRows = true;
+        try {
+            rows.setAll(visibleRows(
+                    messages,
+                    directionFilter.getValue(),
+                    nodeFilter.getValue(),
+                    typeFilter.getValue()));
+
+            if (keepFollowing) {
+                selectFollowEnd();
+            } else if (selectedOrdinal != null) {
+                selectMessage(selectedOrdinal.longValue());
+            } else {
+                table.getSelectionModel().clearSelection();
+            }
+        } finally {
+            rebuildingRows = false;
+        }
+    }
+
+    private void selectionChanged(MessageRow selected) {
+        if (rebuildingRows) {
+            return;
+        }
+
+        if (selected == null) {
+            followEnd = false;
+            rawMessage.clear();
+            return;
+        }
+
+        if (selected.followEnd()) {
+            followEnd = true;
+            rawMessage.clear();
+            table.scrollTo(rows.size() - 1);
+            return;
+        }
+
+        followEnd = false;
+        rawMessage.setText(ApiEventClient.encodeUpstreamData(selected.message().data()));
+    }
+
+    private void selectFollowEnd() {
+        if (rows.isEmpty()) {
+            return;
+        }
+
+        int index = rows.size() - 1;
+        followEnd = true;
+        table.getSelectionModel().select(index);
+        table.scrollTo(index);
+        rawMessage.clear();
+    }
+
+    private void selectMessage(long ordinal) {
+        for (int index = 0; index < rows.size(); index++) {
+            MessageRow row = rows.get(index);
+            if (!row.followEnd() && row.message().ordinal() == ordinal) {
+                table.getSelectionModel().select(index);
+                table.scrollTo(index);
+                return;
+            }
+        }
+        table.getSelectionModel().clearSelection();
+        rawMessage.clear();
+    }
+
+    private Long selectedMessageOrdinal() {
+        MessageRow selected = table.getSelectionModel().getSelectedItem();
+        if (selected == null || selected.followEnd()) {
+            return null;
+        }
+        return Long.valueOf(selected.message().ordinal());
+    }
+
+    static List<MessageRow> visibleRows(
+            List<CentralSystemSimulator.MessageView> messages,
+            String direction,
+            String node,
+            String type) {
+        List<MessageRow> result = new ArrayList<>();
+        for (CentralSystemSimulator.MessageView message : messages) {
+            if (matches(message, direction, node, type)) {
+                result.add(MessageRow.message(message));
+            }
+        }
+        result.add(MessageRow.endRow());
+        return List.copyOf(result);
     }
 
     static boolean matches(
@@ -236,6 +388,12 @@ final class CentralMessagesPane {
         };
     }
 
+    private static String messageValue(
+            MessageRow row,
+            Function<CentralSystemSimulator.MessageView, String> value) {
+        return row.followEnd() ? "" : value.apply(row.message());
+    }
+
     private static String timingDataPosition(UpstreamData.TimingDataTransfer transfer) {
         List<TimingRecord> records = transfer.records();
         long first = records.get(0).sequenceNumber();
@@ -254,7 +412,7 @@ final class CentralMessagesPane {
 
     private static <T> TableColumn<T, String> column(
             String title,
-            java.util.function.Function<T, String> value) {
+            Function<T, String> value) {
         TableColumn<T, String> column = new TableColumn<>(title);
         column.setCellValueFactory(cell ->
                 new ReadOnlyStringWrapper(
