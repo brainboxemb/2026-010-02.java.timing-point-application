@@ -28,6 +28,63 @@ final class EngineeringWorkbenchTest {
     }
 
     @Test
+    void detachedStageExtentAlsoRespectsMonitorBounds() {
+        assertEquals(
+                640.0,
+                EngineeringWorkbench.detachedExtent(
+                        900.0,
+                        320.0,
+                        640.0,
+                        1080.0));
+        assertEquals(
+                500.0,
+                EngineeringWorkbench.detachedExtent(
+                        900.0,
+                        320.0,
+                        640.0,
+                        500.0));
+        assertEquals(
+                280.0,
+                EngineeringWorkbench.detachedExtent(
+                        900.0,
+                        320.0,
+                        640.0,
+                        280.0));
+    }
+
+    @Test
+    void detachedPositionKeepsWholeWindowOnScreen() {
+        assertEquals(
+                0.0,
+                EngineeringWorkbench.detachedPosition(
+                        -50.0,
+                        640.0,
+                        0.0,
+                        1920.0));
+        assertEquals(
+                1280.0,
+                EngineeringWorkbench.detachedPosition(
+                        1700.0,
+                        640.0,
+                        0.0,
+                        1920.0));
+        assertEquals(
+                -1920.0,
+                EngineeringWorkbench.detachedPosition(
+                        -2500.0,
+                        960.0,
+                        -1920.0,
+                        0.0));
+        assertEquals(
+                0.0,
+                EngineeringWorkbench.detachedPosition(
+                        Double.NaN,
+                        640.0,
+                        0.0,
+                        1080.0));
+    }
+
+    @Test
     void perspectiveNameMustBePresent() {
         assertThrows(
                 IllegalArgumentException.class,
