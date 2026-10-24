@@ -12,8 +12,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Independent IF-03 API HTTP client.
@@ -24,10 +26,37 @@ public final class ApiClient {
     private static final int TIMING_DATA_VERSION = 1;
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    public record HttpCall(
+            Instant startedAt,
+            String method,
+            String path,
+            String requestBody,
+            Integer statusCode,
+            String responseBody,
+            String failure) {
+        public HttpCall {
+            if (startedAt == null
+                    || method == null
+                    || method.isBlank()
+                    || path == null
+                    || path.isBlank()) {
+                throw new IllegalArgumentException(
+                        "HTTP call start/method/path must be present");
+            }
+        }
+    }
+
     private final URI endpoint;
     private final HttpClient httpClient;
+    private final Consumer<HttpCall> httpCallListener;
 
     public ApiClient(URI endpoint) {
+        this(endpoint, ignored -> { });
+    }
+
+    ApiClient(
+            URI endpoint,
+            Consumer<HttpCall> httpCallListener) {
         if (endpoint == null || endpoint.getScheme() == null || endpoint.getHost() == null) {
             throw new IllegalArgumentException("endpoint must be an absolute HTTP URI");
         }
@@ -35,8 +64,12 @@ public final class ApiClient {
                 && !"https".equalsIgnoreCase(endpoint.getScheme())) {
             throw new IllegalArgumentException("endpoint scheme must be http or https");
         }
+        if (httpCallListener == null) {
+            throw new IllegalArgumentException("httpCallListener must not be null");
+        }
         this.endpoint = endpoint;
         this.httpClient = ClientHttpTransport.shared();
+        this.httpCallListener = httpCallListener;
     }
 
     public VersionResult getVersion() throws IOException, InterruptedException {
@@ -430,12 +463,53 @@ public final class ApiClient {
                     .method(method, HttpRequest.BodyPublishers.ofString(body));
         }
 
-        HttpResponse<String> response =
-                httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        Instant startedAt = Instant.now();
+        final HttpResponse<String> response;
+        try {
+            response =
+                    httpClient.send(
+                            builder.build(),
+                            HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException failure) {
+            recordHttpCall(
+                    new HttpCall(
+                            startedAt,
+                            method,
+                            pathAndQuery(uri),
+                            body,
+                            null,
+                            null,
+                            failure.toString()));
+            throw failure;
+        }
+
+        recordHttpCall(
+                new HttpCall(
+                        startedAt,
+                        method,
+                        pathAndQuery(uri),
+                        body,
+                        Integer.valueOf(response.statusCode()),
+                        response.body(),
+                        null));
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
             return response.body();
         }
         throw parseApiException(response.statusCode(), response.body(), uri);
+    }
+
+    private void recordHttpCall(HttpCall call) {
+        try {
+            httpCallListener.accept(call);
+        } catch (RuntimeException ignored) {
+            // Diagnostic observation must never change IF-03 request behaviour.
+        }
+    }
+
+    private static String pathAndQuery(URI uri) {
+        String path = uri.getRawPath();
+        String query = uri.getRawQuery();
+        return query == null ? path : path + "?" + query;
     }
 
     private static ApiException parseApiException(int statusCode, String rawJson, URI uri) {

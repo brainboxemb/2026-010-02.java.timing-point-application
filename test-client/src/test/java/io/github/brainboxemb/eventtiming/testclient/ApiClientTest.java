@@ -363,6 +363,37 @@ public class ApiClientTest {
     }
 
     @Test
+    void reportsExactLogBookHttpCallToDiagnosticListener() throws Exception {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        String response = "{\"count\":0,\"next\":null,\"records\":[]}";
+        server.createContext(
+                "/api/v1/node/TN-01/logbook",
+                exchange -> respond(exchange, 200, response));
+        server.start();
+
+        List<ApiClient.HttpCall> calls = new ArrayList<>();
+        ApiClient client =
+                new ApiClient(
+                        URI.create(
+                                "http://127.0.0.1:"
+                                        + server.getAddress().getPort()),
+                        calls::add);
+
+        client.getLogBookLast("TN-01", 20);
+
+        assertEquals(1, calls.size());
+        ApiClient.HttpCall call = calls.get(0);
+        assertEquals("GET", call.method());
+        assertEquals(
+                "/api/v1/node/TN-01/logbook?last=20",
+                call.path());
+        assertNull(call.requestBody());
+        assertEquals(Integer.valueOf(200), call.statusCode());
+        assertEquals(response, call.responseBody());
+        assertNull(call.failure());
+    }
+
+    @Test
     void validatesLogBookBoundsLocally() {
         ApiClient client = new ApiClient(URI.create("http://127.0.0.1:8081"));
         assertThrows(

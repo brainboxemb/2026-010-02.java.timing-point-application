@@ -259,7 +259,7 @@ known they read simply **Node** and **Central**. This right-side viewer leaf is 
 to grow later with additional tabs such as Node B / Central B without moving the shared
 controls.
 
-The Node viewer contains Registrations, LogBook, Raw Data and Events. The Central viewer contains separate **Messages** and
+The Node viewer contains Registrations, LogBook, Raw Data, Events and HTTP. The Central viewer contains separate **Messages** and
 **LogBook** tabs: Messages inspects IF-06 message/batch boundaries, while Central LogBook
 reconstructs one record-oriented history from accepted TIMING_DATA. Input/editor panes
 do not travel with a detached viewer.
@@ -273,10 +273,18 @@ again. The Stage is also moved fully inside the selected monitor's visual bounds
 Windows title bar remains reachable. This applies equally to individual panes such as
 Scripts and to whole Node/Central viewer tabs.
 
-**Events** is deliberately a transport inspector: every WebSocket frame is one row with
-explicit **IN** (SI-01 → SI-02) or **OUT** (SI-02 → SI-01) direction,
-event/semantic type, timestamp and source/wire payload. Direction and type filters are
-presentation-only; selecting a row shows the exact frame payload.
+**Events** inspects ordinary IF-03 WebSocket events for the Node view. Central
+`UPSTREAM_DATA` is deliberately excluded and is inspected only through Central
+**Messages**. Direction and type filters are presentation-only; selecting a row shows
+the exact event payload.
+
+**HTTP** inspects IF-03 request/response calls made by the Engineering Client. The
+system context retains a bounded diagnostic journal independently from the JavaFX table.
+Rows show method, path/query, start time and status; selecting a row shows the exact
+request body and response body. This makes Node LogBook baseline/synchronisation visible,
+including `GET /api/v1/node/{nodeId}/logbook`,
+`?from=...&limit=...` and `?last=...` calls that precede/repair live
+`TIMING_DATA_COMMITTED` event processing.
 
 **Messages** is the Central semantic IF-06 inspector. It shows typed messages received
 from and sent to nodes, including `SEQ`, `TIMING_DATA_REQ`, `RECV`, `PING`,

@@ -21,10 +21,10 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Read-only WebSocket traffic inspector for IF-03 / IF-06 engineering traffic.
+ * Read-only inspector for ordinary IF-03 WebSocket event traffic.
  *
- * <p>The pane records source payloads as received/sent and owns only presentation
- * filters. Direction and type filtering never mutate the retained traffic rows.</p>
+ * <p>Central IF-06 UPSTREAM_DATA is deliberately excluded and is inspected through
+ * Central Messages instead. Direction and type filters are presentation-only.</p>
  */
 final class EventTrafficPane {
     enum Direction {
@@ -105,22 +105,14 @@ final class EventTrafficPane {
         if (event == null) {
             throw new IllegalArgumentException("event must not be null");
         }
+        if (!isNodeEvent(event)) {
+            return;
+        }
         add(new Entry(
                 Direction.IN,
                 event.occurredAt(),
                 typeOf(event),
                 event.rawJson()));
-    }
-
-    void recordOutbound(
-            Instant sentAt,
-            String type,
-            String rawPayload) {
-        add(new Entry(
-                Direction.OUT,
-                sentAt,
-                type,
-                rawPayload));
     }
 
     private void add(Entry entry) {
@@ -194,10 +186,12 @@ final class EventTrafficPane {
         return directionMatches && typeMatches;
     }
 
+    static boolean isNodeEvent(ApiEventClient.ApiEvent event) {
+        return event != null
+                && !(event instanceof ApiEventClient.UpstreamDataEvent);
+    }
+
     static String typeOf(ApiEventClient.ApiEvent event) {
-        if (event instanceof ApiEventClient.UpstreamDataEvent upstream) {
-            return upstream.upstreamData().family().name();
-        }
         return event.eventType();
     }
 

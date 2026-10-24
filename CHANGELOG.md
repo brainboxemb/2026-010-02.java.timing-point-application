@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep Central IF-06 `UPSTREAM_DATA` traffic out of the Node Events viewer; add a Node HTTP inspector backed by a separate bounded diagnostic journal so LogBook baseline/synchronisation and other IF-03 request/response calls are visible with method, path, status and exact payloads.
+
 ## Unreleased
 
 - Preserve Central Messages historical inspection viewport during incoming traffic; shorten default IF-06 JSON wire keys to `pckNr`, `msg`, and `rcvPckNr`, and name the typed Java packet positions `packetNr` / `receivedPacketNr`.
