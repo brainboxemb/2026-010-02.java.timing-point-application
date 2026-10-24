@@ -115,6 +115,7 @@ final class LogBookOperations {
                 TimingRecord.Action.ADD,
                 tagSource,
                 registrationTimeSource);
+        logRegistrationAccepted(record);
         commitRecord(record);
         return record;
     }
@@ -141,6 +142,7 @@ final class LogBookOperations {
                 registrationId.packedValue(),
                 TimingRecord.Action.ADD,
                 registrationTimeSource);
+        logRegistrationAccepted(record);
         commitRecord(record);
         return record;
     }
@@ -166,6 +168,7 @@ final class LogBookOperations {
                 TimingRecord.Action.REV,
                 TimingRecord.TagSource.API,
                 TimingRecord.AutomaticTimeSource.API);
+        logRegistrationAccepted(record);
         commitRecord(record);
         return record;
     }
@@ -192,6 +195,7 @@ final class LogBookOperations {
                 registrationId.packedValue(),
                 TimingRecord.Action.REV,
                 originalTimeSource);
+        logRegistrationAccepted(record);
         commitRecord(record);
         return record;
     }
@@ -265,6 +269,7 @@ final class LogBookOperations {
             throw ex;
         }
         metrics.recordAppendDuration(monotonicClock.nowNanos() - appendStartedNanos);
+        logPersistedRecord(record);
 
         try {
             state.addCommittedRecord(record);
@@ -282,7 +287,6 @@ final class LogBookOperations {
         }
 
         metrics.recordCommit();
-        logCommittedRecord(record);
     }
 
     /** Formats an absolute timing value as compact UTC HHMMSShh for operator logs. */
@@ -306,40 +310,57 @@ final class LogBookOperations {
         }
     }
 
-    private static void logCommittedRecord(TimingRecord record) {
-        if (record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
+    /** Logs one registration after semantic validation and source-sequence allocation. */
+    private static void logRegistrationAccepted(TimingRecord record) {
+        boolean automatic =
+                record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION;
+        failIfInvalidArgument(
+                automatic || record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION,
+                "registration log requires a registration TimingRecord");
+
+        Object tagSource =
+                automatic
+                        ? record.tagSource()
+                        : "-";
+        Object timeSource =
+                automatic
+                        ? record.automaticTimeSource()
+                        : record.manualTimeSource();
+
+        LOG.info(
+                "Registration accepted: node={}, registrationId={}, action={}, location={}, "
+                        + "effectiveTime={}, type={}, tagSource={}, timeSource={}",
+                record.nodeId(),
+                RegistrationId.fromPackedValue(record.registrationId()).value(),
+                record.action(),
+                record.locationId(),
+                logTime(record.effectiveTimeMillis()),
+                logType(record.kind()),
+                tagSource,
+                timeSource);
+    }
+
+    /** Logs the durable append boundary before the record is exposed in current LogBook state. */
+    private static void logPersistedRecord(TimingRecord record) {
+        if (record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION
+                || record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION) {
             LOG.info(
-                    "Timing record committed: node={}, sequence={}, type={}, registrationId={}, "
-                            + "action={}, location={}, effectiveTime={}, tagSource={}, timeSource={}",
+                    "LogBook persisted: node={}, sequence={}, type={}, registrationId={}, "
+                            + "action={}, location={}",
                     record.nodeId(),
                     record.sequenceNumber(),
                     logType(record.kind()),
                     RegistrationId.fromPackedValue(record.registrationId()).value(),
                     record.action(),
-                    record.locationId(),
-                    logTime(record.effectiveTimeMillis()),
-                    record.tagSource(),
-                    record.automaticTimeSource());
-        } else if (record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION) {
-            LOG.info(
-                    "Timing record committed: node={}, sequence={}, type={}, registrationId={}, "
-                            + "action={}, location={}, effectiveTime={}, timeSource={}",
-                    record.nodeId(),
-                    record.sequenceNumber(),
-                    logType(record.kind()),
-                    RegistrationId.fromPackedValue(record.registrationId()).value(),
-                    record.action(),
-                    record.locationId(),
-                    logTime(record.effectiveTimeMillis()),
-                    record.manualTimeSource());
-        } else {
-            LOG.info(
-                    "Timing record committed: node={}, sequence={}, type={}, location={}, effectiveTime={}",
-                    record.nodeId(),
-                    record.sequenceNumber(),
-                    logType(record.kind()),
-                    record.locationId(),
-                    logTime(record.effectiveTimeMillis()));
+                    record.locationId());
+            return;
         }
+
+        LOG.info(
+                "LogBook persisted: node={}, sequence={}, type={}, location={}",
+                record.nodeId(),
+                record.sequenceNumber(),
+                logType(record.kind()),
+                record.locationId());
     }
 }
