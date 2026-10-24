@@ -135,7 +135,7 @@ final class TimingApplicationAssembler {
                             presentationNodes,
                             configurationControl,
                             simulationRunner);
-            ApplicationExitSignal shutdownSignal =
+            ApplicationExitSignal exitSignal =
                     new ApplicationExitSignal();
             PresentationRuntime presentation =
                     new PresentationRuntime(
@@ -144,8 +144,8 @@ final class TimingApplicationAssembler {
                             upstreamConnectors,
                             loggingLevelControl,
                             consolePromptControl,
-                            shutdownSignal::requestStop,
-                            shutdownSignal::requestRestart,
+                            exitSignal::requestStop,
+                            exitSignal::requestRestart,
                             consoleInput,
                             consoleOutput);
 
@@ -159,7 +159,7 @@ final class TimingApplicationAssembler {
                     simulationRunner,
                     applicationConductor,
                     presentation,
-                    shutdownSignal);
+                    exitSignal);
         } catch (RuntimeException | Error failure) {
             executors.close();
             throw failure;
