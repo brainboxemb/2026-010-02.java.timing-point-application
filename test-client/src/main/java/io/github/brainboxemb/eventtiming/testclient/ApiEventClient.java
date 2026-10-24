@@ -67,6 +67,21 @@ public final class ApiEventClient implements AutoCloseable {
             String rawPayloadJson,
             String rawJson)
             implements ApiEvent {
+
+        UpstreamDataEvent(
+                String eventType,
+                Instant occurredAt,
+                Instant receivedAt,
+                UpstreamData upstreamData,
+                String rawJson) {
+            this(
+                    eventType,
+                    occurredAt,
+                    receivedAt,
+                    upstreamData,
+                    ApiEventClient.encodeUpstreamData(upstreamData),
+                    rawJson);
+        }
     }
 
     public record UnknownEvent(
