@@ -177,7 +177,7 @@ final class CentralPane implements AutoCloseable {
         text.append("] · ")
                 .append(heartbeatAgeText(node.lastHeartbeat(), now))
                 .append(" · CNT ")
-                .append(node.timingDataHead());
+                .append(paddedCount(node.timingDataHead()));
         return text.toString();
     }
 
@@ -191,7 +191,14 @@ final class CentralPane implements AutoCloseable {
 
         long ageSeconds = java.time.Duration.between(lastHeartbeat, now).getSeconds();
         ageSeconds = Math.max(0L, Math.min(999L, ageSeconds));
-        return "H -" + ageSeconds + "s";
+        return "H -" + String.format(java.util.Locale.ROOT, "%3d", ageSeconds) + "s";
+    }
+
+    static String paddedCount(long count) {
+        if (count < 0L) {
+            throw new IllegalArgumentException("count must not be negative");
+        }
+        return String.format(java.util.Locale.ROOT, "%3d", count);
     }
 
     static String nodeDetailText(CentralSystemSimulator.NodeView node) {
