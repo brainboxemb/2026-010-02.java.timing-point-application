@@ -27,10 +27,31 @@ final class CentralPaneTest {
                 node,
                 Instant.parse("2026-10-24T09:00:30Z"));
 
-        assertEquals("A [5] · H -30s · CNT 1157", compact);
+        assertEquals("A [05] · H -30s · CNT 1157", compact);
         assertFalse(compact.contains("Timing"));
         assertFalse(compact.contains("Race"));
         assertFalse(compact.contains("\n"));
+    }
+
+    @Test
+    void locationMarkerKeepsAtLeastTwoDigits() {
+        CentralSystemSimulator.NodeView node =
+                new CentralSystemSimulator.NodeView(
+                        "A",
+                        true,
+                        null,
+                        12L,
+                        0L,
+                        0L,
+                        "OPEN",
+                        Integer.valueOf(1),
+                        null);
+
+        assertEquals(
+                "A [01] · H --- · CNT 12",
+                CentralPane.compactNodeText(
+                        node,
+                        Instant.parse("2026-10-24T09:00:30Z")));
     }
 
     @Test
@@ -48,7 +69,7 @@ final class CentralPaneTest {
                         null);
 
         assertEquals(
-                "A [?] · H --- · CNT 0",
+                "A [??] · H --- · CNT 0",
                 CentralPane.compactNodeText(
                         node,
                         Instant.parse("2026-10-24T09:00:30Z")));
@@ -69,7 +90,7 @@ final class CentralPaneTest {
                         null);
 
         assertEquals(
-                "A [-] · H -30s · CNT 999",
+                "A [--] · H -30s · CNT 999",
                 CentralPane.compactNodeText(
                         node,
                         Instant.parse("2026-10-24T09:00:30Z")));
