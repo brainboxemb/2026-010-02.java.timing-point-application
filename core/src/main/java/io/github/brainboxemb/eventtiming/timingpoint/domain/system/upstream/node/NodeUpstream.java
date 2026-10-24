@@ -147,10 +147,6 @@ public final class NodeUpstream extends LifecycleComponent {
             String summary = logSummary(data);
 
             LOG.info("Upstream queued: {}", summary);
-            LOG.debug(
-                    "Upstream payload: direction=OUT, node={}, payload={}",
-                    nodeId.value(),
-                    encoded);
             stream.send(encoded);
             LOG.info("Upstream sent: {}", summary);
         } catch (UpstreamDataCodec.CodecException ex) {
