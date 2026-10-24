@@ -66,7 +66,7 @@ public class DefaultUpstreamDataCodecTest {
         assertSame(
                 UpstreamData.Direction.UP_PACKET,
                 decoded.direction());
-        assertEquals(57L, decoded.packetId());
+        assertEquals(57L, decoded.packetNr());
         assertEquals(nodeId, decoded.timingNodeId());
 
         UpstreamData.TimingDataTransfer transfer =
@@ -112,7 +112,7 @@ public class DefaultUpstreamDataCodecTest {
         assertTrue(json.contains("\"stageStartTimes\""));
 
         UpstreamData decoded = codec.decode(bytes(json));
-        assertEquals(43L, decoded.packetId());
+        assertEquals(43L, decoded.packetNr());
         UpstreamData.RaceData raceData =
                 (UpstreamData.RaceData) decoded.message();
         assertEquals(new LocationId(1), raceData.locationId());
@@ -185,7 +185,7 @@ public class DefaultUpstreamDataCodecTest {
         assertEquals(
                 41L,
                 ((UpstreamData.Receive) decodedReceive.message())
-                        .receivedPacketId());
+                        .receivedPacketNr());
 
         UpstreamData fullResend =
                 DefaultUpstreamData.createUpPacket(
@@ -197,7 +197,7 @@ public class DefaultUpstreamDataCodecTest {
                 ((UpstreamData.Receive)
                         codec.decode(codec.encode(fullResend))
                                 .message())
-                        .receivedPacketId());
+                        .receivedPacketNr());
     }
 
     @Test
@@ -226,7 +226,7 @@ public class DefaultUpstreamDataCodecTest {
         UpstreamData decoded = codec.decode(codec.encode(heartbeat));
         UpstreamData.Ping ping =
                 (UpstreamData.Ping) decoded.message();
-        assertEquals(0L, decoded.packetId());
+        assertEquals(0L, decoded.packetNr());
         assertSame(
                 UpstreamData.PingOperation.REQ,
                 ping.operation());
