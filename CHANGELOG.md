@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add the first SI-02 Central System Simulator workbench slice: keep the direct API view as `A|Systems`, add independent `C|Systems` and `C|Locations` views fed only by the full-duplex Engineering upstream WebSocket, request missing TIMING_DATA from the simulator's next sequence after SYNC, answer heartbeat PING requests, show the latest received LogBook record per observed node, derive Location OPEN/CLOSED from NODE_INFO history, and allow initial Central LocationIds through `central.locationIds`.
+- Add the first SI-02 Central System Simulator workbench slice: keep the direct API view as `A|Systems`, add independent `C|Systems` and `C|Locations`, make the existing `ApiEventClient` the single full-duplex `role=upstream` ST-2 session, decode/encode the shared typed IF-06 `UpstreamData` contract, request missing TIMING_DATA from the simulator's next sequence after SYNC, answer heartbeat PING requests, show the latest received LogBook record per observed node, derive Location OPEN/CLOSED from NODE_INFO history, and allow initial Central LocationIds through `central.locationIds`.
 
 
 - Preserve IF-06 stage-start knowledge as compact UTC longs instead of inventing dates: time-only values remain `HHmmsscc`, dated values use `yyyyMMddHHmmsscc`, `ClockTimeSource` supplies the configurable civil-time zone, and `StageTiming` resolves time-only midnight rollover only when runtime is unambiguous and below 12 hours.
