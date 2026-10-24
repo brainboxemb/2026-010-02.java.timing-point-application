@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.scene.control.Label;
@@ -55,7 +56,7 @@ final class CentralPane {
 
     private void configureSystems() {
         TableColumn<CentralSystemSimulator.SystemView, String> node =
-                textColumn("Node", value -> value.nodeId());
+                textColumn("Node", CentralSystemSimulator.SystemView::nodeId);
         TableColumn<CentralSystemSimulator.SystemView, String> link =
                 textColumn("Link", value -> value.connected() ? "CONNECTED" : "STALE");
         TableColumn<CentralSystemSimulator.SystemView, String> heartbeat =
@@ -101,14 +102,31 @@ final class CentralPane {
     }
 
     private static String lastRecord(CentralSystemSimulator.SystemView value) {
-        ApiClient.TimingDataInfo record = value.lastRecord();
+        TimingRecord record = value.lastRecord();
         if (record == null) {
             return "—";
         }
         return "#" + record.sequenceNumber()
-                + " " + record.recordType()
+                + " " + recordType(record)
                 + " loc " + record.locationId()
-                + " " + String.join(",", record.codes());
+                + " " + recordCode(record);
+    }
+
+    private static String recordType(TimingRecord record) {
+        return switch (record.kind()) {
+            case AUTOMATIC_REGISTRATION -> "AUTO_REG";
+            case MANUAL_REGISTRATION -> "MAN_REG";
+            case NODE_OPEN, NODE_CLOSE -> "NODE_INFO";
+        };
+    }
+
+    private static String recordCode(TimingRecord record) {
+        return switch (record.kind()) {
+            case AUTOMATIC_REGISTRATION, MANUAL_REGISTRATION ->
+                    record.action() == null ? "—" : record.action().name();
+            case NODE_OPEN -> "OPEN";
+            case NODE_CLOSE -> "CLOSE";
+        };
     }
 
     private static String instant(Instant value) {
