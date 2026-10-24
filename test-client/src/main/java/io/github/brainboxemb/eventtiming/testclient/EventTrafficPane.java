@@ -138,7 +138,7 @@ final class EventTrafficPane {
                 Entry::type);
         TableColumn<Entry, String> time = column(
                 "Time",
-                value -> ViewerTime.instant(value.timestamp(), true));
+                value -> value.timestamp().toString());
         TableColumn<Entry, String> payload = column(
                 "Payload",
                 Entry::rawPayload);

@@ -280,7 +280,7 @@ the exact event payload.
 
 **HTTP** inspects IF-03 request/response calls made by the Engineering Client. The
 system context retains a bounded diagnostic journal independently from the JavaFX table.
-Rows show method, path/query, local start time and status; selecting a row shows the exact
+Rows show method, path/query, start time and status; selecting a row shows the exact
 request body and response body. This makes Node LogBook baseline/synchronisation visible,
 including `GET /api/v1/node/{nodeId}/logbook`,
 `?from=...&limit=...` and `?last=...` calls that precede/repair live
@@ -288,10 +288,7 @@ including `GET /api/v1/node/{nodeId}/logbook`,
 
 **Messages** is the Central semantic IF-06 inspector. It shows typed messages received
 from and sent to nodes, including `SEQ`, `TIMING_DATA_REQ`, `RECV`, `PING`,
-`TIMING_DATA` and `RACE_DATA`. Viewer time columns use the Engineering Client host's
-local timezone while the selected raw IF-06 JSON remains unchanged UTC wire data. For
-TIMING_DATA, **Time** uses IF-05 effective `time` (the last record for a batch); **Received**
-is the separate local WebSocket receive timestamp. The Packet / position column shows the packet number
+`TIMING_DATA` and `RACE_DATA`. The Packet / position column shows the packet number
 separately from any TIMING_DATA/LogBook sequence; RACE_DATA also shows its message-level
 LocationId. The shared IF-06 profile bounds TIMING_DATA to 16 TimingRecords per message
 and RACE_DATA to 16 combined changes per message. The table ends with one presentation-only
@@ -308,9 +305,7 @@ arrived alone or in a 16-record replay/live batch. Duplicate replay records at o
 Central's receive head do not create duplicate rows. Ordinary reconnect retains the
 reconstructed LogBook together with the TimingData receive head; changing target host clears
 both. The table uses the same IF-05 Type/Code/Location/Registration/Effective/Recorded
-semantics as the normal Node LogBook and can filter by NodeId. Effective/Recorded table
-values are presented in the Engineering Client host's local timezone; selecting a record
-still exposes its exact canonical UTC IF-05 JSON.
+semantics as the normal Node LogBook and can filter by NodeId.
 
 In **Registrations**, RegistrationId is the primary identity column. TeamId is a separate
 optional/interpreted value and may be unresolved (`-`); SI-02 never substitutes TeamId

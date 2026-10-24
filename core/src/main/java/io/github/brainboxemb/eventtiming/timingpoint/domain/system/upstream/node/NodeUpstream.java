@@ -278,9 +278,7 @@ public final class NodeUpstream extends LifecycleComponent {
         }
 
         summary.append(", code=")
-                .append(timingRecordCode(record))
-                .append(", recTime=")
-                .append(utcTime(record.recordedAtMillis()));
+                .append(timingRecordCode(record));
         return summary.toString();
     }
 

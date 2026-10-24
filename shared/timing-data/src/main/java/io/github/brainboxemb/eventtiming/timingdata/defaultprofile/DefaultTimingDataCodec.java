@@ -80,9 +80,11 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                         throw encodeFailure("unsupported TimingRecord kind " + record.kind());
                 }
 
-                generator.writeStringField(
-                        "recTime",
-                        formatRecordedTime(record.recordedAtMillis()));
+                if (record.hasRecordedAtMillis()) {
+                    generator.writeStringField(
+                            "recTime",
+                            formatRecordedTime(record.recordedAtMillis()));
+                }
                 generator.writeEndObject();
             } finally {
                 generator.close();
@@ -316,7 +318,10 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     new LocationId(common.locationId),
                     fields.recordType,
                     new TimingTimestamp(Instant.ofEpochMilli(common.effectiveTimeMillis)),
-                    new TimingTimestamp(Instant.ofEpochMilli(common.recordedAtMillis)),
+                    common.recordedAtMillis == TimingRecord.NO_RECORDED_AT_MILLIS
+                            ? null
+                            : new TimingTimestamp(
+                                    Instant.ofEpochMilli(common.recordedAtMillis)),
                     "unsupported IF-05 development-v1 recType " + fields.recordType);
         }
 
@@ -372,7 +377,6 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         require(fields.sequenceSeen, "seqNr");
         require(fields.locationSeen, "locId");
         require(fields.effectiveSeen, "time");
-        require(fields.recordedSeen, "recTime");
 
         try {
             NodeId nodeId = new NodeId(fields.nodeId);
@@ -381,7 +385,10 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                 throw new IllegalArgumentException("sequence out of range");
             }
             long effective = Instant.parse(fields.effectiveTime).toEpochMilli();
-            long recorded = Instant.parse(fields.recordedAt).toEpochMilli();
+            long recorded =
+                    fields.recordedSeen
+                            ? Instant.parse(fields.recordedAt).toEpochMilli()
+                            : TimingRecord.NO_RECORDED_AT_MILLIS;
             return new Common(
                     nodeId.value().charAt(0),
                     fields.sequence,

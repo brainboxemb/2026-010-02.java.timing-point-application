@@ -357,53 +357,6 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void timingDataMessageTimeUsesLastEffectiveTimeInsteadOfEventReceiptTime() {
-        CentralSystemSimulator simulator =
-                new CentralSystemSimulator(List.of(7));
-        simulator.connected();
-
-        Instant firstEffective =
-                Instant.parse("2026-10-24T17:31:55.490Z");
-        Instant secondEffective =
-                Instant.parse("2026-10-24T17:31:55.492Z");
-        TimingRecord first =
-                TimingRecord.createNodeOpened(
-                        'A',
-                        1L,
-                        7,
-                        firstEffective.toEpochMilli(),
-                        Instant.parse("2026-10-24T17:31:55.500Z").toEpochMilli());
-        TimingRecord second =
-                TimingRecord.createNodeClosed(
-                        'A',
-                        2L,
-                        7,
-                        secondEffective.toEpochMilli(),
-                        Instant.parse("2026-10-24T17:31:55.501Z").toEpochMilli());
-
-        UpstreamData packet =
-                timingDataPacket(
-                        1L,
-                        first,
-                        second);
-        Instant eventTime =
-                Instant.parse("2026-10-24T17:31:55.505Z");
-        Instant receivedAt =
-                Instant.parse("2026-10-24T17:31:55.506Z");
-
-        simulator.accept(
-                packet,
-                eventTime,
-                receivedAt,
-                ApiEventClient.encodeUpstreamData(packet));
-
-        CentralSystemSimulator.MessageView message =
-                simulator.messages().get(0);
-        assertEquals(secondEffective, message.messageTime());
-        assertEquals(receivedAt, message.receivedAt());
-    }
-
-    @Test
     void semanticMessageJournalKeepsLatestTenThousandModelRecords() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of());

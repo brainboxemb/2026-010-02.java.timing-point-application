@@ -136,9 +136,9 @@ final class CentralLogBookPane {
                                 ? ""
                                 : value.registrationId());
         TableColumn<ApiClient.TimingDataInfo, String> effective =
-                column("Effective", value -> ViewerTime.effective(value.effectiveTime()));
+                column("Effective", ApiClient.TimingDataInfo::effectiveTime);
         TableColumn<ApiClient.TimingDataInfo, String> recorded =
-                column("Recorded", value -> ViewerTime.recorded(value.recordedAt()));
+                column("Recorded", ApiClient.TimingDataInfo::recordedAt);
         TableColumn<ApiClient.TimingDataInfo, Void> end =
                 new TableColumn<>("");
         Label endLabel = new Label("End");

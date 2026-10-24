@@ -1,5 +1,7 @@
 # Changelog
 
+- Restore IF-05 `recTime` as optional diagnostic record-creation metadata: readers accept its absence, decoded records preserve that absence on re-encode, Engineering Client parsing no longer requires it, and normal upstream INFO summaries do not surface it.
+
 - Present Engineering Client viewer timestamps in the host's local timezone while retaining exact canonical UTC in raw IF-03/IF-05/IF-06 payloads. Central TIMING_DATA Messages now use IF-05 effective `time` as source Time (last record for a batch) instead of falling back to the near-identical UPSTREAM_DATA event/receive time.
 
 - Make the existing IF-05 UTC record timestamps explicit in upstream verification and single-record TIMING_DATA INFO summaries: `time` remains effective UTC and `recTime` remains recorded-at UTC; no new IF-06 timing representation is introduced.

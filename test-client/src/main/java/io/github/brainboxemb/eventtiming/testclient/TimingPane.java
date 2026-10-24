@@ -1438,10 +1438,10 @@ final class TimingPane {
                 ApiClient.TimingDataInfo::registrationId);
         TableColumn<ApiClient.TimingDataInfo, String> effective = column(
                 "Effective",
-                value -> ViewerTime.effective(value.effectiveTime()));
+                ApiClient.TimingDataInfo::effectiveTime);
         TableColumn<ApiClient.TimingDataInfo, String> recorded = column(
                 "Recorded",
-                value -> ViewerTime.recorded(value.recordedAt()));
+                ApiClient.TimingDataInfo::recordedAt);
         TableColumn<ApiClient.TimingDataInfo, Void> end =
                 new TableColumn<>("");
         end.setGraphic(followEndHeader(logBookFollow));

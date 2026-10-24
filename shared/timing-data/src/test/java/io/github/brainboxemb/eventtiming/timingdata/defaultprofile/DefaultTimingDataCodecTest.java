@@ -250,6 +250,28 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
+    public void readerAcceptsMissingOptionalRecTimeAndWriterPreservesAbsence()
+            throws Exception {
+        TimingRecord decoded = codec.decode(json(
+                "{"
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":1,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"AUTO_REG\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"regId\":\"A0042\","
+                        + "\"code\":[\"ADD\"]"
+                        + "}"));
+
+        assertFalse(decoded.hasRecordedAtMillis());
+        assertEquals(
+                TimingRecord.NO_RECORDED_AT_MILLIS,
+                decoded.recordedAtMillis());
+        assertFalse(text(codec.encode(decoded)).contains("\"recTime\""));
+    }
+
+    @Test
     public void readerIgnoresAdditionalMembersAndCodeOrder() throws Exception {
         TimingRecord decoded = codec.decode(json(
                 "{"

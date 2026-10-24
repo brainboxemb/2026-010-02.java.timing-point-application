@@ -7,7 +7,8 @@ import java.util.Objects;
  *
  * <p>This is the shared record contract for LogBook storage, commands, queries
  * and codecs. The node id is one character, the registration id is packed in
- * one int, and both absolute times are UTC epoch milliseconds. No semantic
+ * one int, effective time is UTC epoch milliseconds, and optional recorded-at
+ * metadata uses the same scalar representation when present. No semantic
  * wrapper, timestamp or protocol object is retained.</p>
  *
  * <p>One instance represents exactly one of the four supported record kinds.
@@ -17,6 +18,9 @@ import java.util.Objects;
 public final class TimingRecord {
     /** Largest JSON-safe IF-05 sequence value: 2^53 - 1. */
     public static final long MAX_SEQUENCE_NUMBER = 9007199254740991L;
+
+    /** Internal scalar marker for an omitted optional IF-05 recTime. */
+    public static final long NO_RECORDED_AT_MILLIS = Long.MIN_VALUE;
 
     public enum Kind {
         AUTOMATIC_REGISTRATION,
@@ -198,6 +202,10 @@ public final class TimingRecord {
 
     public long recordedAtMillis() {
         return recordedAtMillis;
+    }
+
+    public boolean hasRecordedAtMillis() {
+        return recordedAtMillis != NO_RECORDED_AT_MILLIS;
     }
 
     /** Packed registration id, or zero for NODE_OPEN/NODE_CLOSE. */
