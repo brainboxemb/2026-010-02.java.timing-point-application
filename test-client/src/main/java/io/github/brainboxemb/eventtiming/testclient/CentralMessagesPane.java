@@ -328,7 +328,7 @@ final class CentralMessagesPane {
     private void updateVisibleRows(
             List<MessageRow> next,
             boolean preserveViewport) {
-        if (!preserveViewport) {
+        if (!preserveViewport || rows.isEmpty()) {
             if (!rows.equals(next)) {
                 rows.setAll(next);
             }
