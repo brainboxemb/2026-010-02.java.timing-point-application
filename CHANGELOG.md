@@ -1,5 +1,7 @@
 # Changelog
 
+- Make TIMING_DATA replay progress observable at INFO level: log active replay start with requested sequence and captured LogBook head, each queued LogBook replay range, empty handoffs, completed handoff to live forwarding, and requests beyond the next valid sequence without changing IF-06 delivery semantics.
+
 - Restore IF-05 `recTime` as optional diagnostic record-creation metadata: readers accept its absence, decoded records preserve that absence on re-encode, Engineering Client parsing no longer requires it, and normal upstream INFO summaries do not surface it.
 
 - Present Engineering Client viewer timestamps in the host's local timezone while retaining exact canonical UTC in raw IF-03/IF-05/IF-06 payloads. Central TIMING_DATA Messages now use IF-05 effective `time` as source Time (last record for a batch) instead of falling back to the near-identical UPSTREAM_DATA event/receive time.
