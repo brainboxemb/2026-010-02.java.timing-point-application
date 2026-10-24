@@ -404,6 +404,9 @@ public final class NodeUpstream extends LifecycleComponent {
      * position itself is retained across a transport reconnect of this runtime.</p>
      */
     public void connectionAvailable() {
+        taskRunner.executeOrWarn(
+                downstreamDelivery::requestFullStateIfUninitialized,
+                "downstream RECV 0");
         queueTimingDataSequenceNotification();
         queueHeartbeat();
         wakeQueuedInput();
