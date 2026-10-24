@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,6 +30,27 @@ class EngineeringSystemContextTest {
             assertTrue(context.changeHost("192.0.2.10"));
             assertEquals("192.0.2.10", context.host());
             assertFalse(context.changeHost(" 192.0.2.10 "));
+        }
+    }
+
+    @Test
+    void targetChangeClearsHttpDiagnosticHistory() throws Exception {
+        try (EngineeringSystemContext context =
+                new EngineeringSystemContext(config("127.0.0.1"))) {
+            context.httpTraffic().record(
+                    new ApiClient.HttpCall(
+                            Instant.parse("2026-10-24T18:00:00Z"),
+                            "GET",
+                            "/api/v1/status",
+                            null,
+                            Integer.valueOf(200),
+                            "{}",
+                            null));
+            assertEquals(1, context.httpTraffic().snapshot().size());
+
+            assertTrue(context.changeHost("192.0.2.10"));
+
+            assertTrue(context.httpTraffic().snapshot().isEmpty());
         }
     }
 
