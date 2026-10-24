@@ -334,7 +334,104 @@ final class CentralMessagesPane {
         }
 
         followEnd = false;
-        rawMessage.setText(selected.message().rawPayloadJson());
+        rawMessage.setText(
+                detailPayload(
+                        selected.message().data(),
+                        selected.message().rawPayloadJson()));
+    }
+
+    /**
+     * Formats only presentation whitespace for a multi-record TIMING_DATA payload.
+     *
+     * <p>The retained wire payload remains unchanged. Each top-level record in the IF-06
+     * data array stays compact and is placed on its own line for inspection.</p>
+     */
+    static String detailPayload(
+            UpstreamData data,
+            String rawPayloadJson) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
+        }
+        if (rawPayloadJson == null) {
+            throw new IllegalArgumentException("rawPayloadJson must not be null");
+        }
+        if (data.family() != UpstreamData.Family.TIMING_DATA
+                || ((UpstreamData.TimingDataTransfer) data).records().size() <= 1) {
+            return rawPayloadJson;
+        }
+        return formatTopLevelDataArray(rawPayloadJson);
+    }
+
+    /**
+     * Adds line breaks around top-level data-array items without parsing or re-encoding JSON.
+     */
+    private static String formatTopLevelDataArray(String rawJson) {
+        String marker = "\"data\":[";
+        int markerIndex = rawJson.indexOf(marker);
+        if (markerIndex < 0) {
+            return rawJson;
+        }
+
+        int arrayStart = markerIndex + marker.length();
+        StringBuilder formatted =
+                new StringBuilder(rawJson.length() + 32);
+        formatted.append(rawJson, 0, arrayStart);
+        formatted.append('\n').append("  ");
+
+        boolean inString = false;
+        boolean escaped = false;
+        int nestedDepth = 0;
+
+        for (int index = arrayStart; index < rawJson.length(); index++) {
+            char ch = rawJson.charAt(index);
+
+            if (inString) {
+                formatted.append(ch);
+                if (escaped) {
+                    escaped = false;
+                } else if (ch == '\\') {
+                    escaped = true;
+                } else if (ch == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+
+            if (ch == '"') {
+                inString = true;
+                formatted.append(ch);
+                continue;
+            }
+
+            if (ch == '{' || ch == '[') {
+                nestedDepth++;
+                formatted.append(ch);
+                continue;
+            }
+            if (ch == '}') {
+                nestedDepth--;
+                formatted.append(ch);
+                continue;
+            }
+            if (ch == ']') {
+                if (nestedDepth == 0) {
+                    formatted.append('\n');
+                    formatted.append(rawJson.substring(index));
+                    return formatted.toString();
+                }
+                nestedDepth--;
+                formatted.append(ch);
+                continue;
+            }
+            if (ch == ',' && nestedDepth == 0) {
+                formatted.append(',').append('\n').append("  ");
+                continue;
+            }
+
+            formatted.append(ch);
+        }
+
+        return rawJson;
     }
 
     private void selectFollowEnd() {

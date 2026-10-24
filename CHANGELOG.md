@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Improve Central Messages batch inspection: keep the retained IF-06 payload unchanged, but present multi-record TIMING_DATA detail with one compact TimingRecord per line; single-record and non-TIMING_DATA detail remain unchanged.
+
 - Add a reconstructed Central LogBook viewer independent from the bounded Central Messages journal: retain every accepted contiguous inbound TimingRecord once across reconnect, clear it on target reset, show one row per record with the same IF-05 Type/Code/Location/Registration/time semantics as the existing LogBook, support Node filtering and follow-end, and expose canonical IF-05 JSON for selected records.
 
 - Make Central Messages a true IF-06 message inspector: retain the raw IF-06 payload separately from the IF-03 event envelope for inbound and outbound rows, show that retained payload on selection instead of re-encoding the semantic value, and keep multi-record TIMING_DATA positions to the sequence range only while single-record messages may show the compact IF-05 record type.

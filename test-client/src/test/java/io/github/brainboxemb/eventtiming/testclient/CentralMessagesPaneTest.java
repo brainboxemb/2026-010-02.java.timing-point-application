@@ -212,6 +212,72 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
+    void timingDataBatchDetailShowsOneCompactRecordPerLine() {
+        long millis = TIME.toEpochMilli();
+        TimingRecord first =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1186L,
+                        1,
+                        millis,
+                        millis);
+        TimingRecord second =
+                TimingRecord.createNodeClosed(
+                        'A',
+                        1187L,
+                        1,
+                        millis,
+                        millis);
+        UpstreamData.TimingDataTransfer transfer =
+                DefaultUpstreamData.timingData(
+                        NODE_A,
+                        java.util.List.of(first, second));
+        String raw =
+                ApiEventClient.encodeUpstreamData(transfer);
+
+        String displayed =
+                CentralMessagesPane.detailPayload(
+                        transfer,
+                        raw);
+        String[] lines = displayed.split("\\R");
+
+        assertEquals(4, lines.length);
+        assertTrue(lines[0].endsWith("\"data\":["));
+        assertTrue(lines[1].trim().startsWith("{"));
+        assertTrue(lines[1].trim().endsWith("},"));
+        assertTrue(lines[2].trim().startsWith("{"));
+        assertTrue(lines[2].trim().endsWith("}"));
+        assertEquals("]}", lines[3]);
+        assertEquals(
+                raw,
+                displayed.replace("\n  ", "").replace("\n", ""));
+    }
+
+    @Test
+    void singleTimingDataDetailKeepsRawPayloadUnchanged() {
+        long millis = TIME.toEpochMilli();
+        TimingRecord record =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1186L,
+                        1,
+                        millis,
+                        millis);
+        UpstreamData.TimingDataTransfer transfer =
+                DefaultUpstreamData.timingData(
+                        NODE_A,
+                        java.util.List.of(record));
+        String raw =
+                ApiEventClient.encodeUpstreamData(transfer);
+
+        assertEquals(
+                raw,
+                CentralMessagesPane.detailPayload(
+                        transfer,
+                        raw));
+    }
+
+    @Test
     void raceDataPositionIsMessageSequenceNotChangeCount() {
         UpstreamData.RaceData raceData =
                 DefaultUpstreamData.raceData(
