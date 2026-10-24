@@ -257,30 +257,30 @@ public class DefaultUpstreamDataCodecTest {
             throws Exception {
         assertInvalid(
                 "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"packetId\":0,"
-                        + ""message":{"type":"RECV","
-                        + ""data":{"receivedPacketId":0}}}");
+                        + "\"message\":{\"type\":\"RECV\","
+                        + "\"data\":{\"receivedPacketId\":0}}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\","packetId":1,"
-                        + ""message":{"type":"PING","
-                        + ""data":{"op":"REQ"}}}");
+                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
+                        + "\"message\":{\"type\":\"PING\","
+                        + "\"data\":{\"op\":\"REQ\"}}}");
 
         assertInvalid(
-                "{"v":1,"type":"UP_PACKET","nodeId":"A","packetId":1,"
-                        + ""message":{"type":"RACE_DATA","locationId":1,"
-                        + ""data":{"teamAssignments":["
-                        + "{"op":"SET","regId":"R0001","teamId":"0042"}]}}}");
+                "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
+                        + "\"message\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
+                        + "\"data\":{\"teamAssignments\":["
+                        + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0042\"}]}}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\","packetId":1,"
-                        + ""message":{"type":"SEQ","
-                        + ""data":{"op":"REQ","seq":1}}}");
+                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
+                        + "\"message\":{\"type\":\"SEQ\","
+                        + "\"data\":{\"op\":\"REQ\",\"seq\":1}}}");
 
         assertInvalid(
-                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\","packetId":1,"
-                        + ""message":{"type":"RACE_DATA","locationId":1,"
-                        + ""data":{"teamAssignments":["
-                        + "{"op":"SET","regId":"R0001"}]}}}");
+                "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"packetId\":1,"
+                        + "\"message\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
+                        + "\"data\":{\"teamAssignments\":["
+                        + "{\"op\":\"SET\",\"regId\":\"R0001\"}]}}}");
     }
 
     @Test
@@ -317,9 +317,9 @@ public class DefaultUpstreamDataCodecTest {
         try {
             codec.decode(
                     bytes(
-                            "{"v":2,"type":"UP_PACKET","nodeId":"A","
-                                    + ""packetId":1,"message":{"type":"RECV","
-                                    + ""data":{"receivedPacketId":0}}}"));
+                            "{\"v\":2,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
+                                    + "\"packetId\":1,\"message\":{\"type\":\"RECV\","
+                                    + "\"data\":{\"receivedPacketId\":0}}}"));
             fail("expected unsupported version");
         } catch (UpstreamDataCodec.CodecException expected) {
             assertSame(
@@ -330,9 +330,9 @@ public class DefaultUpstreamDataCodecTest {
         try {
             codec.decode(
                     bytes(
-                            "{"v":1,"type":"UP_PACKET","nodeId":"A","
-                                    + ""packetId":1,"message":{"type":"FUTURE","
-                                    + ""data":{}}}"));
+                            "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\","
+                                    + "\"packetId\":1,\"message\":{\"type\":\"FUTURE\","
+                                    + "\"data\":{}}}"));
             fail("expected unsupported message type");
         } catch (UpstreamDataCodec.CodecException expected) {
             assertSame(
