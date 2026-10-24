@@ -49,7 +49,7 @@ public final class NodeUpstream extends LifecycleComponent {
     private final UpstreamInputTask inputTask;
 
     private ScheduledFuture<?> heartbeatSchedule;
-    private long nextUpPacketId = 1L;
+    private long nextUpPacketNr = 1L;
 
     /** Creates one node's semantic upstream protocol state and independent logical task lane. */
     public NodeUpstream(
@@ -143,20 +143,20 @@ public final class NodeUpstream extends LifecycleComponent {
     private void sendMessage(UpstreamData.Message message) {
         failIfInvalidArgument(message != null, "message must not be null");
 
-        long packetId;
+        long packetNr;
         if (message.family() == UpstreamData.Family.PING) {
-            packetId = 0L;
+            packetNr = 0L;
         } else {
-            if (nextUpPacketId <= 0L) {
-                throw new IllegalStateException("UP_PACKET packetId exhausted");
+            if (nextUpPacketNr <= 0L) {
+                throw new IllegalStateException("UP_PACKET packetNr exhausted");
             }
-            packetId = nextUpPacketId++;
+            packetNr = nextUpPacketNr++;
         }
 
         sendPacket(
                 DefaultUpstreamData.createUpPacket(
                         nodeId,
-                        packetId,
+                        packetNr,
                         message));
     }
 
@@ -188,7 +188,7 @@ public final class NodeUpstream extends LifecycleComponent {
     static String logSummary(UpstreamData packet) {
         String prefix =
                 "node=" + packet.timingNodeId().value()
-                        + ", packetId=" + packet.packetId()
+                        + ", packetNr=" + packet.packetNr()
                         + ", type=" + packet.family().name();
 
         switch (packet.family()) {
@@ -237,8 +237,8 @@ public final class NodeUpstream extends LifecycleComponent {
                 UpstreamData.Receive receive =
                         (UpstreamData.Receive) packet.message();
                 return prefix
-                        + ", receivedPacketId="
-                        + receive.receivedPacketId();
+                        + ", receivedPacketNr="
+                        + receive.receivedPacketNr();
 
             case PING:
                 UpstreamData.Ping ping =
