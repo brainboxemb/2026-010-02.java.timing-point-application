@@ -273,7 +273,7 @@ final class EngineeringWorkbench {
         DockContainerLeaf sharedLeaf = builder.leaf("shared-tools");
 
         sharedRoot.setOrientation(Orientation.HORIZONTAL);
-        sharedRoot.addContainer(sharedLeaf);
+        sharedRoot.addContainers(sharedLeaf);
         registerHomeOrder(sharedRoot, sharedLeaf);
         configureLeaf(sharedLeaf);
 
