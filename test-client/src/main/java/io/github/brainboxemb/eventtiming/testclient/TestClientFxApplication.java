@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -86,6 +87,8 @@ public final class TestClientFxApplication extends Application {
     private EngineeringSystemContext system;
     private ClientLog clientLog;
     private ApiPane apiPane;
+    private CentralSystemSimulator centralSimulator;
+    private CentralPane centralPane;
     private EngineeringWorkbench workbench;
     private BorderPane workbenchRoot;
     private Image windowIcon;
@@ -111,6 +114,8 @@ public final class TestClientFxApplication extends Application {
                 feedback::setText,
                 this::setApiState,
                 clientLog);
+        centralSimulator = new CentralSystemSimulator(config.centralLocationIds());
+        centralPane = new CentralPane(centralSimulator);
 
         workbench = createWorkbench(
                 deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
@@ -225,6 +230,8 @@ public final class TestClientFxApplication extends Application {
             VBox deviceLogPanel, VBox terminalPanel, VBox clientLogPanel, VBox eventsPanel) {
         return new EngineeringWorkbench(
                 apiPane.systemsPane(),
+                centralPane.systemsPane(),
+                centralPane.locationsPane(),
                 apiPane.timingNodePane(),
                 apiPane.apiInfoPane(),
                 apiPane.registrationPane(),
@@ -354,8 +361,10 @@ public final class TestClientFxApplication extends Application {
         boolean events = system.eventClient().isConnected();
         boolean terminal = system.shellClient().isConnected();
         boolean deviceLog = system.liveLogClient().isConnected();
-        ConnectionToolbarState state = ConnectionToolbarState.of(events, terminal, deviceLog);
-        int connected = ConnectionToolbarState.countConnected(events, terminal, deviceLog);
+        ConnectionToolbarState state =
+                ConnectionToolbarState.of(events, terminal, deviceLog);
+        int connected =
+                ConnectionToolbarState.countConnected(events, terminal, deviceLog);
         boolean busy = eventBoundary.isDisabled()
                 || terminalBoundary.isDisabled() || deviceLogBoundary.isDisabled();
 
@@ -371,8 +380,8 @@ public final class TestClientFxApplication extends Application {
                 ? "Connecting…" : state == ConnectionToolbarState.NONE ? "Connect" : "Disconnect");
         connectTarget.setDisable(busy);
         String action = state == ConnectionToolbarState.NONE
-                ? "Apply Host and connect API check, Events, Terminal and Device Log"
-                : "Disconnect all active Events, Terminal and Device Log links";
+                ? "Apply Host and connect API check, Events/Upstream, Terminal and Device Log"
+                : "Disconnect all active Events/Upstream, Terminal and Device Log links";
         connectTargetTooltip.setText(action
                 + " (" + connected + "/3 stateful links connected)."
                 + " The local Client Log is always active.");
@@ -520,7 +529,7 @@ public final class TestClientFxApplication extends Application {
         final long eventGeneration = eventConnectionEpoch.begin();
         eventBoundary.setDisable(true);
         setBoundaryState(eventBoundary, "Events", "CONNECTING");
-        clientLog.info("Connecting IF-03 Events to " + eventEndpoint());
+        clientLog.info("Connecting IF-03 Events/Upstream to " + eventEndpoint());
 
         try {
             system.eventClient().connect(eventEndpoint(), new ApiEventClient.Listener() {
@@ -529,8 +538,10 @@ public final class TestClientFxApplication extends Application {
                     Platform.runLater(() -> {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         setEventConnected(true, "CONNECTED");
+                        centralSimulator.connected();
+                        centralPane.refresh();
                         apiPane.connected();
-                        clientLog.info("IF-03 Events connected");
+                        clientLog.info("IF-03 Events/Upstream connected");
                     });
                 }
 
@@ -549,8 +560,10 @@ public final class TestClientFxApplication extends Application {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         eventConnectionEpoch.invalidate();
                         setEventConnected(false, "CONNECT");
+                        centralSimulator.disconnected();
+                        centralPane.refresh();
                         apiPane.disconnected(true);
-                        clientLog.warn("IF-03 Events disconnected (" + statusCode + ")");
+                        clientLog.warn("IF-03 Events/Upstream disconnected (" + statusCode + ")");
                     });
                 }
 
@@ -561,6 +574,8 @@ public final class TestClientFxApplication extends Application {
                         clientLog.error("IF-03 Events error: " + message);
                         if (!system.eventClient().isConnected()) {
                             setEventConnected(false, "ERROR");
+                            centralSimulator.disconnected();
+                            centralPane.refresh();
                             apiPane.disconnected(true);
                         }
                         feedback.setText("Events error: " + message);
@@ -572,6 +587,8 @@ public final class TestClientFxApplication extends Application {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         Throwable cause = rootCause(error);
                         setEventConnected(false, "ERROR");
+                        centralSimulator.disconnected();
+                        centralPane.refresh();
                         apiPane.disconnected(true);
                         clientLog.error("IF-03 Events connect failed: " + rootMessage(cause));
                         feedback.setText("Events error: " + rootMessage(cause));
@@ -580,7 +597,9 @@ public final class TestClientFxApplication extends Application {
             });
         } catch (RuntimeException ex) {
             setEventConnected(false, "CONNECT");
-            clientLog.error("IF-03 Events connect failed: " + ex.getMessage());
+            centralSimulator.disconnected();
+            centralPane.refresh();
+            clientLog.error("IF-03 Events/Upstream connect failed: " + ex.getMessage());
         }
     }
 
@@ -590,8 +609,10 @@ public final class TestClientFxApplication extends Application {
         system.eventClient().disconnect();
         if (!system.eventClient().isConnected()) {
             setEventConnected(false, "CONNECT");
+            centralSimulator.disconnected();
+            centralPane.refresh();
             apiPane.disconnected(true);
-            clientLog.info("IF-03 Events disconnected");
+            clientLog.info("IF-03 Events/Upstream disconnected");
         }
     }
 
@@ -602,6 +623,34 @@ public final class TestClientFxApplication extends Application {
             apiPane.applyStatusEvent(statusEvent);
         } else if (event instanceof ApiEventClient.TimingDataEvent dataEvent) {
             apiPane.applyTimingDataEvent(dataEvent);
+        } else if (event instanceof ApiEventClient.UpstreamDataEvent upstreamEvent) {
+            try {
+                for (UpstreamData reply
+                        : centralSimulator.accept(
+                                upstreamEvent.upstreamData(),
+                                upstreamEvent.occurredAt())) {
+                    system.eventClient()
+                            .sendUpstreamData(reply)
+                            .whenComplete((ignored, error) -> {
+                                if (error != null) {
+                                    Platform.runLater(() -> {
+                                        clientLog.error(
+                                                "Central upstream reply failed: "
+                                                        + rootMessage(error));
+                                        feedback.setText(
+                                                "Central error: "
+                                                        + rootMessage(error));
+                                    });
+                                }
+                            });
+                }
+                centralPane.refresh();
+            } catch (RuntimeException ex) {
+                clientLog.error(
+                        "Central upstream data error: " + rootMessage(ex));
+                feedback.setText(
+                        "Central error: " + rootMessage(ex));
+            }
         }
 
         if (!eventLog.getText().isEmpty()) {
@@ -780,7 +829,7 @@ public final class TestClientFxApplication extends Application {
     }
 
     private java.net.URI eventEndpoint() {
-        return system.eventEndpoint();
+        return system.upstreamEventEndpoint();
     }
 
     private boolean applyTargetHost() {
@@ -794,6 +843,8 @@ public final class TestClientFxApplication extends Application {
             eventConnectionEpoch.invalidate();
             apiCheckEpoch.invalidate();
             setEventConnected(false, "CONNECT");
+            centralSimulator.resetTargetState();
+            centralPane.refresh();
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
             setApiState("CHECK");

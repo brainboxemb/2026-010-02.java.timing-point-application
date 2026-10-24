@@ -56,7 +56,9 @@ final class EngineeringWorkbench {
     private final Map<DockContainerBranch, List<DockContainerLeaf>> homeOrdering = new LinkedHashMap<>();
 
     EngineeringWorkbench(
-            Node systems,
+            Node apiSystems,
+            Node centralSystems,
+            Node centralLocations,
             Node timingNode,
             Node apiInfo,
             Node registration,
@@ -131,7 +133,7 @@ final class EngineeringWorkbench {
         // The leaf must disappear when its only panel is detached; otherwise
         // a blank column remains until the user manually resets the layout.
         // Keep the split between Explorer and controls intact while either
-        // pane remains. A detached Systems pane then leaves controls visible
+        // pane remains. A detached systems pane then leaves controls visible
         // at full width and is reconstructed in its original slot on re-pin.
         leftTop.setPruneWhenEmpty(false);
         // Keep both column branches stable as docking homes for re-pinning.
@@ -143,8 +145,13 @@ final class EngineeringWorkbench {
         leftTop.setDividerPositions(0.28);
         rightColumn.setDividerPositions(0.46, 0.76);
 
-        systemsLeaf.addDockable(
-                dockable(builder, systemsLeaf, new WorkbenchPanel("systems", "Systems", systems)));
+        systemsLeaf.addDockables(
+                dockable(builder, systemsLeaf,
+                        new WorkbenchPanel("api-systems", "A|Systems", apiSystems)),
+                dockable(builder, systemsLeaf,
+                        new WorkbenchPanel("central-systems", "C|Systems", centralSystems)),
+                dockable(builder, systemsLeaf,
+                        new WorkbenchPanel("central-locations", "C|Locations", centralLocations)));
 
         controls.addDockables(
                 dockable(builder, controls, new WorkbenchPanel("timing-node", "TimingNode", timingNode)),

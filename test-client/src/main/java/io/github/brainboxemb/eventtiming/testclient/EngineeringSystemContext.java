@@ -58,6 +58,12 @@ final class EngineeringSystemContext implements AutoCloseable {
                 "ws://" + uriHost(host) + ":" + config.eventPort() + "/api/v1/events");
     }
 
+    URI upstreamEventEndpoint() {
+        return URI.create(
+                "ws://" + uriHost(host) + ":" + config.eventPort()
+                        + "/api/v1/events?role=upstream");
+    }
+
     boolean changeHost(String value) {
         String next = validateHost(value);
         if (next.equals(host)) {

@@ -22,6 +22,9 @@ class EngineeringSystemContextTest {
             assertEquals("127.0.0.1", context.host());
             assertEquals("http://127.0.0.1:8081", context.apiEndpoint().toString());
             assertEquals("ws://127.0.0.1:8082/api/v1/events", context.eventEndpoint().toString());
+            assertEquals(
+                    "ws://127.0.0.1:8082/api/v1/events?role=upstream",
+                    context.upstreamEventEndpoint().toString());
 
             assertTrue(context.changeHost("192.0.2.10"));
             assertEquals("192.0.2.10", context.host());
@@ -37,6 +40,9 @@ class EngineeringSystemContextTest {
             assertEquals(
                     "ws://[2001:db8::10]:8082/api/v1/events",
                     context.eventEndpoint().toString());
+            assertEquals(
+                    "ws://[2001:db8::10]:8082/api/v1/events?role=upstream",
+                    context.upstreamEventEndpoint().toString());
         }
     }
 

@@ -54,7 +54,8 @@ executed automatically on startup or file drop.
 - JavaFX 21.0.10
 - BentoFX 0.16.0 workbench
 - Maven Wrapper from the repository root
-- Jackson 2.21.2 for independent JSON parsing
+- Jackson 2.21.5 for client JSON parsing
+- shared public `event-upstream-data` / TimingData contracts for IF-06 semantics
 - independent client services for IF-03, Remote Shell and live diagnostics
 
 **JavaFX runtime consistency:** SI-02 requires all `javafx.base`,
@@ -93,20 +94,24 @@ Current client services are:
 ```text
 TestClientFxApplication
   +-- ApiClient             IF-03 HTTP / JSON
-  +-- ApiEventClient        IF-03 WebSocket
+  +-- ApiEventClient        IF-03 WebSocket + typed IF-06 UpstreamData
+  +-- CentralSystemSimulator Central-side IF-06 state (transport-independent)
   +-- RemoteShellClient     line-oriented Remote Shell
   +-- LiveLogClient         LoggingServer diagnostics socket
 ```
 
 JavaFX event handlers do not own HTTP/WebSocket, shell or live-log protocol semantics.
-The client must not import SI-01 implementation classes or mutate SI-01 domain state
-directly.
+The client must not import SI-01 core/application implementation classes or mutate SI-01
+domain state directly. It may consume the shared public Event Timing semantic artifacts
+used at IF-05/IF-06 boundaries.
 
 ## Run on Windows
 
-With `JAVA_HOME` pointing to a JDK 21 installation:
+With `JAVA_HOME` pointing to a JDK 21 installation, install the shared public
+IF-06 contract into the local Maven repository and then run the standalone client:
 
 ```powershell
+.\mvnw.cmd -pl shared/upstream-data -am -DskipTests install
 .\mvnw.cmd -f test-client\pom.xml clean javafx:run
 ```
 
@@ -188,11 +193,13 @@ config/engineering-client.properties
 
 The default file configures the startup target host, HTTP :8081, Events :8082,
 Remote Shell :8023 and LoggingServer :8030, plus the Engineering Client's own log
-path/level. RegistrationId input is a single canonical value such as `A0001`; it is not a client-configuration prefix. The target host/IP remains editable in the
-top target bar at runtime; **Apply target** changes the active host for all external
+path/level and the LocationIds initially known to the Central System Simulator through
+`central.locationIds`. RegistrationId input is a single canonical value such as
+`A0001`; it is not a client-configuration prefix. The target host/IP remains editable
+in the top target bar at runtime; **Apply target** changes the active host for all external
 boundaries without rewriting the config file. Changing the active host disconnects
-stateful Events/Terminal/Device Log connections so they cannot silently remain attached
-to the previous target.
+stateful Events/Upstream, Terminal and Device Log connections so they cannot silently remain
+attached to the previous target.
 
 The resolver accepts both the repository root and `test-client` as the working
 directory, so root-level Maven and NetBeans launches use the same file. Use
@@ -227,9 +234,9 @@ The default composition is:
 ```text
 left / controls & diagnostics         right / data
 -----------------------------------   ------------------------
-Systems  | TimingNode / API /         Registrations [LocationId]
-Explorer | Registration / Simulation  ------------------------
-         | (tabs)                     
+A|Systems / C|Systems / C|Locations  Registrations [LocationId]
+(tabs)    | TimingNode / API /        ------------------------
+          | Registration / Simulation
 -----------------------------------   LogBook
 Device Log                            ------------------------
 -----------------------------------   Raw Data / Events (tabs)
@@ -240,14 +247,16 @@ Client Log
 
 The compact toolbar vertically aligns **Host**, the target IP and all link
 buttons. The main power-icon/text **Connect** button checks HTTP API
-availability and opens Events, Terminal and Device Log together; once one
+availability and opens Events/Upstream, Terminal and Device Log together; once one
 or more stateful links are active, it becomes **Disconnect**, allowing the
 user to close all of them with the same action. It is green when all three
 stateful links are connected, amber when partially connected or connecting,
 and neutral when disconnected. The API's HTTP check is stateless, so it
 cannot be "disconnected" and has its own reachability button. The four
 independent API, Events, Terminal and Device Log buttons retain stable short
-labels and each has a tooltip describing its state/action. A changed Host
+labels and each has a tooltip describing its state/action. The Events button
+opens the single `role=upstream` WebSocket: normal IF-03 status/commit events feed
+the A-views while typed `UPSTREAM_DATA` on that same session feeds the C-views. A changed Host
 does not silently redirect existing links: disconnect before switching.
 The redundant `● Client Log` label is gone from the toolbar: Client Log
 is a local, always-running dock pane whose own tab identifies it.
@@ -484,9 +493,17 @@ nodes the same API workbench addresses the selected node.
 
 The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/filter
 editor. The Engineering Client still does not expose arbitrary TagObservation injection,
-TagProcessor/filter mutation, StageStartTimes/NextUpTeams/RaceData editors or
-Upstream/DebugConnector simulation UI. Those capabilities require their own public
-engineering/client use case before they are added here.
+TagProcessor/filter mutation or StageStartTimes/NextUpTeams/RaceData editors.
+
+The left explorer now deliberately contains three distinct views. **A|Systems** is the
+direct IF-03/API view of SI-01. **C|Systems** is built only from typed `UPSTREAM_DATA`
+received by the same full-duplex `/api/v1/events?role=upstream` session and shows each observed NodeId,
+heartbeat activity, received TimingData head and latest LogBook record. **C|Locations**
+is the Central interpretation of configured/discovered LocationIds; NODE_INFO OPEN/CLOSE
+records drive its state. The two models do not share state, so an API/upstream mismatch
+remains visible during testing. On a TIMING_DATA source-head SYNC the simulator requests
+replay from its own next sequence, and heartbeat PING requests are answered with the same
+mode/correlation id.
 
 ### Current IF-03 resources used
 
