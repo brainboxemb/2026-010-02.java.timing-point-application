@@ -102,6 +102,25 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void createsTeamAssignmentDeleteAsNextRaceDataSequence() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
+        createRaceData(simulator, "A0001", "T001");
+
+        UpstreamData.RaceData delete = simulator.createRaceData(
+                NODE_A,
+                List.of(DefaultUpstreamData.teamAssignmentDelete("A0001")),
+                List.of());
+
+        assertEquals(2L, delete.sequence());
+        assertEquals(1, delete.teamAssignmentChanges().size());
+        UpstreamData.TeamAssignmentChange change =
+                delete.teamAssignmentChanges().get(0);
+        assertSame(UpstreamData.ChangeOperation.DEL, change.operation());
+        assertEquals("A0001", change.registrationId().value());
+        assertNull(change.teamId());
+    }
+
+    @Test
     void consumesCumulativeRaceDataAckWithoutDroppingReplayHistory() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
         UpstreamData.RaceData first =
