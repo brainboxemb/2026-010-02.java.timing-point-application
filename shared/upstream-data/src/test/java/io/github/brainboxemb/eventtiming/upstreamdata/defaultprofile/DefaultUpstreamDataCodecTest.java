@@ -181,6 +181,53 @@ public class DefaultUpstreamDataCodecTest {
                         .knowledge());
     }
 
+
+    @Test
+    public void decoderRejectsSeventeenRaceDataChanges() throws Exception {
+        StringBuilder changes = new StringBuilder();
+        for (int i = 1; i <= 17; i++) {
+            if (i > 1) {
+                changes.append(',');
+            }
+            changes.append(
+                    "{\"op\":\"DEL\",\"regId\":\"R"
+                            + String.format("%04d", i)
+                            + "\"}");
+        }
+
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"locationId\":7,\"seq\":1,\"data\":{"
+                        + "\"teamAssignments\":["
+                        + changes
+                        + "]}}");
+    }
+
+    @Test
+    public void decoderRejectsSeventeenTimingDataRecords() throws Exception {
+        TimingRecord record =
+                TimingRecord.createNodeOpened(
+                        'A',
+                        1L,
+                        7,
+                        0L,
+                        0L);
+        String encodedRecord = text(timingCodec.encode(record));
+        StringBuilder records = new StringBuilder();
+        for (int i = 0; i < 17; i++) {
+            if (i > 0) {
+                records.append(',');
+            }
+            records.append(encodedRecord);
+        }
+
+        assertInvalid(
+                "{\"v\":1,\"type\":\"TIMING_DATA\",\"nodeId\":\"A\","
+                        + "\"data\":["
+                        + records
+                        + "]}");
+    }
+
     @Test
     public void roundTripsHeartbeatAndManualPing() throws Exception {
         UpstreamData.Ping heartbeat =
