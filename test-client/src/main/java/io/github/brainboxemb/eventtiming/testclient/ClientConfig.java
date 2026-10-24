@@ -5,6 +5,8 @@ import java.io.Reader;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
@@ -17,6 +19,7 @@ final class ClientConfig {
     private final int eventPort;
     private final int shellPort;
     private final int loggingServerPort;
+    private final List<Integer> centralLocationIds;
     private final Path clientLogPath;
     private final String clientLogLevel;
 
@@ -26,6 +29,7 @@ final class ClientConfig {
             int eventPort,
             int shellPort,
             int loggingServerPort,
+            List<Integer> centralLocationIds,
             Path clientLogPath,
             String clientLogLevel) {
         this.host = host;
@@ -33,6 +37,7 @@ final class ClientConfig {
         this.eventPort = eventPort;
         this.shellPort = shellPort;
         this.loggingServerPort = loggingServerPort;
+        this.centralLocationIds = List.copyOf(centralLocationIds);
         this.clientLogPath = clientLogPath;
         this.clientLogLevel = clientLogLevel;
     }
@@ -91,6 +96,7 @@ final class ClientConfig {
                 port(properties, "api.events.port"),
                 port(properties, "remoteShell.port"),
                 port(properties, "loggingServer.port"),
+                locationIds(properties.getProperty("central.locationIds", "")),
                 Path.of(required(properties, "client.log.path")),
                 level);
     }
@@ -115,6 +121,10 @@ final class ClientConfig {
         return loggingServerPort;
     }
 
+    List<Integer> centralLocationIds() {
+        return centralLocationIds;
+    }
+
     Path clientLogPath() {
         return clientLogPath;
     }
@@ -129,6 +139,36 @@ final class ClientConfig {
 
     URI eventEndpoint() {
         return URI.create("ws://" + host + ":" + eventPort + "/api/v1/events");
+    }
+
+    private static List<Integer> locationIds(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return List.of();
+        }
+
+        List<Integer> result = new ArrayList<>();
+        for (String part : raw.split(",")) {
+            String value = part.trim();
+            if (value.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "central.locationIds contains an empty value");
+            }
+            final int locationId;
+            try {
+                locationId = Integer.parseInt(value);
+            } catch (NumberFormatException ex) {
+                throw new IllegalArgumentException(
+                        "central.locationIds must contain integers", ex);
+            }
+            if (locationId <= 0) {
+                throw new IllegalArgumentException(
+                        "central.locationIds must contain positive values");
+            }
+            if (!result.contains(locationId)) {
+                result.add(locationId);
+            }
+        }
+        return List.copyOf(result);
     }
 
     private static int port(Properties properties, String key) {
