@@ -264,9 +264,12 @@ added there later. Input/editor panes do not travel with a detached viewer.
 
 All Bento instances use one detached-window size policy. BentoFX normally copies the full
 source dock size into a floating window, which made tabs detached from tall panes open
-nearly full-screen. SI-02 now preserves already reasonable source sizes but clamps new
-floating windows to 480–960 px wide and 320–640 px high. This applies equally to
-individual panes such as Scripts and to whole Node/Central viewer tabs.
+nearly full-screen. SI-02 first constrains the new Scene to 480–960 px wide and 320–640 px
+high, then clamps the actual Windows Stage again after JavaFX performs its first layout.
+That second pass is required for nested viewer roots, which can otherwise expand the Stage
+again. The Stage is also moved fully inside the selected monitor's visual bounds so its
+Windows title bar remains reachable. This applies equally to individual panes such as
+Scripts and to whole Node/Central viewer tabs.
 
 **Events** is deliberately a transport inspector: every WebSocket frame is one row with
 explicit **IN** (SI-01 → SI-02) or **OUT** (SI-02 → SI-01) direction,
