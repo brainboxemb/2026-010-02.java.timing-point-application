@@ -17,12 +17,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Owns TIMING_DATA source-head and replay state for one NodeUpstream.
+ * Owns TIMING_DATA synchronization and live source-cursor state for one NodeUpstream.
  *
- * <p>The LogBook is the TIMING_DATA source of truth. One REQ captures the
- * current source head once; records committed afterwards are intentionally
- * excluded. Ordered batch reads are asynchronous, while NodeUpstream remains
- * responsible for encoding and sending the semantic messages produced here.</p>
+ * <p>The LogBook remains the authoritative source. Sending SYNC disables live forwarding.
+ * The peer's following REQ captures one replay head; replay never crosses that head. Only
+ * after that request has completed does the live cursor continue from the next LogBook
+ * sequence. Post-commit events are therefore wake signals rather than a second outbound queue.</p>
  */
 final class TimingDataSync {
     private static final int MAX_RECORDS_PER_BATCH = UpstreamData.MAX_TIMING_DATA_RECORDS;
@@ -33,8 +33,11 @@ final class TimingDataSync {
     private final LogBookAccessor logBook;
 
     private boolean replayActive;
-    private long nextSequence;
+    private long nextReplaySequence;
     private long replayHead;
+
+    private boolean liveActive;
+    private long nextLiveSequence;
 
     TimingDataSync(
             NodeId nodeId,
@@ -51,8 +54,11 @@ final class TimingDataSync {
         this.logBook = logBook;
     }
 
-    /** Sends the current TIMING_DATA source head when transport is available. */
-    void sendSourceHead() {
+    /** Starts a fresh handoff and advertises the current TIMING_DATA source head. */
+    synchronized void sendSourceHead() {
+        replayActive = false;
+        liveActive = false;
+
         if (available.getAsBoolean()) {
             sender.accept(
                     DefaultUpstreamData.sync(
@@ -69,9 +75,14 @@ final class TimingDataSync {
                 ReadConsistency.CURRENT);
     }
 
-    /** Starts one replay at the inclusive sequence requested by the peer. */
-    void startReplay(
-            UpstreamData.Req req) {
+    /**
+     * Starts one replay at the inclusive sequence requested by the peer.
+     *
+     * <p>A request for exactly currentHead+1 is the empty replay used when the peer is already
+     * caught up. It completes the synchronization handoff immediately and enables live forwarding
+     * from that sequence. A request further beyond the current head does not establish live state.</p>
+     */
+    synchronized void startReplay(UpstreamData.Req req) {
         failIfInvalidArgument(req != null, "req must not be null");
         if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
             throw new UnsupportedOperationException(
@@ -84,72 +95,65 @@ final class TimingDataSync {
                         && fromSequence <= TimingRecord.MAX_SEQUENCE_NUMBER,
                 "REQ fromSequence is outside the supported range");
 
+        replayActive = false;
+        liveActive = false;
+
         long capturedHead = headSequence();
         if (fromSequence > capturedHead) {
-            replayActive = false;
-        } else {
-            nextSequence = fromSequence;
-            replayHead = capturedHead;
-            replayActive = true;
+            if (fromSequence == capturedHead + 1L) {
+                enableLive(fromSequence);
+            }
+            return;
         }
+
+        nextReplaySequence = fromSequence;
+        replayHead = capturedHead;
+        replayActive = true;
     }
 
     /** Reports whether the captured replay still has records to send. */
-    boolean replayPending() {
+    synchronized boolean replayPending() {
         return replayActive;
     }
 
-    /** Cancels the current replay without changing LogBook state. */
-    void cancelReplay() {
+    /** Cancels only the active replay continuation after one inbound message failure. */
+    synchronized void cancelReplay() {
         replayActive = false;
     }
 
-    /** Submits the next ordered LogBook batch read without blocking NodeUpstream. */
-    CompletableFuture<List<TimingRecord>> submitNextBatch() {
+    /** Clears replay and live state when the transport session ends. */
+    synchronized void sessionUnavailable() {
+        replayActive = false;
+        liveActive = false;
+    }
+
+    /** Submits the next ordered replay batch without blocking NodeUpstream. */
+    synchronized CompletableFuture<List<TimingRecord>> submitNextBatch() {
         failIfIllegalState(replayActive,
                 "No TIMING_DATA synchronization is active");
 
         int limit =
                 (int) Math.min(
                         (long) MAX_RECORDS_PER_BATCH,
-                        replayHead - nextSequence + 1L);
+                        replayHead - nextReplaySequence + 1L);
 
         return logBook.submit(
                 LogBookQueries.timingRecordRange(
-                        nextSequence,
+                        nextReplaySequence,
                         limit));
     }
 
-    /** Validates and sends one completed ordered LogBook batch. */
-    void sendNextBatch(
-            List<TimingRecord> records) {
+    /** Validates and sends one completed ordered replay batch. */
+    synchronized void sendNextBatch(List<TimingRecord> records) {
         failIfInvalidArgument(records != null, "records must not be null");
 
-        if (records.isEmpty()) {
-            replayActive = false;
-        }
-        failIfIllegalState(!records.isEmpty(),
-                "LogBook head %s advertised record %s but synchronization returned no data",
+        validateBatch(
+                records,
+                nextReplaySequence,
                 replayHead,
-                nextSequence);
-
-        TimingRecord first = records.get(0);
-        if (first.sequenceNumber() != nextSequence) {
-            replayActive = false;
-        }
-        failIfIllegalState(first.sequenceNumber() == nextSequence,
-                "TimingData synchronization expected sequence %s but got %s",
-                nextSequence,
-                first.sequenceNumber());
+                "synchronization");
 
         TimingRecord last = records.get(records.size() - 1);
-        if (last.sequenceNumber() > replayHead) {
-            replayActive = false;
-        }
-        failIfIllegalState(last.sequenceNumber() <= replayHead,
-                "TimingData synchronization crossed captured head %s",
-                replayHead);
-
         sender.accept(
                 DefaultUpstreamData.timingData(
                         nodeId,
@@ -157,8 +161,100 @@ final class TimingDataSync {
 
         if (last.sequenceNumber() >= replayHead) {
             replayActive = false;
+            enableLive(replayHead + 1L);
         } else {
-            nextSequence = last.sequenceNumber() + 1L;
+            nextReplaySequence = last.sequenceNumber() + 1L;
+        }
+    }
+
+    /** Returns whether the replay handoff has completed and proactive live forwarding is enabled. */
+    synchronized boolean liveReady() {
+        return liveActive;
+    }
+
+    /** Reports whether the live cursor currently trails the authoritative LogBook head. */
+    synchronized boolean livePending() {
+        return liveActive && nextLiveSequence <= headSequence();
+    }
+
+    /** Reads the next bounded live suffix from the authoritative LogBook. */
+    synchronized CompletableFuture<List<TimingRecord>> submitNextLiveBatch() {
+        failIfIllegalState(liveActive,
+                "Live TIMING_DATA forwarding is not active");
+
+        return logBook.submit(
+                LogBookQueries.timingRecordRange(
+                        nextLiveSequence,
+                        MAX_RECORDS_PER_BATCH));
+    }
+
+    /** Validates, sends and advances one live LogBook batch. */
+    synchronized void sendNextLiveBatch(List<TimingRecord> records) {
+        failIfInvalidArgument(records != null, "records must not be null");
+        failIfIllegalState(liveActive,
+                "Live TIMING_DATA forwarding is not active");
+
+        validateBatch(
+                records,
+                nextLiveSequence,
+                TimingRecord.MAX_SEQUENCE_NUMBER,
+                "live forwarding");
+
+        TimingRecord last = records.get(records.size() - 1);
+        sender.accept(
+                DefaultUpstreamData.timingData(
+                        nodeId,
+                        records));
+
+        if (last.sequenceNumber() >= TimingRecord.MAX_SEQUENCE_NUMBER) {
+            liveActive = false;
+        } else {
+            nextLiveSequence = last.sequenceNumber() + 1L;
+        }
+    }
+
+    /** Enables live forwarding when another TimingData sequence can still exist. */
+    private void enableLive(long fromSequence) {
+        if (fromSequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
+            liveActive = false;
+            return;
+        }
+        nextLiveSequence = fromSequence;
+        liveActive = true;
+    }
+
+    /** Verifies one bounded contiguous LogBook batch before it crosses IF-06. */
+    private void validateBatch(
+            List<TimingRecord> records,
+            long expectedFirstSequence,
+            long maximumSequence,
+            String operation) {
+
+        failIfIllegalState(!records.isEmpty(),
+                "LogBook returned no data for TIMING_DATA %s at sequence %s",
+                operation,
+                expectedFirstSequence);
+        failIfIllegalState(records.size() <= MAX_RECORDS_PER_BATCH,
+                "TIMING_DATA %s returned %s records; maximum is %s",
+                operation,
+                records.size(),
+                MAX_RECORDS_PER_BATCH);
+
+        long expected = expectedFirstSequence;
+        for (TimingRecord record : records) {
+            failIfIllegalState(record != null,
+                    "TIMING_DATA %s returned a null record",
+                    operation);
+            failIfIllegalState(record.sequenceNumber() == expected,
+                    "TIMING_DATA %s expected sequence %s but got %s",
+                    operation,
+                    expected,
+                    record.sequenceNumber());
+            failIfIllegalState(record.sequenceNumber() <= maximumSequence,
+                    "TIMING_DATA %s crossed sequence boundary %s",
+                    operation,
+                    maximumSequence);
+            expected++;
         }
     }
 }

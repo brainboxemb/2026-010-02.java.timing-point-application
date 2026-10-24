@@ -265,6 +265,7 @@ public class NodeUpstreamTest {
                         logBook,
                         tasks);
         stream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
+        stream.DISCONNECTED.subscribe(ignored -> nodeUpstream.connectionUnavailable());
         stream.DATA_AVAILABLE.subscribe(ignored -> nodeUpstream.inputAvailable());
         TagProcessor tags =
                 new TagProcessor(
@@ -592,7 +593,7 @@ public class NodeUpstreamTest {
     }
 
     @Test
-    public void timingDataSynchronizationStopsAtCapturedHeadWhenLogBookGrowsBetweenBatches() {
+    public void timingDataReplayStopsAtCapturedHeadThenLiveCatchUpSendsLaterCommit() {
         List<TimingRecord> records =
                 timingData("A", 17);
         InMemoryUpstreamStream stream =
@@ -628,6 +629,12 @@ public class NodeUpstreamTest {
             assertEquals(
                     17L,
                     second.records().get(0).sequenceNumber());
+            UpstreamData.TimingDataTransfer live =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+
+            assertEquals(1, live.records().size());
+            assertEquals(18L, live.records().get(0).sequenceNumber());
             assertEquals(
                     18L,
                     node.node().logBook().process(
@@ -659,6 +666,106 @@ public class NodeUpstreamTest {
                             UpstreamData.Stream.TIMING_DATA,
                             3L));
             assertEquals(0, stream.sentCount());
+        } finally {
+            deactivate(node.nodeUpstream());
+            deactivate(node.node());
+        }
+    }
+
+    @Test
+    public void timingDataCommitBetweenSyncAndReqWaitsForReplayHandoff() {
+        InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
+        stream.setAvailable(false);
+        TimingNodeFixture.Components node = node("A", stream);
+        activate(node.node());
+        activate(node.nodeUpstream());
+        try {
+            stream.connect();
+            UpstreamData.Sync sync = (UpstreamData.Sync) stream.takeSent();
+            stream.takeSent(); // immediate heartbeat PING
+            assertEquals(0L, sync.sequence());
+
+            node.logBook().process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(24)));
+            assertEquals(0, stream.sentCount());
+
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            1L));
+
+            UpstreamData.TimingDataTransfer replay =
+                    (UpstreamData.TimingDataTransfer) stream.takeSent();
+            assertEquals(1L, replay.records().get(0).sequenceNumber());
+
+            node.logBook().process(
+                    LogBookCommands.commitNodeClose(
+                            new LocationId(24)));
+
+            UpstreamData.TimingDataTransfer live =
+                    (UpstreamData.TimingDataTransfer) stream.takeSent();
+            assertEquals(2L, live.records().get(0).sequenceNumber());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            deactivate(node.nodeUpstream());
+            deactivate(node.node());
+        }
+    }
+
+    @Test
+    public void reconnectDisablesLiveUntilNewReqHandoffCompletes() {
+        InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
+        stream.setAvailable(false);
+        TimingNodeFixture.Components node = node("A", stream);
+        activate(node.node());
+        activate(node.nodeUpstream());
+        try {
+            stream.connect();
+            stream.takeSent(); // TIMING_DATA SYNC
+            stream.takeSent(); // heartbeat PING
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            1L));
+            assertEquals(0, stream.sentCount());
+
+            node.logBook().process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(24)));
+            UpstreamData.TimingDataTransfer firstLive =
+                    (UpstreamData.TimingDataTransfer) stream.takeSent();
+            assertEquals(1L, firstLive.records().get(0).sequenceNumber());
+
+            stream.disconnect();
+            stream.connect();
+            UpstreamData.Sync reconnectSync =
+                    (UpstreamData.Sync) stream.takeSent();
+            stream.takeSent(); // heartbeat PING
+            assertEquals(1L, reconnectSync.sequence());
+
+            node.logBook().process(
+                    LogBookCommands.commitNodeClose(
+                            new LocationId(24)));
+            assertEquals(0, stream.sentCount());
+
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            2L));
+            UpstreamData.TimingDataTransfer replay =
+                    (UpstreamData.TimingDataTransfer) stream.takeSent();
+            assertEquals(2L, replay.records().get(0).sequenceNumber());
+
+            node.logBook().process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(25)));
+            UpstreamData.TimingDataTransfer nextLive =
+                    (UpstreamData.TimingDataTransfer) stream.takeSent();
+            assertEquals(3L, nextLive.records().get(0).sequenceNumber());
         } finally {
             deactivate(node.nodeUpstream());
             deactivate(node.node());

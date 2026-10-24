@@ -14,15 +14,16 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Serves one queued TIMING_DATA replay request from the retained LogBook.
  *
- * <p>Each batch read yields while the LogBook Data Lane completes. Replay state
- * stays in TimingDataSync; this task owns only the asynchronous continuation.
- * UpstreamInputTask keeps this task active, so later stream messages remain
- * queued until this replay is completely finished.</p>
+ * <p>Each batch read yields while the LogBook Data Lane completes. Replay state stays in
+ * TimingDataSync; this task owns only the asynchronous continuation. UpstreamInputTask keeps this
+ * task active, so later stream messages remain queued until replay is finished. The completion
+ * callback wakes live catch-up only after the captured replay head has been completely sent.</p>
  */
 final class TimingDataReplayTask implements YieldingTask {
     private final BooleanSupplier available;
     private final TimingDataSync sync;
     private final UpstreamData.Req request;
+    private final Runnable handoffCompleted;
 
     private boolean started;
     private CompletableFuture<List<TimingRecord>> pendingBatch;
@@ -30,19 +31,22 @@ final class TimingDataReplayTask implements YieldingTask {
     TimingDataReplayTask(
             BooleanSupplier available,
             TimingDataSync sync,
-            UpstreamData.Req request) {
+            UpstreamData.Req request,
+            Runnable handoffCompleted) {
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sync != null, "sync must not be null");
         failIfInvalidArgument(request != null, "request must not be null");
+        failIfInvalidArgument(handoffCompleted != null, "handoffCompleted must not be null");
         this.available = available;
         this.sync = sync;
         this.request = request;
+        this.handoffCompleted = handoffCompleted;
     }
 
     @Override
     public TaskStep runStep() {
         if (!available.getAsBoolean()) {
-            sync.cancelReplay();
+            sync.sessionUnavailable();
             return TaskStep.done();
         }
 
@@ -59,6 +63,9 @@ final class TimingDataReplayTask implements YieldingTask {
         }
 
         if (!sync.replayPending()) {
+            if (sync.liveReady()) {
+                handoffCompleted.run();
+            }
             return TaskStep.done();
         }
 

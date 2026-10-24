@@ -347,6 +347,7 @@ public final class TimingNodeFixture {
                         nodeService);
 
         upstreamStream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
+        upstreamStream.DISCONNECTED.subscribe(ignored -> nodeUpstream.connectionUnavailable());
         upstreamStream.DATA_AVAILABLE.subscribe(ignored -> nodeUpstream.inputAvailable());
 
         TagProcessor tagProcessor =
@@ -365,6 +366,8 @@ public final class TimingNodeFixture {
                         nodeService,
                         tagProcessor,
                         nodeWorker);
+
+        node.NEW_DATA_ENTRY.subscribe(ignored -> nodeUpstream.timingDataChanged());
 
         return new Components(
                 node,

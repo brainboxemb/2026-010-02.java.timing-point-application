@@ -49,6 +49,28 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void timingDataSyncRequestsHandoffEvenWhenCentralIsAlreadyCaughtUp() {
+        CentralSystemSimulator simulator = new CentralSystemSimulator(List.of(7));
+        simulator.connected();
+        simulator.accept(
+                timingData(opened(1L, 7)),
+                RECEIVED);
+
+        List<UpstreamData> replies = simulator.accept(
+                DefaultUpstreamData.sync(
+                        NODE_A,
+                        UpstreamData.Stream.TIMING_DATA,
+                        1L),
+                RECEIVED.plusSeconds(1));
+
+        assertEquals(2, replies.size());
+        UpstreamData.Req request =
+                (UpstreamData.Req) replies.get(1);
+        assertSame(UpstreamData.Stream.TIMING_DATA, request.stream());
+        assertEquals(2L, request.fromSequence());
+    }
+
+    @Test
     void semanticMessageJournalTracksInboundAndOutboundDirections() {
         CentralSystemSimulator simulator = new CentralSystemSimulator(List.of());
         UpstreamData.Ping inbound =

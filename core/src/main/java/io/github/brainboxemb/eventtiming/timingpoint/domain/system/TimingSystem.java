@@ -127,7 +127,11 @@ public final class TimingSystem extends LifecycleComponent {
             }
 
             stream.CONNECTED.subscribe(ignored -> nodeUpstream.connectionAvailable());
+            stream.DISCONNECTED.subscribe(ignored -> nodeUpstream.connectionUnavailable());
             stream.DATA_AVAILABLE.subscribe(ignored -> nodeUpstream.inputAvailable());
+
+            // Post-commit TimingData is a wake signal; NodeUpstream rereads LogBook by sequence.
+            node.NEW_DATA_ENTRY.subscribe(ignored -> nodeUpstream.timingDataChanged());
         }
     }
 

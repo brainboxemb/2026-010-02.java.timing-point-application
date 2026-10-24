@@ -41,7 +41,9 @@ public class TimingDataReplayTaskTest {
                         DefaultUpstreamData.req(
                                 new NodeId("A"),
                                 UpstreamData.Stream.TIMING_DATA,
-                                1L));
+                                1L),
+                        () -> {
+                        });
 
         assertSame(TaskStep.Type.AWAIT, task.runStep().type());
         assertEquals(0, stream.sentCount());
