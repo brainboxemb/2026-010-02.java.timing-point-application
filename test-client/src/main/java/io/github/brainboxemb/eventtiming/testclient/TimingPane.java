@@ -715,8 +715,8 @@ final class TimingPane {
                                                         "LogBook load all",
                                                         error);
                                             } else {
-                                                model.applyLogBookInfo(
-                                                        result.info());
+                                                // Do not reapply the reader's older count snapshot:
+                                                // a live commit may already have advanced the model.
                                                 for (ApiClient.LogBookPage page
                                                         : result.pages()) {
                                                     model.mergeLogBookPage(page);
