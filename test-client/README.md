@@ -403,8 +403,9 @@ NodeId at another LocationId implicitly closes the previously active location.
 an observed Central NodeId and applies RegistrationId-to-TeamId and RegistrationId-to-
 StageStartTime SET/DEL changes to Central-owned current RaceData. Stage start accepts the
 same IF-06 timestamp forms as the shared TimingTimestamp parser: time-only, local
-date/time or absolute UTC. The separate **TimingData** control tab can explicitly issue a TIMING_DATA_REQ from an
-operator-entered sequence so retained-data synchronization can be exercised without
+date/time or absolute UTC. The separate **TimingData** control tab can explicitly issue
+a TIMING_DATA_REQ from an operator-entered sequence so retained-data synchronization can
+be exercised without
 forcing a reconnect. When no normal DN_PACKET is outstanding, the next action is sent
 with the next downstream packet number; while a packet is outstanding it remains
 immutable and later actions wait behind it. The pane shows the last acknowledged
