@@ -161,6 +161,11 @@ public final class MessageWriter {
                 .append("\"time\":")
                 .append(quote(entry.effectiveTime().instant().toString()))
                 .append(',')
+                .append("\"elapsedMillis\":")
+                .append(entry.elapsedMillis() == null
+                        ? "null"
+                        : Long.toString(entry.elapsedMillis().longValue()))
+                .append(',')
                 .append("\"valid\":")
                 .append(entry.valid())
                 .append('}');

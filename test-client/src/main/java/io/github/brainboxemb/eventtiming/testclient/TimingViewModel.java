@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,6 +41,7 @@ public final class TimingViewModel {
             String registrationId,
             String teamId,
             String displayTime,
+            String runningTime,
             String type,
             String code,
             int locationId,
@@ -404,6 +406,7 @@ public final class TimingViewModel {
                                     ? defaultTeamId(row.registrationId())
                                     : detail.teamId(),
                             displayTime(row.effectiveTime(), zone),
+                            displayRunningTime(row.elapsedMillis()),
                             detail == null ? "" : detail.type(),
                             detail == null ? "" : detail.code(),
                             registrationProjectionInfo.locationId(),
@@ -444,6 +447,7 @@ public final class TimingViewModel {
                                 record.registrationId(),
                                 defaultTeamId(record.registrationId()),
                                 displayTime(record.effectiveTime(), zone),
+                                "-",
                                 type,
                                 code,
                                 record.locationId(),
@@ -459,6 +463,7 @@ public final class TimingViewModel {
                             previous.registrationId(),
                             previous.teamId(),
                             previous.displayTime(),
+                            previous.runningTime(),
                             previous.type(),
                             previous.code(),
                             previous.locationId(),
@@ -513,6 +518,30 @@ public final class TimingViewModel {
         return "0000".equals(number)
                 ? null
                 : number;
+    }
+
+    static String displayRunningTime(Long elapsedMillis) {
+        if (elapsedMillis == null) {
+            return "-";
+        }
+
+        long value = elapsedMillis.longValue();
+        boolean negative = value < 0L;
+        long absoluteMillis = negative ? -value : value;
+        long totalHundredths = absoluteMillis / 10L;
+        long hours = totalHundredths / 360000L;
+        long minutes = totalHundredths / 6000L % 60L;
+        long seconds = totalHundredths / 100L % 60L;
+        long hundredths = totalHundredths % 100L;
+
+        return (negative ? "-" : "")
+                + String.format(
+                        Locale.ROOT,
+                        "%02d:%02d:%02d.%02d",
+                        hours,
+                        minutes,
+                        seconds,
+                        hundredths);
     }
 
     private static String displayTime(String value, ZoneId zone) {
