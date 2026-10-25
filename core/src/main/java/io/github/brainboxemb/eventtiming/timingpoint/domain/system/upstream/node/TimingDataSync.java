@@ -24,9 +24,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Owns TIMING_DATA position exchange, replay and live source-cursor state for one NodeUpstream.
  *
  * <p>The LogBook remains authoritative. A fresh source-head notification disables live
- * forwarding. The peer's following TIMING_DATA_REQ captures one replay head; replay never
- * crosses that head. Only after the captured replay completes does the live cursor continue
- * from the next LogBook sequence.</p>
+ * forwarding while peer position is reconciled. If Central is behind, TIMING_DATA_REQ
+ * captures one replay head and replay never crosses that head. If Central confirms an
+ * equal processed position through SEQ, live forwarding resumes directly at the next
+ * LogBook sequence. Only completed reconciliation enables the live cursor.</p>
  */
 final class TimingDataSync {
     private static final Logger LOG = LoggerFactory.getLogger(TimingDataSync.class);
@@ -144,9 +145,10 @@ final class TimingDataSync {
     /**
      * Starts one replay at the inclusive sequence requested by the peer.
      *
-     * <p>A request for exactly currentHead+1 is the empty replay used when the peer is already
-     * caught up. It completes the synchronization handoff immediately and enables live forwarding
-     * from that sequence. A request further beyond the current head does not establish live state.</p>
+     * <p>A request for exactly currentHead+1 remains accepted as an explicit empty replay
+     * and enables live forwarding from that sequence. Normal caught-up reconnect now completes
+     * through equal SEQ positions instead of requiring this empty request. A request further
+     * beyond the current head does not establish live state.</p>
      */
     void startReplay(UpstreamData.TimingDataRequest request) {
         startReplay(
