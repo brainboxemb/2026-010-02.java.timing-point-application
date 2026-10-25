@@ -1,5 +1,7 @@
 # Changelog
 
+- Make TIMING_DATA execution boundaries explicit in INFO logging: replay logs its actual task start with requested/captured positions, and proactive live forwarding logs only productive task runs plus each queued LogBook read before the existing upstream queued/sent packet evidence.
+
 - Extend SI-02 Central controls with StageStartTime SET/DEL and explicit TIMING_DATA_REQ from-sequence actions, and expose the same Central actions to local Lua scripts through a shared client action boundary while retaining normal DN_PACKET/RECV stop-and-wait behavior.
 
 - Add formal `upstream.timingDataReplayPacketDelayMillis` configuration for TIMING_DATA replay pacing: zero preserves immediate replay; positive values release the node upstream task between successive replay packets without delaying the first/final boundary or normal live forwarding.

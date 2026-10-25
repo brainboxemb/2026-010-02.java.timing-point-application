@@ -146,6 +146,13 @@ final class TimingDataSync {
         liveActive = false;
 
         long capturedHead = headSequence();
+        LOG.info(
+                "TIMING_DATA replay task started: node={}, fromSeq={}, head={}, packetDelayMs={}",
+                nodeId.value(),
+                fromSequence,
+                capturedHead,
+                replayPacketDelay.toMillis());
+
         if (fromSequence > capturedHead) {
             if (fromSequence == capturedHead + 1L) {
                 enableLive(fromSequence);
@@ -171,12 +178,6 @@ final class TimingDataSync {
         nextReplaySequence = fromSequence;
         replayHead = capturedHead;
         replayActive = true;
-        LOG.info(
-                "TIMING_DATA replay started: node={}, fromSeq={}, head={}, packetDelayMs={}",
-                nodeId.value(),
-                fromSequence,
-                capturedHead,
-                replayPacketDelay.toMillis());
     }
 
     /** Reports whether the captured replay still has records to send. */
@@ -261,6 +262,12 @@ final class TimingDataSync {
     synchronized CompletableFuture<List<TimingRecord>> submitNextLiveBatch() {
         failIfIllegalState(liveActive,
                 "Live TIMING_DATA forwarding is not active");
+
+        LOG.info(
+                "TIMING_DATA live LogBook read queued: node={}, fromSeq={}, limit={}",
+                nodeId.value(),
+                nextLiveSequence,
+                MAX_RECORDS_PER_BATCH);
 
         return logBook.submit(
                 LogBookQueries.timingRecordRange(
