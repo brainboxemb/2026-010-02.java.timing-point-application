@@ -395,6 +395,7 @@ public final class NodeUpstream extends LifecycleComponent {
                             timingDataSync.handleSequence(
                                     (UpstreamData.Sequence) packet.message());
                             downstreamDelivery.complete(packet);
+                            wakeLiveTimingData();
                         });
 
             default:
@@ -460,7 +461,18 @@ public final class NodeUpstream extends LifecycleComponent {
 
     /** Handles a post-commit TimingData wake; the LogBook remains the source. */
     public void timingDataChanged() {
-        wakeLiveTimingData();
+        if (!taskRunner.isRunning()
+                || !isAvailable()) {
+            return;
+        }
+
+        if (timingDataSync.liveReady()) {
+            wakeLiveTimingData();
+        } else if (timingDataSync.handoffPending()) {
+            taskRunner.executeOrWarn(
+                    timingDataSync::refreshSourceHeadNotification,
+                    "TIMING_DATA SEQ NTF refresh");
+        }
     }
 
     /** Handles a data-available fact from the node-scoped stream. */

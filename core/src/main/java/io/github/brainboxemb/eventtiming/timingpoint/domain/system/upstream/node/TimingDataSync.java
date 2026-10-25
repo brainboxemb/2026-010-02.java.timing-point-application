@@ -24,9 +24,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Owns TIMING_DATA position exchange, replay and live source-cursor state for one NodeUpstream.
  *
  * <p>The LogBook remains authoritative. A fresh source-head notification disables live
- * forwarding. The peer's following TIMING_DATA_REQ captures one replay head; replay never
- * crosses that head. Only after the captured replay completes does the live cursor continue
- * from the next LogBook sequence.</p>
+ * forwarding while peer position is reconciled. If Central is behind, TIMING_DATA_REQ
+ * captures one replay head and replay never crosses that head. If Central confirms an
+ * equal processed position through SEQ, live forwarding resumes directly at the next
+ * LogBook sequence. Only completed reconciliation enables the live cursor.</p>
  */
 final class TimingDataSync {
     private static final Logger LOG = LoggerFactory.getLogger(TimingDataSync.class);
@@ -44,6 +45,8 @@ final class TimingDataSync {
     private boolean liveActive;
     private long nextLiveSequence;
     private long centralProcessedSequence;
+    private boolean sequenceHandoffPending;
+    private long lastNotifiedSourceHead = -1L;
 
     TimingDataSync(
             NodeId nodeId,
@@ -64,12 +67,29 @@ final class TimingDataSync {
     synchronized void sendSourceHeadNotification() {
         replayActive = false;
         liveActive = false;
+        sequenceHandoffPending = true;
+        lastNotifiedSourceHead = -1L;
+        refreshSourceHeadNotification();
+    }
 
-        if (available.getAsBoolean()) {
-            sender.accept(
-                    DefaultUpstreamData.createSequenceNotification(
-                            headSequence()));
+    /** Refreshes the source-head NTF while a connection handoff is still pending. */
+    synchronized void refreshSourceHeadNotification() {
+        if (!available.getAsBoolean()
+                || !sequenceHandoffPending
+                || replayActive
+                || liveActive) {
+            return;
         }
+
+        long currentHead = headSequence();
+        if (currentHead == lastNotifiedSourceHead) {
+            return;
+        }
+
+        sender.accept(
+                DefaultUpstreamData.createSequenceNotification(
+                        currentHead));
+        lastNotifiedSourceHead = currentHead;
     }
 
     /** Handles one peer TIMING_DATA sequence request, answer or notification. */
@@ -87,13 +107,26 @@ final class TimingDataSync {
 
             case ANS:
             case NTF:
+                long localHead = headSequence();
                 long peerSequence = sequence.sequence().longValue();
                 failIfIllegalState(
-                        peerSequence <= headSequence(),
+                        peerSequence <= localHead,
                         "Central TIMING_DATA sequence %s exceeds local LogBook head %s",
                         peerSequence,
-                        headSequence());
+                        localHead);
                 centralProcessedSequence = peerSequence;
+
+                if (sequenceHandoffPending
+                        && !replayActive
+                        && peerSequence == localHead) {
+                    sequenceHandoffPending = false;
+                    enableLive(localHead + 1L);
+                    LOG.info(
+                            "TIMING_DATA handoff synchronized: node={}, head={}, liveFrom={}",
+                            nodeId.value(),
+                            localHead,
+                            localHead + 1L);
+                }
                 return;
 
             default:
@@ -117,9 +150,10 @@ final class TimingDataSync {
     /**
      * Starts one replay at the inclusive sequence requested by the peer.
      *
-     * <p>A request for exactly currentHead+1 is the empty replay used when the peer is already
-     * caught up. It completes the synchronization handoff immediately and enables live forwarding
-     * from that sequence. A request further beyond the current head does not establish live state.</p>
+     * <p>A request for exactly currentHead+1 remains accepted as an explicit empty replay
+     * and enables live forwarding from that sequence. Normal caught-up reconnect now completes
+     * through equal SEQ positions instead of requiring this empty request. A request further
+     * beyond the current head does not establish live state.</p>
      */
     void startReplay(UpstreamData.TimingDataRequest request) {
         startReplay(
@@ -144,6 +178,7 @@ final class TimingDataSync {
 
         replayActive = false;
         liveActive = false;
+        sequenceHandoffPending = false;
 
         long capturedHead = headSequence();
         LOG.info(
@@ -194,6 +229,8 @@ final class TimingDataSync {
     synchronized void sessionUnavailable() {
         replayActive = false;
         liveActive = false;
+        sequenceHandoffPending = false;
+        lastNotifiedSourceHead = -1L;
     }
 
     /** Submits the next ordered replay batch without blocking NodeUpstream. */
@@ -251,6 +288,11 @@ final class TimingDataSync {
     /** Returns whether the replay handoff has completed and proactive live forwarding is enabled. */
     synchronized boolean liveReady() {
         return liveActive;
+    }
+
+    /** Returns whether SEQ reconciliation is still waiting for replay or equal peer position. */
+    synchronized boolean handoffPending() {
+        return sequenceHandoffPending;
     }
 
     /** Reports whether the live cursor currently trails the authoritative LogBook head. */
