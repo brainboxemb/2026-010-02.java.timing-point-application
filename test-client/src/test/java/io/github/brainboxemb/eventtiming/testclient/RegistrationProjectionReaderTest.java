@@ -98,6 +98,65 @@ class RegistrationProjectionReaderTest {
     }
 
     @Test
+    void explicitFullReadRefreshesDerivedRuntimeWithoutMetadataChange() throws Exception {
+        server = HttpServer.create(
+                new InetSocketAddress(
+                        "127.0.0.1",
+                        0),
+                0);
+        server.createContext(
+                "/api/v1/node/A/registrations",
+                exchange -> {
+                    String query =
+                            exchange.getRequestURI()
+                                    .getQuery();
+                    if (query == null) {
+                        respond(
+                                exchange,
+                                "{"
+                                        + "\"locId\":24,"
+                                        + "\"count\":1,"
+                                        + "\"uniqueCount\":1,"
+                                        + "\"lastMutationSeq\":2,"
+                                        + "\"lastRevokeSeq\":0"
+                                        + "}");
+                    } else {
+                        assertEquals(
+                                "after=0&limit=1000",
+                                query);
+                        respond(
+                                exchange,
+                                "{"
+                                        + "\"locId\":24,"
+                                        + "\"count\":1,"
+                                        + "\"uniqueCount\":1,"
+                                        + "\"lastMutationSeq\":2,"
+                                        + "\"lastRevokeSeq\":0,"
+                                        + "\"nextAfter\":null,"
+                                        + "\"registrations\":[{"
+                                        + "\"seqNr\":2,"
+                                        + "\"regId\":\"A0001\","
+                                        + "\"time\":\"2026-10-01T12:00:01Z\","
+                                        + "\"elapsedMillis\":12340,"
+                                        + "\"valid\":true"
+                                        + "}]"
+                                        + "}");
+                    }
+                });
+        server.start();
+
+        RegistrationProjectionReader.Update update =
+                RegistrationProjectionReader.readFull(
+                        client(),
+                        "A");
+
+        assertTrue(update.replace());
+        assertEquals(
+                Long.valueOf(12340L),
+                update.rows().get(0).elapsedMillis());
+    }
+
+    @Test
     void revokeForcesFullProjectionRead() throws Exception {
         server = HttpServer.create(
                 new InetSocketAddress(

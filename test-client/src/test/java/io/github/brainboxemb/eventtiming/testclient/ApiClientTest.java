@@ -168,9 +168,11 @@ public class ApiClientTest {
                                 + "\"lastMutationSeq\":3,\"lastRevokeSeq\":0,"
                                 + "\"nextAfter\":null,\"registrations\":["
                                 + "{\"seqNr\":2,\"regId\":\"A0001\","
-                                + "\"time\":\"2026-10-01T12:00:00Z\",\"valid\":true},"
+                                + "\"time\":\"2026-10-01T12:00:00Z\","
+                                + "\"elapsedMillis\":12340,\"valid\":true},"
                                 + "{\"seqNr\":3,\"regId\":\"A0002\","
-                                + "\"time\":\"2026-10-01T12:00:01Z\",\"valid\":false}"
+                                + "\"time\":\"2026-10-01T12:00:01Z\","
+                                + "\"elapsedMillis\":null,\"valid\":false}"
                                 + "]}");
             } else if (path.endsWith("/logbook") && query == null) {
                 respond(exchange, 200, "{\"count\":2,\"first\":1,\"last\":2}");
@@ -232,8 +234,10 @@ public class ApiClientTest {
                         100);
         assertEquals(2, projectionPage.rows().size());
         assertEquals("A0001", projectionPage.rows().get(0).registrationId());
+        assertEquals(Long.valueOf(12340L), projectionPage.rows().get(0).elapsedMillis());
         assertTrue(projectionPage.rows().get(0).valid());
         assertEquals("A0002", projectionPage.rows().get(1).registrationId());
+        assertNull(projectionPage.rows().get(1).elapsedMillis());
         assertFalse(projectionPage.rows().get(1).valid());
         assertNull(projectionPage.nextAfter());
 

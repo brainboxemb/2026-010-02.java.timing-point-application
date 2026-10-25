@@ -299,6 +299,7 @@ public final class ApiClient {
                             requiredLong(value, "seqNr"),
                             requiredText(value, "regId"),
                             requiredText(value, "time"),
+                            optionalLong(value, "elapsedMillis"),
                             requiredBoolean(value, "valid")));
         }
 
@@ -720,6 +721,7 @@ public final class ApiClient {
             long sequenceNumber,
             String registrationId,
             String effectiveTime,
+            Long elapsedMillis,
             boolean valid) {
     }
 

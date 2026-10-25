@@ -274,7 +274,10 @@ public final class TestClientFxApplication extends Application {
                 eventsPanel,
                 httpPanel,
                 apiPane::showAllRegistrations,
-                apiPane::setShowAllRegistrations);
+                apiPane::setShowAllRegistrations,
+                apiPane::canLoadAllLogBook,
+                apiPane::loadAllLogBookLabel,
+                apiPane::loadAllLogBook);
     }
 
     private void resetLayout(
@@ -814,6 +817,10 @@ public final class TestClientFxApplication extends Application {
                         upstreamEvent.occurredAt(),
                         upstreamEvent.receivedAt(),
                         upstreamEvent.rawPayloadJson());
+                if (upstreamEvent.upstreamData().family()
+                        == UpstreamData.Family.RECV) {
+                    apiPane.refreshRegistrationProjectionFromServer();
+                }
             } catch (RuntimeException ex) {
                 clientLog.error(
                         "Central upstream data error: " + rootMessage(ex));

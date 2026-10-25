@@ -1,5 +1,7 @@
 # Changelog
 
+- Improve the Node engineering views: Registrations now presents SI-01-maintained RunningTime and labels manual AUTO/MAN classification as Time source; LogBook keeps its fast latest-100 baseline but adds an explicit bounded-page Load all action.
+
 - Add a single `dev-client` Maven/NetBeans reactor entrypoint for SI-02 so shared contracts and the isolated Central module are built automatically before the runnable Engineering Client; Windows packaging and CI use the same reactor path.
 
 - Add an operator-only Central TimingData source-head query over IF-06: `Query SI-01` sends a normal downstream `SEQ REQ`, displays the returned SI-01 LogBook/source count from `SEQ ANS`, and deliberately does not turn that answer into an automatic TIMING_DATA_REQ; automatic missing-suffix synchronization remains driven by source `SEQ NTF`.

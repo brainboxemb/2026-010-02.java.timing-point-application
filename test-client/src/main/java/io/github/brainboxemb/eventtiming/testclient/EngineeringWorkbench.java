@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import software.coley.bentofx.Bento;
 import software.coley.bentofx.building.DockBuilding;
@@ -47,6 +48,9 @@ final class EngineeringWorkbench {
 
     private final BooleanSupplier allRegistrations;
     private final Consumer<Boolean> setAllRegistrations;
+    private final BooleanSupplier canLoadAllLogBook;
+    private final Supplier<String> loadAllLogBookLabel;
+    private final Runnable loadAllLogBook;
 
     private final List<Bento> bentos = new ArrayList<>();
     private final Map<String, Dockable> dockables = new LinkedHashMap<>();
@@ -82,9 +86,15 @@ final class EngineeringWorkbench {
             Node events,
             Node http,
             BooleanSupplier allRegistrations,
-            Consumer<Boolean> setAllRegistrations) {
+            Consumer<Boolean> setAllRegistrations,
+            BooleanSupplier canLoadAllLogBook,
+            Supplier<String> loadAllLogBookLabel,
+            Runnable loadAllLogBook) {
         this.allRegistrations = java.util.Objects.requireNonNull(allRegistrations);
         this.setAllRegistrations = java.util.Objects.requireNonNull(setAllRegistrations);
+        this.canLoadAllLogBook = java.util.Objects.requireNonNull(canLoadAllLogBook);
+        this.loadAllLogBookLabel = java.util.Objects.requireNonNull(loadAllLogBookLabel);
+        this.loadAllLogBook = java.util.Objects.requireNonNull(loadAllLogBook);
 
         Node nodeControls = createNodeControls(
                 timingNode,
@@ -621,6 +631,22 @@ final class EngineeringWorkbench {
                     current,
                     all,
                     timezone,
+                    new SeparatorMenuItem());
+        }
+
+        boolean logBookDock = selected != null
+                ? "logbook".equals(selected.getIdentifier())
+                : leaf.getDockables().stream()
+                        .anyMatch(d ->
+                                "logbook"
+                                        .equals(d.getIdentifier()));
+        if (logBookDock) {
+            MenuItem loadAll =
+                    new MenuItem(loadAllLogBookLabel.get());
+            loadAll.setDisable(!canLoadAllLogBook.getAsBoolean());
+            loadAll.setOnAction(event -> loadAllLogBook.run());
+            menu.getItems().addAll(
+                    loadAll,
                     new SeparatorMenuItem());
         }
 

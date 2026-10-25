@@ -73,6 +73,7 @@ final class TimingPane {
     private boolean historyRefreshQueued;
     private boolean registrationSyncRunning;
     private boolean registrationSyncAgain;
+    private boolean registrationSyncForceFullAgain;
     // FX-thread-owned generation invalidates obsolete baseline/node history
     // responses after reconnect, disconnect or a newer selection.
     private final ViewRequestEpoch historyRequests = new ViewRequestEpoch();
@@ -113,6 +114,7 @@ final class TimingPane {
             new TableView<>();
 
     private final TableView<ApiClient.TimingDataInfo> logBook = new TableView<>();
+    private boolean logBookLoadAllRunning;
     private final FollowLatestTable<TimingViewModel.InterpretedRegistration> registrationFollow =
             new FollowLatestTable<>(registrations);
     private final FollowLatestTable<ApiClient.TimingDataInfo> logBookFollow =
@@ -659,7 +661,85 @@ final class TimingPane {
                 }));
     }
 
+    void loadAllLogBook() {
+        if (logBookLoadAllRunning
+                || !eventsConnected
+                || model.viewState() != TimingViewModel.ViewState.LIVE) {
+            return;
+        }
+
+        final String selected = model.selectedNodeId();
+        if (selected == null) {
+            return;
+        }
+        final long requestGeneration = historyRequests.current();
+
+        logBookLoadAllRunning = true;
+        refreshControls();
+        refreshLogBook();
+
+        CompletableFuture
+                .supplyAsync(
+                        () -> {
+                            try {
+                                return LogBookReader.readAll(
+                                        clientSupplier.get(),
+                                        selected);
+                            } catch (Exception ex) {
+                                throw new CompletionException(ex);
+                            }
+                        },
+                        requests)
+                .whenComplete(
+                        (result, error) ->
+                                Platform.runLater(
+                                        () -> {
+                                            logBookLoadAllRunning = false;
+                                            if (!eventsConnected
+                                                    || !historyRequests.isCurrent(
+                                                            requestGeneration)
+                                                    || !selected.equals(
+                                                            model.selectedNodeId())) {
+                                                refreshControls();
+                                                refreshLogBook();
+                                                return;
+                                            }
+                                            if (error != null) {
+                                                handleApiFailure(
+                                                        "LogBook load all",
+                                                        error);
+                                            } else {
+                                                // Do not reapply the reader's older count snapshot:
+                                                // a live commit may already have advanced the model.
+                                                for (ApiClient.LogBookPage page
+                                                        : result.pages()) {
+                                                    model.mergeLogBookPage(page);
+                                                }
+                                                if (!result.pages().isEmpty()) {
+                                                    rawSink.accept(
+                                                            result.pages()
+                                                                    .get(result.pages().size() - 1)
+                                                                    .rawJson());
+                                                }
+                                                feedback.accept(
+                                                        "Loaded complete LogBook: "
+                                                                + model.records().size()
+                                                                + " records");
+                                            }
+                                            refreshControls();
+                                            refreshLogBook();
+                                        }));
+    }
+
     private void requestRegistrationProjectionSync() {
+        requestRegistrationProjectionSync(false);
+    }
+
+    void refreshRegistrationProjectionFromServer() {
+        requestRegistrationProjectionSync(true);
+    }
+
+    private void requestRegistrationProjectionSync(boolean forceFull) {
 
         if (!eventsConnected
                 || model.viewState()
@@ -681,11 +761,13 @@ final class TimingPane {
 
         if (registrationSyncRunning) {
             registrationSyncAgain = true;
+            registrationSyncForceFullAgain |= forceFull;
             return;
         }
 
         registrationSyncRunning = true;
         registrationSyncAgain = false;
+        registrationSyncForceFullAgain = false;
 
         final long requestGeneration =
                 historyRequests.current();
@@ -704,12 +786,16 @@ final class TimingPane {
                 .supplyAsync(
                         () -> {
                             try {
-                                return RegistrationProjectionReader.read(
-                                        clientSupplier.get(),
-                                        selected,
-                                        cachedInfo,
-                                        cachedCount,
-                                        cachedLastSequence);
+                                return forceFull
+                                        ? RegistrationProjectionReader.readFull(
+                                                clientSupplier.get(),
+                                                selected)
+                                        : RegistrationProjectionReader.read(
+                                                clientSupplier.get(),
+                                                selected,
+                                                cachedInfo,
+                                                cachedCount,
+                                                cachedLastSequence);
                             } catch (Exception ex) {
                                 throw new CompletionException(ex);
                             }
@@ -735,7 +821,9 @@ final class TimingPane {
 
         registrationSyncRunning = false;
         boolean runAgain = registrationSyncAgain;
+        boolean forceFullAgain = registrationSyncForceFullAgain;
         registrationSyncAgain = false;
+        registrationSyncForceFullAgain = false;
 
         ApiClient.TimingNodeInfo current =
                 model.selectedNode();
@@ -780,7 +868,7 @@ final class TimingPane {
         }
 
         if (runAgain && currentRequest) {
-            requestRegistrationProjectionSync();
+            requestRegistrationProjectionSync(forceFullAgain);
         }
     }
 
@@ -1264,6 +1352,27 @@ final class TimingPane {
         logBookFollow.update(model.records());
     }
 
+    boolean canLoadAllLogBook() {
+        return eventsConnected
+                && model.viewState() == TimingViewModel.ViewState.LIVE
+                && !operationBusy
+                && !logBookLoadAllRunning
+                && model.selectedNodeId() != null
+                && model.records().size() < model.logBookCount();
+    }
+
+    String loadAllLogBookLabel() {
+        int loaded = model.records().size();
+        long count = model.logBookCount();
+        if (logBookLoadAllRunning) {
+            return "Loading complete LogBook… " + loaded + " / " + count;
+        }
+        if (loaded >= count) {
+            return "Complete LogBook loaded (" + loaded + ")";
+        }
+        return "Load complete LogBook (" + loaded + " / " + count + " loaded)";
+    }
+
     private void refreshRegistrationProjectionState() {
 
         if (showAllRegistrations) {
@@ -1332,13 +1441,17 @@ final class TimingPane {
                 registrationColumn(
                         "Time",
                         TimingViewModel.InterpretedRegistration::displayTime);
+        TableColumn<TimingViewModel.InterpretedRegistration, String> runningTime =
+                registrationColumn(
+                        "RunningTime",
+                        TimingViewModel.InterpretedRegistration::runningTime);
         TableColumn<TimingViewModel.InterpretedRegistration, String> type =
                 registrationColumn(
                         "Type",
                         TimingViewModel.InterpretedRegistration::type);
         TableColumn<TimingViewModel.InterpretedRegistration, String> code =
                 registrationColumn(
-                        "Code",
+                        "Time source",
                         TimingViewModel.InterpretedRegistration::code);
         TableColumn<TimingViewModel.InterpretedRegistration, Void> action =
                 new TableColumn<>("");
@@ -1347,8 +1460,9 @@ final class TimingPane {
         registration.setPrefWidth(125);
         team.setPrefWidth(95);
         time.setPrefWidth(100);
+        runningTime.setPrefWidth(105);
         type.setPrefWidth(75);
-        code.setPrefWidth(70);
+        code.setPrefWidth(95);
         action.setMinWidth(48);
         action.setPrefWidth(48);
         action.setMaxWidth(48);
@@ -1389,6 +1503,7 @@ final class TimingPane {
                 registration,
                 team,
                 time,
+                runningTime,
                 type,
                 code,
                 action);
