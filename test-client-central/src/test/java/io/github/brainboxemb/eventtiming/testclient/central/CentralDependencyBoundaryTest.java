@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 final class CentralDependencyBoundaryTest {
     private static final List<String> FORBIDDEN =
             List.of(
+                    "import java.net.",
                     "java.net.http.",
                     "HttpURLConnection",
                     "URLConnection",
