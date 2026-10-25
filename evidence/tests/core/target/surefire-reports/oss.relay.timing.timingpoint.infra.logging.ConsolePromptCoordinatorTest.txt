@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: oss.relay.timing.timingpoint.infra.logging.ConsolePromptCoordinatorTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.049 s -- in oss.relay.timing.timingpoint.infra.logging.ConsolePromptCoordinatorTest

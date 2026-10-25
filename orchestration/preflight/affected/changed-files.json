@@ -1,0 +1,16 @@
+{
+  "files": [
+    "core/src/main/java/oss/relay/timing/timingpoint/infra/logging/CompactLogFormatter.java",
+    "CHANGELOG.md",
+    "core/src/test/java/oss/relay/timing/timingpoint/infra/logging/LoggingTest.java"
+  ],
+  "options": {
+    "base": "4af0503a9cde43be9dc302c830c2be5461eda77e",
+    "defaultBranch": true,
+    "head": "c62d6e1f950afc1a50015abe24e865e202090d6e",
+    "local": false,
+    "status": [],
+    "stdin": false
+  },
+  "shallow": false
+}

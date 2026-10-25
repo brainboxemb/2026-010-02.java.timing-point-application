@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "java_task": "core:java.canonical",
+  "windows_full_task": "core:java.windows-full",
+  "base": "4af0503a9cde43be9dc302c830c2be5461eda77e",
+  "head": "c62d6e1f950afc1a50015abe24e865e202090d6e",
+  "java_affected": true,
+  "windows_full_affected": false,
+  "requested_windows_mode": "auto",
+  "windows_mode": "smoke",
+  "duration_seconds": 2
+}
