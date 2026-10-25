@@ -144,6 +144,22 @@ final class ApiPane {
         timingPane.setShowAllRegistrations(all);
     }
 
+    boolean canLoadAllLogBook() {
+        return timingPane.canLoadAllLogBook();
+    }
+
+    String loadAllLogBookLabel() {
+        return timingPane.loadAllLogBookLabel();
+    }
+
+    void loadAllLogBook() {
+        timingPane.loadAllLogBook();
+    }
+
+    void refreshRegistrationProjectionFromServer() {
+        timingPane.refreshRegistrationProjectionFromServer();
+    }
+
     javafx.scene.Node registrationPane() {
         return timingPane.registrationPane();
     }
