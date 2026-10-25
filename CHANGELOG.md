@@ -1,5 +1,7 @@
 # Changelog
 
+- Use `oss.relay.timing.` as the compact logging family prefix so Timing Point and shared timing-package source names are shortened consistently.
+
 - Improve the Node engineering views: Registrations now presents SI-01-maintained RunningTime and labels manual AUTO/MAN classification as Time source; LogBook keeps its fast latest-100 baseline but adds an explicit bounded-page Load all action.
 
 - Add a single `dev-client` Maven/NetBeans reactor entrypoint for SI-02 so shared contracts and the isolated Central module are built automatically before the runnable Engineering Client; Windows packaging and CI use the same reactor path.

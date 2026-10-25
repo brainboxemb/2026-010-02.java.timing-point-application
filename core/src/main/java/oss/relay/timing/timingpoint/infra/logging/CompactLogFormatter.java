@@ -11,7 +11,7 @@ import java.util.logging.LogRecord;
 /** Compact operator-facing formatter shared by console, retained file and live logging. */
 final class CompactLogFormatter extends Formatter {
     private static final String PROJECT_PACKAGE_PREFIX =
-            "oss.relay.timing.timingpoint.";
+            "oss.relay.timing.";
     private static final DateTimeFormatter TIME_FORMAT =
             DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
 

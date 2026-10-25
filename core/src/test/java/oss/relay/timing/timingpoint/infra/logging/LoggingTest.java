@@ -79,6 +79,18 @@ public class LoggingTest {
     }
 
     @Test
+    public void shortensSharedFamilyPackageSource() {
+        LogRecord record = new LogRecord(Level.INFO, "Timing data decoded");
+        record.setSourceClassName(
+                "oss.relay.timing.timingdata.defaultprofile.DefaultTimingDataCodec");
+        record.setSourceMethodName("decode");
+
+        assertEquals(
+                "defaultprofile.DefaultTimingDataCodec.decode",
+                CompactLogFormatter.source(record));
+    }
+
+    @Test
     public void keepsNonProjectSourceQualified() {
         LogRecord record = new LogRecord(Level.INFO, "External component");
         record.setSourceClassName("com.example.transport.ExternalAdapter");
