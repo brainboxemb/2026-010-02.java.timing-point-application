@@ -18,6 +18,9 @@ Local Lua scripts can run when the client is LIVE even if simulation is disabled
 - `timing.sleep(ms)`: interruptible sleep for 0–60000 milliseconds.
 - `timing.simulate(regId, profile)`: send one simulated passage for selected TimingNode via IF-03, e.g. `timing.simulate("A0100", "simple")`. Profile defaults to `normal`.
 - `timing.batch{count=10, from=1, to=2000, order="linear", seed=1, intervalMs=500, profile="normal"}`: send repeatable batch. `count` is required (1–10000); remaining values shown are defaults. Order: `linear` or seeded `random`. Profiles: `simple`, `normal`, `edge`. Intervals: 0–60000 ms. Generated IDs: `ANNNN`.
+- `central.team_set(regId, teamId)` / `central.team_del(regId)`: change the selected node's Central RaceData team assignment.
+- `central.stage_start_set(regId, start)` / `central.stage_start_del(regId)`: change the selected node's stage start; `start` accepts time-only, local date/time or absolute UTC IF-06 timestamp text.
+- `central.timing_data_req(fromSeq)`: explicitly queue a TIMING_DATA_REQ for the selected node through normal DN_PACKET/RECV stop-and-wait delivery. Central must be connected.
 
 ### Local smoke test (simulation not required)
 ```lua
@@ -33,6 +36,17 @@ end
 timing.batch{count=10, from=1, to=100, order="random",
              seed=42, intervalMs=500, profile="normal"}
 ```
+
+### Central replay exercise
+```lua
+central.stage_start_set("A0001", "10:30:00.25")
+timing.sleep(500)
+central.timing_data_req(1)
+```
+
+`timing.sleep(ms)` paces script actions. SI-01's configured
+`upstream.timingDataReplayPacketDelayMillis` separately controls the delay between
+successive TIMING_DATA packets inside one replay.
 
 See [../examples/batch.lua](../examples/batch.lua) for the maintained example.
 

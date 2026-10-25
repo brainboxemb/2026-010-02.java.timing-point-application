@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -42,6 +44,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     private final Supplier<ApiClient> clientSupplier;
     private final Supplier<String> selectedNode;
     private final BooleanSupplier guiBatchRunning;
+    private final CentralActions centralActions;
     private final Runnable refreshControls;
     private final ClientLog clientLog;
 
@@ -68,11 +71,13 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     EngineeringScriptsPane(Supplier<ApiClient> clientSupplier,
                            Supplier<String> selectedNode,
                            BooleanSupplier guiBatchRunning,
+                           CentralActions centralActions,
                            Runnable refreshControls,
                            ClientLog clientLog) {
         this.clientSupplier = java.util.Objects.requireNonNull(clientSupplier);
         this.selectedNode = java.util.Objects.requireNonNull(selectedNode);
         this.guiBatchRunning = java.util.Objects.requireNonNull(guiBatchRunning);
+        this.centralActions = java.util.Objects.requireNonNull(centralActions);
         this.refreshControls = java.util.Objects.requireNonNull(refreshControls);
         this.clientLog = java.util.Objects.requireNonNull(clientLog);
 
@@ -219,6 +224,8 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                             }
                             client.simulateRegistration(nodeId, regId, profile);
                         },
+                        scriptCentralActions(),
+                        nodeId,
                         line -> Platform.runLater(() -> {
                             if (currentGeneration == generation)
                                 output.appendText(line + "\n");
@@ -233,6 +240,97 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                 finish(currentGeneration, "Error: " + reason);
             }
         });
+    }
+
+    private CentralActions scriptCentralActions() {
+        return new CentralActions() {
+            @Override
+            public long setTeamAssignment(
+                    String nodeId,
+                    String registrationId,
+                    String teamId) {
+                return callOnFx(() ->
+                        centralActions.setTeamAssignment(
+                                nodeId,
+                                registrationId,
+                                teamId));
+            }
+
+            @Override
+            public long deleteTeamAssignment(
+                    String nodeId,
+                    String registrationId) {
+                return callOnFx(() ->
+                        centralActions.deleteTeamAssignment(
+                                nodeId,
+                                registrationId));
+            }
+
+            @Override
+            public long setStageStart(
+                    String nodeId,
+                    String registrationId,
+                    String start) {
+                return callOnFx(() ->
+                        centralActions.setStageStart(
+                                nodeId,
+                                registrationId,
+                                start));
+            }
+
+            @Override
+            public long deleteStageStart(
+                    String nodeId,
+                    String registrationId) {
+                return callOnFx(() ->
+                        centralActions.deleteStageStart(
+                                nodeId,
+                                registrationId));
+            }
+
+            @Override
+            public long requestTimingData(
+                    String nodeId,
+                    long fromSequence) {
+                return callOnFx(() ->
+                        centralActions.requestTimingData(
+                                nodeId,
+                                fromSequence));
+            }
+        };
+    }
+
+    private long callOnFx(Supplier<Long> action) {
+        if (Platform.isFxApplicationThread()) {
+            return action.get().longValue();
+        }
+
+        CompletableFuture<Long> result = new CompletableFuture<>();
+        Platform.runLater(() -> {
+            try {
+                result.complete(action.get());
+            } catch (Throwable failure) {
+                result.completeExceptionally(failure);
+            }
+        });
+
+        try {
+            return result.get().longValue();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new EngineeringLuaEngine.Stopped();
+        } catch (ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException(
+                    "Central action failed",
+                    cause);
+        }
     }
 
     private void finish(long token, String message) {

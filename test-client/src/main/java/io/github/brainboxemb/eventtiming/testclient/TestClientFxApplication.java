@@ -115,36 +115,67 @@ public final class TestClientFxApplication extends Application {
         VBox deviceLogPanel = deviceLogPane();
         VBox clientLogPanel = clientLogPane();
 
+        centralSimulator = new CentralSystemSimulator(config.centralLocationIds());
+        CentralActions centralActions = new CentralActions() {
+            @Override
+            public long setTeamAssignment(
+                    String nodeId,
+                    String registrationId,
+                    String teamId) {
+                return sendCentralTeamAssignmentSet(
+                        nodeId,
+                        registrationId,
+                        teamId);
+            }
+
+            @Override
+            public long deleteTeamAssignment(
+                    String nodeId,
+                    String registrationId) {
+                return sendCentralTeamAssignmentDelete(
+                        nodeId,
+                        registrationId);
+            }
+
+            @Override
+            public long setStageStart(
+                    String nodeId,
+                    String registrationId,
+                    String start) {
+                return sendCentralStageStartSet(
+                        nodeId,
+                        registrationId,
+                        start);
+            }
+
+            @Override
+            public long deleteStageStart(
+                    String nodeId,
+                    String registrationId) {
+                return sendCentralStageStartDelete(
+                        nodeId,
+                        registrationId);
+            }
+
+            @Override
+            public long requestTimingData(
+                    String nodeId,
+                    long fromSequence) {
+                return sendCentralTimingDataRequest(
+                        nodeId,
+                        fromSequence);
+            }
+        };
         apiPane = new ApiPane(
                 this::client,
                 requests,
                 feedback::setText,
                 this::setApiState,
-                clientLog);
-        centralSimulator = new CentralSystemSimulator(config.centralLocationIds());
+                clientLog,
+                centralActions);
         centralPane = new CentralPane(
                 centralSimulator,
-                new CentralPane.RaceDataActions() {
-                    @Override
-                    public long setTeamAssignment(
-                            String nodeId,
-                            String registrationId,
-                            String teamId) {
-                        return sendCentralTeamAssignmentSet(
-                                nodeId,
-                                registrationId,
-                                teamId);
-                    }
-
-                    @Override
-                    public long deleteTeamAssignment(
-                            String nodeId,
-                            String registrationId) {
-                        return sendCentralTeamAssignmentDelete(
-                                nodeId,
-                                registrationId);
-                    }
-                });
+                centralActions);
         centralMessagesPane = new CentralMessagesPane(centralSimulator);
         centralLogBookPane = new CentralLogBookPane(centralSimulator);
 
@@ -845,6 +876,59 @@ public final class TestClientFxApplication extends Application {
                 packets);
     }
 
+    private long sendCentralStageStartSet(
+            String nodeId,
+            String registrationId,
+            String start) {
+        requireCentralUpstreamRole();
+
+        io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp parsed =
+                io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp.parse(
+                        start == null ? null : start.trim());
+        List<UpstreamData> packets =
+                centralSimulator.updateRaceData(
+                        new NodeId(nodeId),
+                        java.util.List.of(),
+                        java.util.List.of(
+                                DefaultUpstreamData.createStageStartSet(
+                                        registrationId,
+                                        parsed)));
+        return sendCentralPackets(
+                nodeId,
+                packets);
+    }
+
+    private long sendCentralStageStartDelete(
+            String nodeId,
+            String registrationId) {
+        requireCentralUpstreamRole();
+
+        List<UpstreamData> packets =
+                centralSimulator.updateRaceData(
+                        new NodeId(nodeId),
+                        java.util.List.of(),
+                        java.util.List.of(
+                                DefaultUpstreamData.createStageStartDelete(
+                                        registrationId)));
+        return sendCentralPackets(
+                nodeId,
+                packets);
+    }
+
+    private long sendCentralTimingDataRequest(
+            String nodeId,
+            long fromSequence) {
+        requireCentralUpstreamRole();
+
+        List<UpstreamData> packets =
+                centralSimulator.requestTimingData(
+                        new NodeId(nodeId),
+                        fromSequence);
+        return sendCentralPackets(
+                nodeId,
+                packets);
+    }
+
     /**
      * Sends packets that became eligible after one Central state update.
      *
@@ -883,7 +967,7 @@ public final class TestClientFxApplication extends Application {
         refreshCentralViews();
         if (packetNr == 0L) {
             clientLog.info(
-                    "Central RaceData state updated for node "
+                    "Central action queued for node "
                             + nodeId
                             + "; waiting behind outstanding DN_PACKET");
         } else {

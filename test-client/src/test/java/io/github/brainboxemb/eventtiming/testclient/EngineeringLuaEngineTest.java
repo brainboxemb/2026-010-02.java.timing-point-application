@@ -67,6 +67,63 @@ class EngineeringLuaEngineTest {
         assertFalse(ex.getMessage().contains("IF-03 simulation rejected:"));
     }
 
+    @Test
+    void centralActionsUseCapturedNodeAndReturnPacketNumbers() {
+        List<String> calls = new ArrayList<>();
+        List<String> output = new ArrayList<>();
+        CentralActions actions = new CentralActions() {
+            private long next = 1L;
+
+            @Override
+            public long setTeamAssignment(String nodeId, String regId, String teamId) {
+                calls.add("team-set:" + nodeId + ":" + regId + ":" + teamId);
+                return next++;
+            }
+
+            @Override
+            public long deleteTeamAssignment(String nodeId, String regId) {
+                calls.add("team-del:" + nodeId + ":" + regId);
+                return next++;
+            }
+
+            @Override
+            public long setStageStart(String nodeId, String regId, String start) {
+                calls.add("start-set:" + nodeId + ":" + regId + ":" + start);
+                return next++;
+            }
+
+            @Override
+            public long deleteStageStart(String nodeId, String regId) {
+                calls.add("start-del:" + nodeId + ":" + regId);
+                return next++;
+            }
+
+            @Override
+            public long requestTimingData(String nodeId, long fromSequence) {
+                calls.add("req:" + nodeId + ":" + fromSequence);
+                return next++;
+            }
+        };
+
+        EngineeringLuaEngine.run(
+                "central.team_set('A0001','T001'); "
+                        + "central.stage_start_set('A0001','10:30:00.25'); "
+                        + "timing.sleep(0); central.timing_data_req(7)",
+                (id, profile) -> fail("must not simulate"),
+                actions,
+                "A",
+                output::add,
+                () -> true);
+
+        assertEquals(
+                List.of(
+                        "team-set:A:A0001:T001",
+                        "start-set:A:A0001:10:30:00.25",
+                        "req:A:7"),
+                calls);
+        assertTrue(output.stream().anyMatch(x -> x.contains("DN_PACKET #3")));
+    }
+
     @Test void invalidBatchStopsBeforeApiCall() {
         assertThrows(LuaError.class, () ->
                 EngineeringLuaEngine.run("timing.batch{count=10001}",

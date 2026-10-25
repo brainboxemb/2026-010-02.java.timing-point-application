@@ -127,10 +127,12 @@ final class TimingPane {
             Consumer<String> rawSink,
             Consumer<String> feedback,
             Consumer<String> apiState,
-            ClientLog clientLog) {
+            ClientLog clientLog,
+            CentralActions centralActions) {
         if (clientSupplier == null || requests == null
                 || rawSink == null || feedback == null
-                || apiState == null || clientLog == null) {
+                || apiState == null || clientLog == null
+                || centralActions == null) {
             throw new IllegalArgumentException("TimingPane dependencies must not be null");
         }
         this.clientSupplier = clientSupplier;
@@ -272,6 +274,7 @@ final class TimingPane {
                 clientSupplier,
                 model::selectedNodeId,
                 simulationPane::running,
+                centralActions,
                 this::refreshControls,
                 clientLog);
 

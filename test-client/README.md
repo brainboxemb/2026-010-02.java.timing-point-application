@@ -393,16 +393,20 @@ projection state and are not permanent explorer columns. A later NODE_OPEN for t
 NodeId at another LocationId implicitly closes the previously active location.
 
 **Central Controls → RaceData** is an operator form rather than an explorer. It selects
-an observed Central NodeId and applies RegistrationId-to-TeamId SET/DEL changes to the
-Central-owned current RaceData state. When no normal DN_PACKET is outstanding, the next
-required state delta is sent with the next downstream packet number; while a packet is
-outstanding it remains immutable and later state changes wait behind it. The pane shows
-the last acknowledged downstream packet and any pending packet. It is rejected unless
+an observed Central NodeId and applies RegistrationId-to-TeamId and RegistrationId-to-
+StageStartTime SET/DEL changes to Central-owned current RaceData. Stage start accepts the
+same IF-06 timestamp forms as the shared TimingTimestamp parser: time-only, local
+date/time or absolute UTC. The same pane can explicitly issue a TIMING_DATA_REQ from an
+operator-entered sequence so replay/replay-to-live behavior can be exercised without
+forcing a reconnect. When no normal DN_PACKET is outstanding, the next action is sent
+with the next downstream packet number; while a packet is outstanding it remains
+immutable and later actions wait behind it. The pane shows the last acknowledged
+downstream packet and any pending packet. It is rejected unless
 the explicit Central `role=upstream` session is active.
 
-Stage-start editing remains deliberately separate because its time-only/date+time conversion
-must reuse the accepted UTC/civil-time rules. The API and upstream models do not share
-state, so a mismatch remains visible during testing. A fresh SI-01 runtime reports
+Stage-start input deliberately uses the shared TimingTimestamp parser so time-only,
+local date/time and absolute UTC forms follow the same accepted rules as IF-06. The API
+and upstream models do not share state, so a mismatch remains visible during testing. A fresh SI-01 runtime reports
 `RECV 0` to request a rebuild of current downstream state and publishes a TIMING_DATA
 `SEQ NTF`; Central then issues `TIMING_DATA_REQ` from its own next contiguous LogBook
 sequence. Heartbeat PING requests are answered directly with packet number 0 and the same
