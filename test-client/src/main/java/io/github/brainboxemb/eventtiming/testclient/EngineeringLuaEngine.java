@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -51,6 +52,22 @@ final class EngineeringLuaEngine {
 
     static void run(String source, SimulationSender sender,
                     Consumer<String> output, BooleanSupplier valid) {
+        run(
+                source,
+                sender,
+                null,
+                null,
+                output,
+                valid);
+    }
+
+    static void run(
+            String source,
+            SimulationSender sender,
+            CentralActions centralActions,
+            String centralNodeId,
+            Consumer<String> output,
+            BooleanSupplier valid) {
         if (source == null || source.isBlank()) {
             throw new IllegalArgumentException("Script is empty");
         }
@@ -159,6 +176,73 @@ final class EngineeringLuaEngine {
             }
         });
         globals.set("timing", timing);
+
+        LuaTable central = new LuaTable();
+        central.set("team_set", new TwoArgFunction() {
+            @Override public LuaValue call(LuaValue regId, LuaValue teamId) {
+                return centralAction(
+                        centralActions,
+                        centralNodeId,
+                        output,
+                        check,
+                        () -> centralActions.setTeamAssignment(
+                                centralNodeId,
+                                regId.checkjstring(),
+                                teamId.checkjstring()));
+            }
+        });
+        central.set("team_del", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue regId) {
+                return centralAction(
+                        centralActions,
+                        centralNodeId,
+                        output,
+                        check,
+                        () -> centralActions.deleteTeamAssignment(
+                                centralNodeId,
+                                regId.checkjstring()));
+            }
+        });
+        central.set("stage_start_set", new TwoArgFunction() {
+            @Override public LuaValue call(LuaValue regId, LuaValue start) {
+                return centralAction(
+                        centralActions,
+                        centralNodeId,
+                        output,
+                        check,
+                        () -> centralActions.setStageStart(
+                                centralNodeId,
+                                regId.checkjstring(),
+                                start.checkjstring()));
+            }
+        });
+        central.set("stage_start_del", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue regId) {
+                return centralAction(
+                        centralActions,
+                        centralNodeId,
+                        output,
+                        check,
+                        () -> centralActions.deleteStageStart(
+                                centralNodeId,
+                                regId.checkjstring()));
+            }
+        });
+        central.set("timing_data_req", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue fromSequence) {
+                long from = fromSequence.checklong();
+                return centralAction(
+                        centralActions,
+                        centralNodeId,
+                        output,
+                        check,
+                        () -> centralActions.requestTimingData(
+                                centralNodeId,
+                                from));
+            }
+        });
+        globals.set("central", central);
+
         // Optional convenience: Lua print() is routed into Script Output.
         globals.set("print", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
@@ -175,6 +259,38 @@ final class EngineeringLuaEngine {
         check.run();
         globals.load(source, "engineering-script").call();
         check.run();
+    }
+
+    private static LuaValue centralAction(
+            CentralActions centralActions,
+            String nodeId,
+            Consumer<String> output,
+            Runnable check,
+            LongSupplier action) {
+        check.run();
+        if (centralActions == null
+                || nodeId == null
+                || nodeId.isBlank()) {
+            throw new LuaError("Central action unavailable: no selected TimingNode");
+        }
+
+        final long packetNr;
+        try {
+            packetNr = action.getAsLong();
+        } catch (RuntimeException ex) {
+            check.run();
+            String message =
+                    ex.getMessage() == null
+                            ? ex.getClass().getSimpleName()
+                            : ex.getMessage();
+            throw new LuaError("Central action rejected: " + message);
+        }
+        check.run();
+        output.accept(
+                packetNr == 0L
+                        ? "Central action queued behind pending DN_PACKET"
+                        : "Central DN_PACKET #" + packetNr + " queued");
+        return LuaValue.valueOf(packetNr);
     }
 
     private static void send(String registrationId, String profile,

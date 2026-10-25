@@ -23,22 +23,21 @@ import java.util.List;
 
 /** JavaFX projections and operator controls for the Central System Simulator state. */
 final class CentralPane implements AutoCloseable {
-    interface RaceDataActions {
-        long setTeamAssignment(String nodeId, String registrationId, String teamId);
-
-        long deleteTeamAssignment(String nodeId, String registrationId);
-    }
-
     private final CentralSystemSimulator simulator;
-    private final RaceDataActions raceDataActions;
+    private final CentralActions centralActions;
     private final Label connectionState = new Label("CENTRAL UPSTREAM NOT CONNECTED");
     private final ListView<CentralSystemSimulator.NodeView> nodes = new ListView<>();
     private final ListView<CentralSystemSimulator.LocationView> locations = new ListView<>();
     private final ComboBox<String> raceNode = new ComboBox<>();
     private final TextField raceRegistration = new TextField();
     private final TextField raceTeam = new TextField();
+    private final TextField raceStageStart = new TextField();
+    private final TextField replayFromSequence = new TextField("1");
     private final Button raceSet = new Button("Set team");
     private final Button raceDelete = new Button("Delete team");
+    private final Button stageStartSet = new Button("Set start");
+    private final Button stageStartDelete = new Button("Delete start");
+    private final Button replayRequest = new Button("Request TIMING_DATA");
     private final Label downstreamAck = new Label("0");
     private final Label downstreamPending = new Label("—");
     private final Label raceFeedback = new Label("Central upstream not connected");
@@ -49,15 +48,15 @@ final class CentralPane implements AutoCloseable {
 
     CentralPane(
             CentralSystemSimulator simulator,
-            RaceDataActions raceDataActions) {
+            CentralActions centralActions) {
         if (simulator == null) {
             throw new IllegalArgumentException("simulator must not be null");
         }
-        if (raceDataActions == null) {
-            throw new IllegalArgumentException("raceDataActions must not be null");
+        if (centralActions == null) {
+            throw new IllegalArgumentException("centralActions must not be null");
         }
         this.simulator = simulator;
-        this.raceDataActions = raceDataActions;
+        this.centralActions = centralActions;
 
         configureNodes();
         configureLocations();
@@ -235,9 +234,14 @@ final class CentralPane implements AutoCloseable {
 
         raceRegistration.setPromptText("A0001");
         raceTeam.setPromptText("TeamId");
+        raceStageStart.setPromptText("HH:mm:ss[.fraction] or date/time");
+        replayFromSequence.setPrefColumnCount(8);
 
         raceSet.setOnAction(event -> applyTeamAssignment(false));
         raceDelete.setOnAction(event -> applyTeamAssignment(true));
+        stageStartSet.setOnAction(event -> applyStageStart(false));
+        stageStartDelete.setOnAction(event -> applyStageStart(true));
+        replayRequest.setOnAction(event -> requestTimingData());
     }
 
     private VBox createRaceDataPane() {
@@ -250,11 +254,20 @@ final class CentralPane implements AutoCloseable {
         form.add(raceRegistration, 1, 1);
         form.add(new Label("TeamId"), 0, 2);
         form.add(raceTeam, 1, 2);
+        form.add(new Label("Stage start"), 0, 3);
+        form.add(raceStageStart, 1, 3);
         GridPane.setHgrow(raceNode, Priority.ALWAYS);
         GridPane.setHgrow(raceRegistration, Priority.ALWAYS);
         GridPane.setHgrow(raceTeam, Priority.ALWAYS);
+        GridPane.setHgrow(raceStageStart, Priority.ALWAYS);
 
-        HBox actions = new HBox(8, raceSet, raceDelete);
+        HBox teamActions = new HBox(8, raceSet, raceDelete);
+        HBox stageActions = new HBox(8, stageStartSet, stageStartDelete);
+        HBox replay = new HBox(
+                8,
+                new Label("Replay from seq"),
+                replayFromSequence,
+                replayRequest);
         HBox protocol = new HBox(
                 12,
                 new Label("DN ack"), downstreamAck,
@@ -262,9 +275,12 @@ final class CentralPane implements AutoCloseable {
 
         VBox pane = new VBox(
                 10,
-                new Label("Central team assignment"),
+                new Label("Central RaceData"),
                 form,
-                actions,
+                teamActions,
+                stageActions,
+                new Label("TIMING_DATA replay"),
+                replay,
                 protocol,
                 raceFeedback);
         pane.setPadding(new Insets(8));
@@ -278,8 +294,8 @@ final class CentralPane implements AutoCloseable {
 
         try {
             long sequence = delete
-                    ? raceDataActions.deleteTeamAssignment(nodeId, registrationId)
-                    : raceDataActions.setTeamAssignment(nodeId, registrationId, teamId);
+                    ? centralActions.deleteTeamAssignment(nodeId, registrationId)
+                    : centralActions.setTeamAssignment(nodeId, registrationId, teamId);
             raceFeedback.setText(
                     sequence == 0L
                             ? "RaceData state updated; waiting behind pending DN_PACKET"
@@ -287,12 +303,61 @@ final class CentralPane implements AutoCloseable {
                                     + (delete ? " DEL queued" : " SET queued"));
             refresh();
         } catch (RuntimeException ex) {
-            String message = ex.getMessage();
-            raceFeedback.setText(
-                    message == null || message.isBlank()
-                            ? ex.getClass().getSimpleName()
-                            : message);
+            showRaceError(ex);
         }
+    }
+
+    private void applyStageStart(boolean delete) {
+        String nodeId = raceNode.getValue();
+        String registrationId = raceRegistration.getText();
+        String start = raceStageStart.getText();
+
+        try {
+            long packetNr = delete
+                    ? centralActions.deleteStageStart(nodeId, registrationId)
+                    : centralActions.setStageStart(nodeId, registrationId, start);
+            raceFeedback.setText(
+                    packetNr == 0L
+                            ? "Stage-start change queued behind pending DN_PACKET"
+                            : "DN_PACKET #" + packetNr
+                                    + (delete ? " start DEL queued" : " start SET queued"));
+            refresh();
+        } catch (RuntimeException ex) {
+            showRaceError(ex);
+        }
+    }
+
+    private void requestTimingData() {
+        String nodeId = raceNode.getValue();
+        try {
+            long fromSequence =
+                    Long.parseLong(
+                            replayFromSequence.getText().trim());
+            long packetNr =
+                    centralActions.requestTimingData(
+                            nodeId,
+                            fromSequence);
+            raceFeedback.setText(
+                    packetNr == 0L
+                            ? "TIMING_DATA_REQ queued behind pending DN_PACKET"
+                            : "DN_PACKET #" + packetNr
+                                    + " TIMING_DATA_REQ from "
+                                    + fromSequence
+                                    + " queued");
+            refresh();
+        } catch (NumberFormatException ex) {
+            raceFeedback.setText("Replay from sequence must be an integer");
+        } catch (RuntimeException ex) {
+            showRaceError(ex);
+        }
+    }
+
+    private void showRaceError(RuntimeException ex) {
+        String message = ex.getMessage();
+        raceFeedback.setText(
+                message == null || message.isBlank()
+                        ? ex.getClass().getSimpleName()
+                        : message);
     }
 
     private void refreshRaceNodes(List<CentralSystemSimulator.NodeView> nodeViews) {
@@ -331,8 +396,13 @@ final class CentralPane implements AutoCloseable {
         raceNode.setDisable(!simulator.isConnected() || simulator.nodes().isEmpty());
         raceRegistration.setDisable(!enabled);
         raceTeam.setDisable(!enabled);
+        raceStageStart.setDisable(!enabled);
+        replayFromSequence.setDisable(!enabled);
         raceSet.setDisable(!enabled);
         raceDelete.setDisable(!enabled);
+        stageStartSet.setDisable(!enabled);
+        stageStartDelete.setDisable(!enabled);
+        replayRequest.setDisable(!enabled);
         if (!simulator.isConnected()) {
             raceFeedback.setText("Central upstream not connected");
         } else if (view == null) {

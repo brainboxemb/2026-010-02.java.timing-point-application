@@ -462,6 +462,48 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void manualTimingDataRequestUsesNormalDownstreamPacket() {
+        CentralSystemSimulator simulator =
+                openSimulatorAtLocation(7);
+
+        List<UpstreamData> packets =
+                simulator.requestTimingData(
+                        NODE_A,
+                        1L);
+
+        assertEquals(1, packets.size());
+        UpstreamData packet = packets.get(0);
+        assertEquals(1L, packet.packetNr());
+        assertEquals(UpstreamData.Family.TIMING_DATA_REQ, packet.family());
+        assertEquals(
+                1L,
+                ((UpstreamData.TimingDataRequest) packet.message())
+                        .fromSequence());
+    }
+
+    @Test
+    void stageStartUpdateUsesCurrentRaceDataPacket() {
+        CentralSystemSimulator simulator =
+                openSimulatorAtLocation(7);
+
+        List<UpstreamData> packets =
+                simulator.updateRaceData(
+                        NODE_A,
+                        List.of(),
+                        List.of(
+                                DefaultUpstreamData.createStageStartSet(
+                                        "A0001",
+                                        TimingTimestamp.parse("10:30:00.25"))));
+
+        UpstreamData.RaceData raceData =
+                (UpstreamData.RaceData) packets.get(0).message();
+        assertEquals(1, raceData.stageStartTimeChanges().size());
+        assertEquals(
+                TimingTimestamp.parse("10:30:00.25"),
+                raceData.stageStartTimeChanges().get(0).start());
+    }
+
+    @Test
     void raceDataUpdatesRequireConnectedCentralAndOpenLocation() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));

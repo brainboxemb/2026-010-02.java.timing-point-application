@@ -184,6 +184,28 @@ final class CentralSystemSimulator {
         return sendNextNormalPacketIfPossible(node);
     }
 
+    /** Queues one explicit TIMING_DATA_REQ through normal downstream stop-and-wait delivery. */
+    List<UpstreamData> requestTimingData(
+            NodeId nodeId,
+            long fromSequence) {
+        requireConnected();
+        if (nodeId == null) {
+            throw new IllegalArgumentException("nodeId must not be null");
+        }
+
+        UpstreamData.TimingDataRequest request =
+                DefaultUpstreamData.createTimingDataRequest(
+                        fromSequence);
+        NodeState node = nodes.get(nodeId.value());
+        if (node == null) {
+            throw new IllegalStateException(
+                    "No Central state observed for node " + nodeId.value());
+        }
+
+        node.pendingMessages.addLast(request);
+        return sendNextNormalPacketIfPossible(node);
+    }
+
     /** Returns the exact outstanding normal downstream packet for an explicit retry. */
     UpstreamData outstandingPacket(NodeId nodeId) {
         if (nodeId == null) {
