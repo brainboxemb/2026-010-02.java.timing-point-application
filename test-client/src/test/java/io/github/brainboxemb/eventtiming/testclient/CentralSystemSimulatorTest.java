@@ -130,6 +130,40 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void newerSourceHeadDoesNotQueueDuplicateAutomaticReplayRequest() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(7));
+        simulator.connected();
+
+        UpstreamData request =
+                simulator.accept(
+                        upPacket(
+                                1L,
+                                DefaultUpstreamData.createSequenceNotification(4L)),
+                        RECEIVED)
+                        .get(0);
+        assertEquals(
+                1L,
+                ((UpstreamData.TimingDataRequest) request.message())
+                        .fromSequence());
+
+        List<UpstreamData> retry =
+                simulator.accept(
+                        upPacket(
+                                2L,
+                                DefaultUpstreamData.createSequenceNotification(5L)),
+                        RECEIVED.plusSeconds(1));
+        assertEquals(1, retry.size());
+        assertSame(request, retry.get(0));
+
+        List<UpstreamData> afterAck =
+                simulator.accept(
+                        receivePacket(3L, request.packetNr()),
+                        RECEIVED.plusSeconds(2));
+        assertTrue(afterAck.isEmpty());
+    }
+
+    @Test
     void raceDataUsesOneImmutableOutstandingPacketAndBuildsNextDeltaAfterRecv() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(7);

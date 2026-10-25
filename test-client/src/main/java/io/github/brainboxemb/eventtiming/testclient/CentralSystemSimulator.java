@@ -422,11 +422,44 @@ final class CentralSystemSimulator {
                     DefaultUpstreamData.createSequenceNotification(
                             node.timingDataHead));
         } else if (node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
-            node.pendingMessages.addLast(
-                    DefaultUpstreamData.createTimingDataRequest(
-                            node.timingDataHead + 1L));
+            queueAutomaticTimingDataRequest(
+                    node,
+                    node.timingDataHead + 1L);
         }
         return outstandingOrNext(node);
+    }
+
+    /**
+     * Queues one synchronization replay request unless that exact missing suffix is
+     * already outstanding or queued.
+     */
+    private void queueAutomaticTimingDataRequest(
+            NodeState node,
+            long fromSequence) {
+        if (isTimingDataRequest(
+                node.outstanding,
+                fromSequence)) {
+            return;
+        }
+        for (UpstreamData.Message pending : node.pendingMessages) {
+            if (pending.family() == UpstreamData.Family.TIMING_DATA_REQ
+                    && ((UpstreamData.TimingDataRequest) pending)
+                            .fromSequence() == fromSequence) {
+                return;
+            }
+        }
+        node.pendingMessages.addLast(
+                DefaultUpstreamData.createTimingDataRequest(
+                        fromSequence));
+    }
+
+    private static boolean isTimingDataRequest(
+            UpstreamData packet,
+            long fromSequence) {
+        return packet != null
+                && packet.family() == UpstreamData.Family.TIMING_DATA_REQ
+                && ((UpstreamData.TimingDataRequest) packet.message())
+                        .fromSequence() == fromSequence;
     }
 
     /** Retries the exact outstanding packet, or starts the next queued normal packet. */
