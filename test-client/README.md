@@ -115,13 +115,19 @@ used at IF-05/IF-06 boundaries.
 
 ## Run on Windows
 
-With `JAVA_HOME` pointing to a JDK 21 installation, install the shared public
-IF-06 contract into the local Maven repository and then run the standalone client:
+With `JAVA_HOME` pointing to a JDK 21 installation, use the repository reactor
+entrypoint so Maven automatically builds the shared IF-05/IF-06 contracts and the
+isolated Central module before the runnable Engineering Client:
 
 ```powershell
-.\mvnw.cmd -pl shared/upstream-data -am -DskipTests install
-.\mvnw.cmd -f test-client\pom.xml clean javafx:run
+.\mvnw.cmd -Pdev-client -pl test-client -am verify
+.\mvnw.cmd -f test-client\pom.xml javafx:run
 ```
+
+In NetBeans, open only the root **Timing Point Parent** project, select the
+**dev-client** configuration and use Run or Debug. Do not run
+`test-client-central`: it is an internal SI-02 module and dependency boundary,
+not a second desktop application.
 
 Start SI-01 separately from the normal Java-8 project/NetBeans run configuration.
 To exercise the built-in simulated-tag profiles on the Windows development fallback,
@@ -488,9 +494,11 @@ execution checklist and shall not redefine the VTS.
 ## Verify
 
 ```powershell
-.\mvnw.cmd -f test-client-central\pom.xml install
-.\mvnw.cmd -f test-client\pom.xml verify
+.\mvnw.cmd -Pdev-client -pl test-client -am verify
 ```
+
+The reactor keeps `test-client-central` architecturally separate while making
+its build/install ordering automatic for normal SI-02 development.
 
 API HTTP/WebSocket, live-log and remote-shell client logic remain outside the JavaFX event
 handlers so the UI does not become the owner of protocol semantics. The API client code

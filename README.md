@@ -37,7 +37,7 @@ Formal packaged-process black-box verification is explicit:
 
 ## NetBeans development configurations
 
-The Maven parent project exposes two selectable NetBeans configurations
+The Maven parent project exposes three selectable NetBeans configurations
 in **Project > Properties > Configurations** / **Set Configuration**:
 
 - **dev-reference** — Run and Debug SI-01 with `config/application.yml`.
@@ -45,11 +45,16 @@ in **Project > Properties > Configurations** / **Set Configuration**:
 - **dev-simulation** — Run and Debug SI-01 with `config/development-simulation.yml`.
   This uses the same `reference` EventData mapping as normal startup but a
   separate engineering LogBook.
+- **dev-client** — Build, Run and Debug SI-02 Engineering Client from the same
+  **Timing Point Parent** project. Maven automatically includes and orders
+  `test-client-central` before the runnable `test-client` module.
 
-Normal/default also starts with `config/application.yml`. Select a configuration
-on the **Timing Point Parent** Maven project, then run or debug the project.
-Both use the external Java process (`exec:exec`), not Maven's in-process
-`exec:java`. Restart SI-01 when switching profiles and reconnect SI-02.
+Normal/default still starts SI-01 with `config/application.yml`. Select a
+configuration on the **Timing Point Parent** Maven project, then run or debug the
+project. The SI-01 configurations and `dev-client` all use an external Java
+process (`exec:exec`), not Maven's in-process `exec:java`. `dev-client`
+requires JDK 21; the normal SI-01 reactor remains Java-8-compatible and does not
+include the client modules unless that profile is selected.
 
 **SimulatedAntenna produces tag observations.** EventData only maps TagIds,
 RegistrationIds and TeamIds, regardless of whether the antenna is physical or
