@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.testclient.central.CentralActions;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
