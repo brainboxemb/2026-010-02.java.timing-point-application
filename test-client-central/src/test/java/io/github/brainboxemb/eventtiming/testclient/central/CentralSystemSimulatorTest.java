@@ -76,6 +76,62 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void manualSourceHeadQueryUsesSeqRequestWithoutStartingTimingDataSync() {
+        CentralSystemSimulator simulator =
+                openSimulatorAtLocation(7);
+
+        List<UpstreamData> packets =
+                simulator.requestSourceHead(NODE_A);
+
+        assertEquals(1, packets.size());
+        UpstreamData requestPacket = packets.get(0);
+        assertEquals(1L, requestPacket.packetNr());
+        assertEquals(UpstreamData.Family.SEQ, requestPacket.family());
+        assertSame(
+                UpstreamData.SequenceOperation.REQ,
+                ((UpstreamData.Sequence) requestPacket.message())
+                        .operation());
+        assertTrue(
+                simulator.nodes().get(0).sourceHeadQueryPending());
+
+        List<UpstreamData> onAnswer =
+                simulator.accept(
+                        upPacket(
+                                2L,
+                                DefaultUpstreamData.createSequenceAnswer(5L)),
+                        RECEIVED.plusSeconds(1));
+
+        assertTrue(onAnswer.isEmpty());
+        CentralSystemSimulator.NodeView answered =
+                simulator.nodes().get(0);
+        assertEquals(Long.valueOf(5L), answered.sourceHead());
+        assertFalse(answered.sourceHeadQueryPending());
+        assertSame(
+                requestPacket,
+                simulator.outstandingPacket(NODE_A));
+
+        List<UpstreamData> afterAck =
+                simulator.accept(
+                        receivePacket(
+                                3L,
+                                requestPacket.packetNr()),
+                        RECEIVED.plusSeconds(2));
+        assertTrue(afterAck.isEmpty());
+    }
+
+    @Test
+    void duplicateManualSourceHeadQueryIsRejectedWhileAnswerIsPending() {
+        CentralSystemSimulator simulator =
+                openSimulatorAtLocation(7);
+
+        simulator.requestSourceHead(NODE_A);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> simulator.requestSourceHead(NODE_A));
+    }
+
+    @Test
     void caughtUpSequenceNeedsNoAutomaticCentralResponse() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));

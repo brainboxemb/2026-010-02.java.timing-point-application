@@ -24,7 +24,7 @@ public final class CentralClient implements AutoCloseable {
     private final CentralPane centralPane;
     private final CentralMessagesPane messagesPane;
     private final CentralLogBookPane logBookPane;
-    private final CentralActions actions = new Actions();
+    private final Actions actions = new Actions();
 
     public CentralClient(
             Collection<Integer> configuredLocationIds,
@@ -128,7 +128,7 @@ public final class CentralClient implements AutoCloseable {
         messagesPane.refresh();
     }
 
-    private final class Actions implements CentralActions {
+    private final class Actions implements CentralControlActions {
         @Override
         public long setTeamAssignment(
                 String nodeId,
@@ -196,6 +196,13 @@ public final class CentralClient implements AutoCloseable {
                     simulator.requestTimingData(
                             new NodeId(nodeId),
                             fromSequence));
+        }
+
+        @Override
+        public long requestSourceHead(String nodeId) {
+            return sendPackets(
+                    simulator.requestSourceHead(
+                            new NodeId(nodeId)));
         }
     }
 }

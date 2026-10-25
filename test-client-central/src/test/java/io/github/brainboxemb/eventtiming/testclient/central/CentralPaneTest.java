@@ -21,7 +21,9 @@ final class CentralPaneTest {
                         3L,
                         "OPEN",
                         Integer.valueOf(5),
-                        null);
+                        null,
+                        null,
+                        false);
 
         String compact = CentralPane.compactNodeText(
                 node,
@@ -45,7 +47,9 @@ final class CentralPaneTest {
                         0L,
                         "OPEN",
                         Integer.valueOf(1),
-                        null);
+                        null,
+                        null,
+                        false);
 
         assertEquals(
                 "A [01] · H --- · CNT  12",
@@ -66,7 +70,9 @@ final class CentralPaneTest {
                         0L,
                         "UNKNOWN",
                         null,
-                        null);
+                        null,
+                        null,
+                        false);
 
         assertEquals(
                 "A [??] · H --- · CNT   0",
@@ -87,7 +93,9 @@ final class CentralPaneTest {
                         0L,
                         "CLOSED",
                         null,
-                        null);
+                        null,
+                        null,
+                        false);
 
         assertEquals(
                 "A [--] · H - 30s · CNT 999",
@@ -139,7 +147,9 @@ final class CentralPaneTest {
                         3L,
                         "OPEN",
                         Integer.valueOf(5),
-                        null);
+                        null,
+                        null,
+                        false);
 
         String details = CentralPane.nodeDetailText(node);
 
