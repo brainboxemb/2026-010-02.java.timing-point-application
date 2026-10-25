@@ -20,6 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamDataCodec;
 
 import java.time.Duration;
@@ -47,17 +48,18 @@ final class TimingSystemComposer {
 
     private final RuntimeExecutors executors;
     private final TimingNodeComposer nodeComposer;
-    private final Duration timingDataReplayPacketDelay;
+    private final ReadOnlyConfiguration<Duration> timingDataReplayPacketDelay;
 
     /** The composer retains shared runtime infrastructure but owns no lifecycle. */
     TimingSystemComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
             PlatformEnvironment platform,
-            Duration timingDataReplayPacketDelay) {
+            ReadOnlyConfiguration<Duration> timingDataReplayPacketDelay) {
 
         if (timingDataReplayPacketDelay == null
-                || timingDataReplayPacketDelay.isNegative()) {
+                || timingDataReplayPacketDelay.currentValue() == null
+                || timingDataReplayPacketDelay.currentValue().isNegative()) {
             throw new IllegalArgumentException(
                     "TIMING_DATA replay packet delay must not be negative");
         }

@@ -11,6 +11,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingPatch;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingValue;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingDataDelayConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingDataDelayUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingNodeConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
@@ -1472,6 +1474,13 @@ public final class TerminalSession {
             showConfiguration(nodeId, output);
             return;
         }
+        if (arguments.length >= 2
+                && "upstream".equalsIgnoreCase(arguments[1])) {
+            upstreamConfiguration(
+                    arguments,
+                    output);
+            return;
+        }
         if (arguments.length >= 3
                 && "tag-processing".equalsIgnoreCase(arguments[1])) {
             String action =
@@ -1498,7 +1507,79 @@ public final class TerminalSession {
 
         output.println(
                 "Usage: config [tag-processing "
-                        + "[set <field=value>...|clear]]");
+                        + "[set <field=value>...|clear] "
+                        + "| upstream timing-data-delay [<millis>|clear]]");
+    }
+
+    private void upstreamConfiguration(
+            String[] arguments,
+            PrintWriter output) {
+        if (arguments.length < 3
+                || !"timing-data-delay".equalsIgnoreCase(arguments[2])) {
+            output.println(
+                    "Usage: config upstream timing-data-delay "
+                            + "[<millis>|clear]");
+            return;
+        }
+        if (arguments.length == 3) {
+            showTimingDataDelay(
+                    output,
+                    presentationGateway
+                            .configuration()
+                            .timingDataDelay());
+            return;
+        }
+        if (arguments.length != 4) {
+            output.println(
+                    "Usage: config upstream timing-data-delay "
+                            + "[<millis>|clear]");
+            return;
+        }
+
+        TimingDataDelayUpdate update;
+        if ("clear".equalsIgnoreCase(arguments[3])) {
+            update =
+                    presentationGateway
+                            .configuration()
+                            .clearTimingDataDelay();
+        } else {
+            final long millis;
+            try {
+                millis = Long.parseLong(arguments[3]);
+            } catch (NumberFormatException ex) {
+                output.println(
+                        "Invalid timing-data-delay milliseconds: "
+                                + arguments[3]);
+                return;
+            }
+            update =
+                    presentationGateway
+                            .configuration()
+                            .setTimingDataDelayMillis(millis);
+        }
+
+        output.println(
+                "TimingData packet delay update: "
+                        + update.result().name());
+        showTimingDataDelay(
+                output,
+                update.timingDataDelay());
+    }
+
+    private static void showTimingDataDelay(
+            PrintWriter output,
+            TimingDataDelayConfiguration configuration) {
+        output.println("Upstream");
+        output.println(
+                "  timingDataReplayPacketDelayMillis"
+                        + " : current="
+                        + configuration.currentMillis()
+                        + " startup="
+                        + configuration.startupMillis()
+                        + " overridden="
+                        + configuration.overridden()
+                        + " runtimeMutable="
+                        + configuration.runtimeMutable());
     }
 
     private void setConfiguration(
@@ -1743,6 +1824,11 @@ public final class TerminalSession {
             NodeId nodeId,
             PrintWriter output) {
         output.println("Configuration");
+        showTimingDataDelay(
+                output,
+                presentationGateway
+                        .configuration()
+                        .timingDataDelay());
         for (TimingNodeConfiguration node
                 : presentationGateway
                         .configuration()
@@ -1980,11 +2066,18 @@ public final class TerminalSession {
                 output.println(
                         "       config:<NodeId> tag-processing set <field=value>...");
                 output.println("       config:<NodeId> tag-processing clear");
-                output.println("  Show configuration or change runtime TagProcessor values.");
                 output.println(
-                        "  Fields: quietTimeoutMillis, maxBurstDurationMillis, "
-                                + "duplicateWindowMillis, sweepCadenceMillis, "
-                                + "observationQueueCapacity.");
+                        "       config upstream timing-data-delay "
+                                + "[<millis>|clear]");
+                output.println(
+                        "  Show configuration or change runtime configuration values.");
+                output.println(
+                        "  Tag-processing fields: quietTimeoutMillis, "
+                                + "maxBurstDurationMillis, duplicateWindowMillis, "
+                                + "sweepCadenceMillis, observationQueueCapacity.");
+                output.println(
+                        "  timing-data-delay applies between successive "
+                                + "TIMING_DATA packets in one requested range.");
                 break;
             case "test":
                 output.println("Usage: test[:<NodeId>] logbook write <fail|timeout>");

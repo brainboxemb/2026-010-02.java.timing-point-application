@@ -170,6 +170,59 @@ public final class ConfigurationControl {
         }
     }
 
+    /** Application-scoped TIMING_DATA packet pacing configuration. */
+    public static final class TimingDataDelayConfiguration {
+        private final long startupMillis;
+        private final long currentMillis;
+        private final boolean overridden;
+
+        private TimingDataDelayConfiguration(
+                Duration startup,
+                Duration current,
+                boolean overridden) {
+            startupMillis = startup.toMillis();
+            currentMillis = current.toMillis();
+            this.overridden = overridden;
+        }
+
+        public long startupMillis() {
+            return startupMillis;
+        }
+
+        public long currentMillis() {
+            return currentMillis;
+        }
+
+        public boolean overridden() {
+            return overridden;
+        }
+
+        public boolean runtimeMutable() {
+            return true;
+        }
+    }
+
+    /** Outcome plus authoritative post-request TIMING_DATA packet pacing view. */
+    public static final class TimingDataDelayUpdate {
+        private final UpdateResult result;
+        private final TimingDataDelayConfiguration timingDataDelay;
+
+        private TimingDataDelayUpdate(
+                UpdateResult result,
+                TimingDataDelayConfiguration timingDataDelay) {
+            this.result = result;
+            this.timingDataDelay = timingDataDelay;
+        }
+
+        public UpdateResult result() {
+            return result;
+        }
+
+        public TimingDataDelayConfiguration timingDataDelay() {
+            return timingDataDelay;
+        }
+    }
+
     public static final class TimingNodeConfiguration {
         private final NodeId nodeId;
         private final TagProcessingConfiguration tagProcessing;
@@ -247,15 +300,33 @@ public final class ConfigurationControl {
 
     private final Map<NodeId, DynamicConfiguration<TagProcessingPolicy>>
             tagProcessingByNode;
+    private final DynamicConfiguration<Duration> timingDataReplayPacketDelay;
     private final Event<Change> changes = new Event<Change>();
 
     public ConfigurationControl(
             Map<NodeId, DynamicConfiguration<TagProcessingPolicy>>
                     tagProcessingByNode) {
+        this(
+                tagProcessingByNode,
+                DynamicConfiguration.create(
+                        Duration.ZERO,
+                        ConfigurationControl::validReplayDelay,
+                        (startup, candidate) -> true));
+    }
+
+    public ConfigurationControl(
+            Map<NodeId, DynamicConfiguration<TagProcessingPolicy>>
+                    tagProcessingByNode,
+            DynamicConfiguration<Duration> timingDataReplayPacketDelay) {
         if (tagProcessingByNode == null
                 || tagProcessingByNode.isEmpty()) {
             throw new IllegalArgumentException(
                     "tagProcessingByNode must contain at least one TimingNode");
+        }
+
+        if (timingDataReplayPacketDelay == null) {
+            throw new IllegalArgumentException(
+                    "timingDataReplayPacketDelay must not be null");
         }
 
         Map<NodeId, DynamicConfiguration<TagProcessingPolicy>> copy =
@@ -273,6 +344,8 @@ public final class ConfigurationControl {
         }
         this.tagProcessingByNode =
                 Collections.unmodifiableMap(copy);
+        this.timingDataReplayPacketDelay =
+                timingDataReplayPacketDelay;
 
         for (Map.Entry<NodeId, DynamicConfiguration<TagProcessingPolicy>> entry
                 : this.tagProcessingByNode.entrySet()) {
@@ -336,6 +409,38 @@ public final class ConfigurationControl {
                 view(configuration));
     }
 
+    public synchronized TimingDataDelayConfiguration timingDataDelay() {
+        return timingDataDelayView(
+                timingDataReplayPacketDelay);
+    }
+
+    public synchronized TimingDataDelayUpdate setTimingDataDelayMillis(
+            long millis) {
+        if (millis < 0L) {
+            return new TimingDataDelayUpdate(
+                    UpdateResult.INVALID,
+                    timingDataDelayView(
+                            timingDataReplayPacketDelay));
+        }
+
+        ConfigurationUpdateResult result =
+                timingDataReplayPacketDelay.override(
+                        Duration.ofMillis(millis));
+        return new TimingDataDelayUpdate(
+                UpdateResult.valueOf(result.name()),
+                timingDataDelayView(
+                        timingDataReplayPacketDelay));
+    }
+
+    public synchronized TimingDataDelayUpdate clearTimingDataDelay() {
+        ConfigurationUpdateResult result =
+                timingDataReplayPacketDelay.clearOverride();
+        return new TimingDataDelayUpdate(
+                UpdateResult.valueOf(result.name()),
+                timingDataDelayView(
+                        timingDataReplayPacketDelay));
+    }
+
     public EventSource<Change> changes() {
         return changes;
     }
@@ -362,6 +467,19 @@ public final class ConfigurationControl {
                 configuration.startupValue(),
                 configuration.currentValue(),
                 configuration.overridden());
+    }
+
+    private static TimingDataDelayConfiguration timingDataDelayView(
+            DynamicConfiguration<Duration> configuration) {
+        return new TimingDataDelayConfiguration(
+                configuration.startupValue(),
+                configuration.currentValue(),
+                configuration.overridden());
+    }
+
+    private static boolean validReplayDelay(Duration value) {
+        return value != null
+                && !value.isNegative();
     }
 
     /** Applies one presentation patch to the current policy without mutating state. */

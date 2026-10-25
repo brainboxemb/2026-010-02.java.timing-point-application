@@ -25,6 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.Simulate
 
 import java.io.Reader;
 import java.io.Writer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -64,6 +65,11 @@ final class TimingApplicationAssembler {
             RuntimeTimeSources runtimeTimeSources =
                     new RuntimeTimeSources(
                             platform);
+            DynamicConfiguration<Duration> timingDataReplayPacketDelay =
+                    DynamicConfiguration.create(
+                            config.upstream().timingDataReplayPacketDelay(),
+                            value -> value != null && !value.isNegative(),
+                            (startup, candidate) -> true);
             List<TimingNode> timingNodes = new ArrayList<TimingNode>();
             List<TimingNodeProxyComponents> presentationNodes =
                     new ArrayList<TimingNodeProxyComponents>();
@@ -80,8 +86,7 @@ final class TimingApplicationAssembler {
                             applicationConfiguration,
                             executors,
                             platform,
-                            config.upstream()
-                                    .timingDataReplayPacketDelay());
+                            timingDataReplayPacketDelay);
 
             for (TimingSystemResolvedData resolvedSystem
                     : resolvedSystems) {
@@ -130,7 +135,8 @@ final class TimingApplicationAssembler {
             TimingNodeList allTimingNodes = new TimingNodeList(timingNodes);
             ConfigurationControl configurationControl =
                     createConfigurationControl(
-                            applicationConfiguration);
+                            applicationConfiguration,
+                            timingDataReplayPacketDelay);
             PresentationGateway presentationGateway =
                     new PresentationGateway(
                             buildIdentity,
@@ -196,7 +202,9 @@ final class TimingApplicationAssembler {
 
     /** Exposes only the mutable settings that presentation may update. */
     private static ConfigurationControl createConfigurationControl(
-            ApplicationConfiguration configuration) {
+            ApplicationConfiguration configuration,
+            DynamicConfiguration<Duration>
+                    timingDataReplayPacketDelay) {
         Map<NodeId,
                 DynamicConfiguration<TagProcessingPolicy>> tagProcessing =
                 new LinkedHashMap<NodeId,
@@ -213,7 +221,8 @@ final class TimingApplicationAssembler {
         }
 
         return new ConfigurationControl(
-                tagProcessing);
+                tagProcessing,
+                timingDataReplayPacketDelay);
     }
 
     /** Validates the already resolved inputs required to build the runtime graph. */

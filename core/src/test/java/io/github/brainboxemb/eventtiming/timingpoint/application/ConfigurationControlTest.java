@@ -169,6 +169,47 @@ public class ConfigurationControlTest {
     }
 
     @Test
+    public void timingDataDelayCanBeOverriddenAndClearedAtRuntime() {
+        Fixture fixture = new Fixture();
+
+        ConfigurationControl.TimingDataDelayConfiguration startup =
+                fixture.control.timingDataDelay();
+        assertEquals(125L, startup.startupMillis());
+        assertEquals(125L, startup.currentMillis());
+        assertFalse(startup.overridden());
+
+        ConfigurationControl.TimingDataDelayUpdate applied =
+                fixture.control.setTimingDataDelayMillis(500L);
+        assertEquals(
+                ConfigurationControl.UpdateResult.APPLIED,
+                applied.result());
+        assertEquals(500L, applied.timingDataDelay().currentMillis());
+        assertTrue(applied.timingDataDelay().overridden());
+
+        ConfigurationControl.TimingDataDelayUpdate cleared =
+                fixture.control.clearTimingDataDelay();
+        assertEquals(
+                ConfigurationControl.UpdateResult.APPLIED,
+                cleared.result());
+        assertEquals(125L, cleared.timingDataDelay().currentMillis());
+        assertFalse(cleared.timingDataDelay().overridden());
+    }
+
+    @Test
+    public void negativeTimingDataDelayIsInvalidWithoutChangingCurrentValue() {
+        Fixture fixture = new Fixture();
+
+        ConfigurationControl.TimingDataDelayUpdate update =
+                fixture.control.setTimingDataDelayMillis(-1L);
+
+        assertEquals(
+                ConfigurationControl.UpdateResult.INVALID,
+                update.result());
+        assertEquals(125L, update.timingDataDelay().currentMillis());
+        assertFalse(update.timingDataDelay().overridden());
+    }
+
+    @Test
     public void sameEffectiveValueReturnsNoChangeWithoutEvent() {
         Fixture fixture = new Fixture();
         AtomicInteger changes = new AtomicInteger();
@@ -215,6 +256,11 @@ public class ConfigurationControlTest {
     }
 
     private static final class Fixture {
+        private final DynamicConfiguration<Duration> replayDelay =
+                DynamicConfiguration.create(
+                        Duration.ofMillis(125L),
+                        value -> value != null && !value.isNegative(),
+                        (startup, candidate) -> true);
         private final DynamicConfiguration<TagProcessingPolicy> dynamic =
                 DynamicConfiguration.create(
                         TagProcessingPolicy.defaults(),
@@ -230,7 +276,10 @@ public class ConfigurationControlTest {
                             NodeId,
                             DynamicConfiguration<TagProcessingPolicy>>();
             values.put(NODE_ID, dynamic);
-            control = new ConfigurationControl(values);
+            control =
+                    new ConfigurationControl(
+                            values,
+                            replayDelay);
         }
     }
 }
