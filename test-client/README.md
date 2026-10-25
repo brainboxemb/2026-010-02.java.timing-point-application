@@ -319,10 +319,14 @@ Registrations and LogBook already use the same presentation-only trailing-row fo
 pattern; their compact **End** column header resumes live following without consuming
 additional toolbar space.
 
-The main **Connect** action opens ordinary Events, Terminal and Device Log. **Central**
-remains an explicit separate role switch: only `/api/v1/events?role=upstream` makes
-SI-01 see a Central upstream peer. Ordinary API/Events connectivity never implies
-Central availability.
+The main **Connect** action opens ordinary Events, Terminal and Device Log. When only
+some of those links are alive, the toolbar shows the existing orange partial state and
+enables **Reconnect**. Reconnect checks the API and restores only missing ordinary links;
+already-connected links are not cycled. This is particularly useful after SI-01
+`reboot +log`: Device Log remains connected while Events and Terminal can be restored
+with one action. **Central** remains an explicit separate role switch:
+only `/api/v1/events?role=upstream` makes SI-01 see a Central upstream peer. Ordinary
+API/Events connectivity and Reconnect never imply Central availability.
 
 ## Timing workbench behaviour
 

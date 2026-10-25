@@ -2,6 +2,8 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class ConnectionToolbarStateTest {
     @Test
@@ -14,5 +16,12 @@ final class ConnectionToolbarStateTest {
                 ConnectionToolbarState.of(true, true, false));
         assertEquals(ConnectionToolbarState.ALL,
                 ConnectionToolbarState.of(true, true, true));
+    }
+
+    @Test
+    void reconnectIsOnlyAvailableForPartialConnectivity() {
+        assertFalse(ConnectionToolbarState.NONE.reconnectAvailable());
+        assertTrue(ConnectionToolbarState.PARTIAL.reconnectAvailable());
+        assertFalse(ConnectionToolbarState.ALL.reconnectAvailable());
     }
 }

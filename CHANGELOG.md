@@ -1,5 +1,7 @@
 # Changelog
 
+- Add a secondary Engineering Client **Reconnect** action for partial target connectivity: it rechecks the API and restores only missing Events, Terminal and Device Log links while leaving already-connected links (notably Device Log after `reboot +log`) untouched; Central remains explicit.
+
 - Add terminal `reboot +log`: restart SI-01 while retaining the active process Logging engine and LoggingServer client connection; ordinary `reboot` remains a full restart that recreates logging, and logging-related YAML changes are deferred until that full reboot when `+log` is used.
 
 - Make TIMING_DATA execution boundaries explicit in INFO logging: replay logs its actual task start with requested/captured positions, and proactive live forwarding logs only productive task runs plus each queued LogBook read before the existing upstream queued/sent packet evidence.
