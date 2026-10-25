@@ -61,7 +61,8 @@ jobs:
 
           bad_paths = [
               p.as_posix() for p in root.rglob("*")
-              if old_path in p.as_posix() or "io/github/brainboxemb/eventtiming" in p.as_posix()
+              if p.is_file()
+              and (old_path in p.as_posix() or "io/github/brainboxemb/eventtiming" in p.as_posix())
           ]
           if bad_paths:
               raise SystemExit("Old package paths remain:\n" + "\n".join(bad_paths[:50]))
