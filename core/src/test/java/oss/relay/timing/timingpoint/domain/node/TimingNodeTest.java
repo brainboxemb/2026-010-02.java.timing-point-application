@@ -1,0 +1,1137 @@
+package oss.relay.timing.timingpoint.domain.node;
+
+import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
+import oss.relay.timing.timingdata.TimingRecord;
+import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
+import oss.relay.timing.timingdata.TimingTimestamp;
+import oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
+import oss.relay.timing.timingpoint.testsupport.TimingNodeFixture;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBook;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookCommands;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQueries;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookTestControl;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookStatus;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
+import oss.relay.timing.timingpoint.infra.property.Property;
+import oss.relay.timing.timingpoint.infra.property.PropertyUpdate;
+
+import java.time.Instant;
+import java.util.Collections;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.After;
+import org.junit.Test;
+
+import static oss.relay.timing.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static oss.relay.timing.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+public class TimingNodeTest {
+    private final List<ExecutorService> ownedWorkers =
+            new ArrayList<ExecutorService>();
+
+    @After
+    public void stopOwnedWorkers() {
+        for (ExecutorService worker : ownedWorkers) {
+            worker.shutdownNow();
+        }
+    }
+
+    /** Waits for asynchronous TimingNode startup before testing steady-state LogBook behavior. */
+    private static void awaitOperational(TimingNode node) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState() == TimingNodeTypes.OperationalState.INIT
+                && System.nanoTime() < deadline) {
+            Thread.sleep(1L);
+        }
+
+        assertEquals(TimingNodeTypes.OperationalState.OK, node.operationalState());
+    }
+
+    /**
+     * Waits until an ordered LogBook count query can enter the deliberately tiny Data Lane.
+     *
+     * <p>The full-lane test controls command admission, not the exact scheduler
+     * instruction on which the lane becomes empty again. A transient queue-full
+     * rejection after the accepted commands publish is therefore retried within
+     * the same one-second test bound.</p>
+     */
+    private static int awaitTimingDataCount(TimingNode node) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1L);
+        while (System.nanoTime() < deadline) {
+            try {
+                return node.logBook()
+                        .process(LogBookQueries.timingDataCount())
+                        .intValue();
+            } catch (IllegalStateException ex) {
+                String message = ex.getMessage();
+                if (message == null || !message.contains("Data Lane is full")) {
+                    throw ex;
+                }
+                Thread.sleep(1L);
+            }
+        }
+        throw new AssertionError("timingDataCount query did not enter the LogBook Data Lane");
+    }
+
+    private ExecutorService newDataLaneExecutor(String threadName) {
+        ExecutorService worker =
+                Executors.newSingleThreadExecutor(
+                        runnable -> new Thread(runnable, threadName));
+        ownedWorkers.add(worker);
+        return worker;
+    }
+
+    @Test
+    public void startsClosedWithoutLocation() {
+        NodeId id = new NodeId("A");
+        TimingNode node = node(id);
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+            assertFalse(node.locationId() != null);
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void timingNodePublishesFunctionalStateAfterOpenAndClose() {
+        TimingNode node = node(new NodeId("A"));
+        List<PropertyUpdate> changes =
+                new ArrayList<PropertyUpdate>();
+
+        node.PROPERTIES.CHANGED.subscribe(
+                changed -> {
+                    if (changedProperty(changed, "functionalState")) {
+                        changes.add(changed);
+                    }
+                });
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+
+            assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.close());
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+
+            assertEquals(2, changes.size());
+            assertTrue(changedProperty(changes.get(0), "functionalState"));
+            assertTrue(changedProperty(changes.get(0), "locationId"));
+            assertTrue(changedProperty(changes.get(1), "functionalState"));
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void activationReturnsWhileMainTaskLoadsPersistedData()
+            throws Exception {
+        BlockingPersistence persistence =
+                new BlockingPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        4,
+                        "timing-node-load-worker",
+                        1000L);
+        final Throwable[] activationFailure = new Throwable[1];
+        Thread activationCaller = new Thread(
+                () -> {
+                    try {
+                        activate(node);
+                    } catch (Throwable failure) {
+                        activationFailure[0] = failure;
+                    }
+                },
+                "timing-node-activation-caller");
+
+        activationCaller.start();
+        try {
+            assertTrue(
+                    "persisted-data load did not start",
+                    persistence.loadStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            activationCaller.join(250L);
+            assertFalse(
+                    "activate() must return while persisted-data load is running",
+                    activationCaller.isAlive());
+            assertNull(activationFailure[0]);
+            assertEquals(
+                    TimingNodeTypes.OperationalState.INIT,
+                    node.operationalState());
+            persistence.releaseLoad.countDown();
+
+            long deadline =
+                    System.nanoTime()
+                            + TimeUnit.SECONDS.toNanos(1L);
+            while (node.operationalState()
+                            == TimingNodeTypes.OperationalState.INIT
+                    && System.nanoTime() < deadline) {
+                Thread.sleep(1L);
+            }
+
+            assertEquals(
+                    TimingNodeTypes.OperationalState.OK,
+                    node.operationalState());
+            assertEquals(
+                    0,
+                    node.logBook().process(
+                            LogBookQueries.timingDataCount()).intValue());
+        } finally {
+            persistence.releaseLoad.countDown();
+            activationCaller.join(1000L);
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void deactivationDoesNotWaitForRunningMainTask()
+            throws Exception {
+        UninterruptibleLoadPersistence persistence =
+                new UninterruptibleLoadPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        4,
+                        "timing-node-stop-worker",
+                        1000L);
+        LogBook logBook = (LogBook) node.logBook();
+        CountDownLatch statusPublished = new CountDownLatch(1);
+        logBook.STATUS.subscribe(ignored -> statusPublished.countDown());
+
+        activate(node);
+        assertTrue(
+                "persisted-data load did not start",
+                persistence.loadStarted.await(
+                        1L,
+                        TimeUnit.SECONDS));
+
+        Thread deactivationCaller =
+                new Thread(
+                        () -> deactivate(node),
+                        "timing-node-deactivation-caller");
+        deactivationCaller.start();
+        deactivationCaller.join(250L);
+
+        assertFalse(
+                "deactivate() must not wait for the running MainTask",
+                deactivationCaller.isAlive());
+        assertEquals(
+                TimingNodeTypes.OperationalState.INIT,
+                node.operationalState());
+
+        persistence.releaseLoad.countDown();
+        assertTrue(
+                "blocking persistence did not return",
+                persistence.loadReturned.await(1L, TimeUnit.SECONDS));
+        assertFalse(
+                "inactive LogBook must not publish status",
+                statusPublished.await(100L, TimeUnit.MILLISECONDS));
+        assertEquals(
+                "cancelled MainTask must not publish a completion state",
+                TimingNodeTypes.OperationalState.INIT,
+                node.operationalState());
+        deactivationCaller.join(1000L);
+    }
+    @Test
+    public void failedPersistedDataLoadDoesNotReplaceFunctionalState() throws Exception {
+        TimingNode node = TimingNodeFixture.createDirect(
+                new NodeId("A"),
+                new FailingLoadPersistence(),
+                TimingNodeTest::now);
+
+        activate(node);
+        try {
+            awaitOperationalState(
+                    node,
+                    TimingNodeTypes.OperationalState.OK);
+            assertEquals(LogBookStatus.ERROR, node.logBook().status());
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+            assertNull(node.locationId());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void openAppliesRequestedLocationAtomically() {
+        TimingNode node = node(new NodeId("A"));
+        LocationId openLocation = new LocationId(24);
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(openLocation));
+
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(openLocation, node.locationId());
+
+            assertEquals(
+                    TimingNodeTypes.CloseResult.CLOSED,
+                    node.close());
+
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+            assertEquals(openLocation, node.locationId());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void openAndCloseCommitOperationStateTimingDataInSourceOrder() {
+        NodeId id = new NodeId("A");
+        RecordingPersistence persistence = new RecordingPersistence();
+        TimingNode node = TimingNodeFixture.createDirect(
+                id,
+                persistence,
+                TimingNodeTest::now);
+        List<TimingRecord> committedEvents = new ArrayList<TimingRecord>();
+        node.NEW_DATA_ENTRY.subscribe(committedEvents::add);
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.CloseResult.CLOSED,
+                    node.close());
+
+            assertEquals(
+                    2,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, persistence.records.size());
+            assertEquals(TimingRecord.Kind.NODE_OPEN, persistence.records.get(0).kind());
+            assertEquals(TimingRecord.Kind.NODE_CLOSE, persistence.records.get(1).kind());
+            assertEquals(1L, persistence.records.get(0).sequenceNumber());
+            assertEquals(2L, persistence.records.get(1).sequenceNumber());
+            assertEquals(24, persistence.records.get(0).locationId());
+            assertEquals(24, persistence.records.get(1).locationId());
+            assertEquals(2, committedEvents.size());
+            assertEquals(persistence.records.get(0), committedEvents.get(0));
+            assertEquals(persistence.records.get(1), committedEvents.get(1));
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void generatedLifecycleAndRecordedTimesUseConfiguredPrecision() {
+        RecordingPersistence persistence = new RecordingPersistence();
+        final int[] call = {0};
+        final Instant[] times = {
+            Instant.parse("2026-10-02T08:00:00.129876543Z"),
+            Instant.parse("2026-10-02T08:00:00.134876543Z")
+        };
+        TimingNode node = TimingNodeFixture.createDirect(
+                new NodeId("A"),
+                persistence,
+                () -> times[Math.min(call[0]++, times.length - 1)]);
+
+        activate(node);
+        try {
+            node.open(new LocationId(24));
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+
+            TimingRecord open = persistence.records.get(0);
+            assertEquals(
+                    TimingTimestamp.parse(
+                            "2026-10-02T08:00:00.12Z").instant().toEpochMilli(),
+                    open.effectiveTimeMillis());
+            assertEquals(
+                    Instant.parse("2026-10-02T08:00:00.129Z").toEpochMilli(),
+                    open.recordedAtMillis());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void repeatedLifecycleCommandsDoNotCreateAdditionalTimingData() {
+        RecordingPersistence persistence = new RecordingPersistence();
+        TimingNode node = TimingNodeFixture.createDirect(
+                new NodeId("A"),
+                persistence,
+                TimingNodeTest::now);
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.OpenResult.ALREADY_OPEN,
+                    node.open(new LocationId(25)));
+            assertEquals(
+                    TimingNodeTypes.CloseResult.CLOSED,
+                    node.close());
+            assertEquals(
+                    TimingNodeTypes.CloseResult.ALREADY_CLOSED,
+                    node.close());
+
+            assertEquals(
+                    2,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, persistence.records.size());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void failedOpenHistoryKeepsNodeOpen() {
+        FailingPersistence persistence = new FailingPersistence();
+        TimingNode node = TimingNodeFixture.createDirect(
+                new NodeId("A"),
+                persistence,
+                TimingNodeTest::now);
+        List<TimingRecord> committedEvents = new ArrayList<TimingRecord>();
+        node.NEW_DATA_ENTRY.subscribe(committedEvents::add);
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+
+            assertEquals(
+                    0,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+            assertTrue(committedEvents.isEmpty());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void openRequiresLocation() {
+        try {
+            node(new NodeId("A")).open(null);
+            fail("expected location validation failure");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("locationId"));
+        }
+    }
+
+    @Test
+    public void repeatedStateCommandsReturnProcessedResults() {
+        TimingNode node = node(new NodeId("A"));
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.OpenResult.ALREADY_OPEN,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.OpenResult.ALREADY_OPEN,
+                    node.open(new LocationId(25)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+            assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.close());
+            assertEquals(TimingNodeTypes.CloseResult.ALREADY_CLOSED, node.close());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void lifecycleLogBookCommandsDoNotOwnTimingNodeStatus() {
+        TimingNode node = node(new NodeId("A"));
+
+        activate(node);
+        try {
+            node.logBook().process(
+                    LogBookCommands.commitNodeOpen(new LocationId(24)));
+            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
+            assertNull(node.locationId());
+
+            node.logBook().process(
+                    LogBookCommands.commitNodeClose(new LocationId(24)));
+            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
+            assertNull(node.locationId());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void openDoesNotWaitForBlockedHistoryAppend()
+            throws Exception {
+        BlockingAppendPersistence persistence =
+                new BlockingAppendPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        2,
+                        "timing-node-test",
+                        1000L);
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+            assertTrue(
+                    persistence.appendStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            persistence.releaseAppend.countDown();
+
+            List<TimingRecord> committed =
+                    node.logBook().process(
+                            LogBookQueries.timingRecordRange(1L, 1));
+            assertEquals(1, committed.size());
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
+        } finally {
+            persistence.releaseAppend.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void rejectedOpenHistoryDoesNotRejectFunctionalOpen()
+            throws Exception {
+        BlockingAppendPersistence persistence =
+                new BlockingAppendPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        1,
+                        "timing-node-full-logbook-test",
+                        1000L);
+        CountDownLatch committed = new CountDownLatch(2);
+        node.NEW_DATA_ENTRY.subscribe(
+                ignored -> committed.countDown());
+
+        activate(node);
+        try {
+            awaitOperational(node);
+
+            node.logBook().execute(
+                    LogBookCommands.commitNodeOpen(new LocationId(99)));
+            assertTrue(
+                    persistence.appendStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            // Fill the only waiting Data Lane slot while the first append is blocked.
+            node.logBook().execute(
+                    LogBookCommands.commitNodeClose(new LocationId(99)));
+
+            // This LogBook history command is rejected, but functional state still changes.
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+
+            persistence.releaseAppend.countDown();
+            assertTrue(
+                    "accepted LogBook commands did not drain",
+                    committed.await(1L, TimeUnit.SECONDS));
+            assertEquals(
+                    2,
+                    awaitTimingDataCount(node));
+        } finally {
+            persistence.releaseAppend.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void delayedLifecycleWriteDoesNotDelayFunctionalOpen()
+            throws Exception {
+        TimingNode node = TimingNodeFixture.createWithLogBookExecution(
+                new NodeId("A"),
+                new NoOpPersistence(),
+                TimingNodeTest::now,
+                newDataLaneExecutor("timing-node-test-hook"),
+                4,
+                4,
+                25L,
+                1000L);
+
+        activate(node);
+        try {
+            ((LogBookTestControl) node.logBook()).armNextWriteFailure(
+                    LogBookTestControl.WriteFailure.TIMEOUT);
+
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+
+            List<TimingRecord> committed =
+                    node.logBook().process(
+                            LogBookQueries.timingRecordRange(1L, 1));
+            assertEquals(1, committed.size());
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void concurrentOpenAndCloseCommitHistoryInFunctionalOrder()
+            throws Exception {
+        BlockingAppendPersistence persistence =
+                new BlockingAppendPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        4,
+                        "timing-node-test",
+                        1000L);
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertTrue(
+                    persistence.appendStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            assertEquals(
+                    TimingNodeTypes.CloseResult.CLOSED,
+                    node.close());
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+
+            persistence.releaseAppend.countDown();
+
+            List<TimingRecord> committed =
+                    node.logBook().process(
+                            LogBookQueries.timingRecordRange(1L, 2));
+            assertEquals(2, committed.size());
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
+            assertEquals(TimingRecord.Kind.NODE_CLOSE, committed.get(1).kind());
+        } finally {
+            persistence.releaseAppend.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void queueReturnsAfterAdmissionWithoutWaitingForExecution()
+            throws Exception {
+        BlockingAppendPersistence persistence =
+                new BlockingAppendPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        2,
+                        "timing-node-offer-test",
+                        1000L);
+        CountDownLatch producerReturned = new CountDownLatch(1);
+
+        activate(node);
+        try {
+            Thread producer = new Thread(
+                    () -> {
+                        node.logBook().execute(
+                                LogBookCommands.commitNodeOpen(
+                                        new LocationId(24)));
+                        producerReturned.countDown();
+                    });
+            producer.start();
+
+            assertTrue(
+                    "offer-only producer must not wait for command execution",
+                    producerReturned.await(250L, TimeUnit.MILLISECONDS));
+            assertTrue(
+                    persistence.appendStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            persistence.releaseAppend.countDown();
+            producer.join(1000L);
+            assertFalse(producer.isAlive());
+
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+        } finally {
+            persistence.releaseAppend.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void logBookStatusDoesNotWaitBehindQueuedWork() throws Exception {
+        BlockingAppendPersistence persistence =
+                new BlockingAppendPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        3,
+                        "timing-node-current-test",
+                        25L);
+
+        activate(node);
+        try {
+            awaitOperational(node);
+
+            node.logBook().execute(
+                    LogBookCommands.commitNodeOpen(new LocationId(24)));
+            assertTrue(
+                    persistence.appendStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            assertEquals(LogBookStatus.LOADED, node.logBook().status());
+
+            persistence.releaseAppend.countDown();
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+        } finally {
+            persistence.releaseAppend.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void functionalStateEventDoesNotWaitForHistoryCommit()
+            throws Exception {
+        BlockingAppendPersistence persistence =
+                new BlockingAppendPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        2,
+                        "timing-node-state-event-test",
+                        1000L);
+        CountDownLatch functionalEvent = new CountDownLatch(1);
+        CountDownLatch historyEvent = new CountDownLatch(1);
+
+        node.PROPERTIES.CHANGED.subscribe(
+                change -> {
+                    if (changedProperty(change, "functionalState")
+                            && node.functionalState() == TimingNodeTypes.FunctionalState.OPEN) {
+                        functionalEvent.countDown();
+                    }
+                });
+        node.NEW_DATA_ENTRY.subscribe(
+                ignored -> historyEvent.countDown());
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+
+            assertTrue(functionalEvent.await(250L, TimeUnit.MILLISECONDS));
+            assertTrue(
+                    persistence.appendStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    "history must still be waiting for persistence",
+                    1L,
+                    historyEvent.getCount());
+
+            persistence.releaseAppend.countDown();
+            assertTrue(historyEvent.await(1L, TimeUnit.SECONDS));
+        } finally {
+            persistence.releaseAppend.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void currentConsistencyRejectsOrderedOnlyLogBookQuery() {
+        TimingNode node = node(new NodeId("A"));
+
+        activate(node);
+        try {
+            try {
+                node.logBook().process(
+                        LogBookQueries.timingDataCount(),
+                        ReadConsistency.CURRENT);
+                fail("expected unsupported CURRENT query");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("CURRENT"));
+            }
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void statusIsClosedOutsideActivation() {
+        TimingNode node = node(new NodeId("A"));
+
+        assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
+        assertNull(node.locationId());
+
+        activate(node);
+        assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
+        deactivate(node);
+
+        assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
+        assertNull(node.locationId());
+    }
+
+    @Test
+    public void invalidSecondActivationDoesNotClearPublishedCurrentStatus() {
+        TimingNode node = node(new NodeId("A"));
+
+        activate(node);
+        try {
+            TimingNodeTypes.FunctionalState functionalBefore =
+                    node.functionalState();
+            LocationId locationBefore = node.locationId();
+
+            try {
+                activate(node);
+                fail("expected duplicate activation failure");
+            } catch (IllegalStateException expected) {
+                // Existing active lifecycle remains authoritative.
+            }
+
+            assertEquals(functionalBefore, node.functionalState());
+            assertEquals(locationBefore, node.locationId());
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void logBookErrorStillAllowsTimingNodeOpen() throws Exception {
+        TimingNode node = TimingNodeFixture.createDirect(
+                new NodeId("A"),
+                new FailingLoadPersistence(),
+                TimingNodeTest::now);
+
+        activate(node);
+        try {
+            awaitOperationalState(
+                    node,
+                    TimingNodeTypes.OperationalState.OK);
+            assertEquals(LogBookStatus.ERROR, node.logBook().status());
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void commandBeforeStartIsUnavailableWhileStatusIsReadable() {
+        TimingNode node = node(new NodeId("A"));
+
+        assertEquals(LogBookStatus.INIT, node.logBook().status());
+        assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
+        try {
+            node.open(new LocationId(24));
+            fail("expected operation failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("not active"));
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMissingIdentity() {
+        TimingNodeFixture.createDirect(
+                null,
+                new NoOpPersistence(),
+                TimingNodeTest::now);
+    }
+
+    private static void awaitOperationalState(
+            TimingNode node,
+            TimingNodeTypes.OperationalState expected)
+            throws Exception {
+
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState() != expected) {
+            if (System.nanoTime() >= deadline) {
+                fail(
+                        "TimingNode did not reach operational state "
+                                + expected
+                                + "; current="
+                                + node.operationalState());
+            }
+            Thread.sleep(1L);
+        }
+    }
+
+    private static TimingNode node(NodeId id) {
+        return TimingNodeFixture.createDirect(
+                id,
+                new NoOpPersistence(),
+                TimingNodeTest::now);
+    }
+
+    /**
+     * Creates a complete node with explicit LogBook SerialLane settings for
+     * boundary tests.
+     */
+    private TimingNode node(
+            NodeId id,
+            int capacity,
+            String threadName,
+            long timeoutMillis) {
+        return node(
+                id,
+                new NoOpPersistence(),
+                capacity,
+                threadName,
+                timeoutMillis);
+    }
+
+    private TimingNode node(
+            NodeId id,
+            TimingDataPersistence persistence,
+            int capacity,
+            String threadName,
+            long timeoutMillis) {
+        return TimingNodeFixture.createWithLogBookExecution(
+                id,
+                persistence,
+                TimingNodeTest::now,
+                newDataLaneExecutor(threadName),
+                capacity,
+                capacity,
+                timeoutMillis,
+                timeoutMillis);
+    }
+
+    private static Instant now() {
+        return Instant.parse("2026-10-02T08:00:00Z");
+    }
+
+    private static final class UninterruptibleLoadPersistence
+            implements TimingDataPersistence {
+        private final CountDownLatch loadStarted =
+                new CountDownLatch(1);
+        private final CountDownLatch releaseLoad =
+                new CountDownLatch(1);
+        private final CountDownLatch loadReturned =
+                new CountDownLatch(1);
+
+        @Override
+        public LoadResult load() {
+            loadStarted.countDown();
+            boolean interrupted = false;
+            while (releaseLoad.getCount() != 0L) {
+                try {
+                    releaseLoad.await();
+                } catch (InterruptedException ex) {
+                    interrupted = true;
+                }
+            }
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            loadReturned.countDown();
+            return new LoadResult(
+                    Collections.<TimingRecord>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+            // MainTask deactivation test only.
+        }
+    }
+    private static final class BlockingPersistence implements TimingDataPersistence {
+        private final CountDownLatch loadStarted =
+                new CountDownLatch(1);
+        private final CountDownLatch releaseLoad =
+                new CountDownLatch(1);
+
+        @Override
+        public LoadResult load()
+                throws PersistenceException {
+            loadStarted.countDown();
+            try {
+                releaseLoad.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new PersistenceException(
+                        "test persisted-data load interrupted",
+                        ex);
+            }
+            return new LoadResult(
+                    Collections.<TimingRecord>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+            // Lifecycle-recovery test only.
+        }
+    }
+
+    private static final class BlockingAppendPersistence
+            implements TimingDataPersistence {
+        private final CountDownLatch appendStarted =
+                new CountDownLatch(1);
+        private final CountDownLatch releaseAppend =
+                new CountDownLatch(1);
+
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingRecord>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+            appendStarted.countDown();
+            try {
+                releaseAppend.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(
+                        "interrupted while blocking test append",
+                        ex);
+            }
+        }
+    }
+
+    private static final class RecordingPersistence implements TimingDataPersistence {
+        private final List<TimingRecord> records =
+                new ArrayList<TimingRecord>();
+
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingRecord>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+            records.add(record);
+        }
+    }
+
+    private static final class FailingLoadPersistence implements TimingDataPersistence {
+        @Override
+        public LoadResult load()
+                throws PersistenceException {
+            throw new PersistenceException("test load failure");
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+            // Failed startup-load test only.
+        }
+    }
+
+    private static final class FailingPersistence implements TimingDataPersistence {
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingRecord>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingRecord record)
+                throws PersistenceException {
+            throw new PersistenceException("test append failure");
+        }
+    }
+
+    private static final class NoOpPersistence implements TimingDataPersistence {
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingRecord>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+            // TimingNodeTest exercises execution/state behaviour, not persistence.
+        }
+    }
+    private static boolean changedProperty(
+            PropertyUpdate update,
+            String name) {
+
+        for (Property<?> property : update.properties) {
+            if (name.equals(property.name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+}

@@ -60,7 +60,7 @@
             <exec.vmArgs></exec.vmArgs>
             <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
             <exec.appArgs>--config "${maven.multiModuleProjectDirectory}/config/development-simulation.yml"</exec.appArgs>
-            <exec.mainClass>oss.relay.eventtiming.timingpoint.app.Main</exec.mainClass>
+            <exec.mainClass>oss.relay.timing.timingpoint.app.Main</exec.mainClass>
             <exec.executable>java</exec.executable>
             <exec.classpathScope>runtime</exec.classpathScope>
             <exec.longClasspath>true</exec.longClasspath>
@@ -83,7 +83,7 @@
             <exec.vmArgs>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</exec.vmArgs>
             <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
             <exec.appArgs>--config "${maven.multiModuleProjectDirectory}/config/development-simulation.yml"</exec.appArgs>
-            <exec.mainClass>oss.relay.eventtiming.timingpoint.app.Main</exec.mainClass>
+            <exec.mainClass>oss.relay.timing.timingpoint.app.Main</exec.mainClass>
             <exec.executable>java</exec.executable>
             <exec.classpathScope>runtime</exec.classpathScope>
             <exec.longClasspath>true</exec.longClasspath>

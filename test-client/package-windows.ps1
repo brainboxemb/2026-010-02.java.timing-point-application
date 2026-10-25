@@ -87,7 +87,7 @@ try {
         "--icon", $IconPath,
         "--input", $InputDir,
         "--main-jar", $MainJar.Name,
-        "--main-class", "oss.relay.eventtiming.testclient.TestClientApplication",
+        "--main-class", "oss.relay.timing.testclient.TestClientApplication",
         "--dest", $OutputDir
     )
     & $JPackage @jpackageArgs
