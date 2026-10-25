@@ -30,6 +30,7 @@ final class TimingDataLiveTask extends AbstractTask {
     private final TimingDataSync sync;
 
     private CompletableFuture<List<TimingRecord>> pendingBatch;
+    private boolean workStarted;
 
     TimingDataLiveTask(
             NodeId nodeId,
@@ -46,6 +47,7 @@ final class TimingDataLiveTask extends AbstractTask {
     @Override
     protected void resetForRun() {
         pendingBatch = null;
+        workStarted = false;
     }
 
     @Override
@@ -66,6 +68,13 @@ final class TimingDataLiveTask extends AbstractTask {
 
         if (!sync.livePending()) {
             return TaskStep.done();
+        }
+
+        if (!workStarted) {
+            LOG.info(
+                    "TIMING_DATA live task started: node={}",
+                    nodeId.value());
+            workStarted = true;
         }
 
         pendingBatch = sync.submitNextLiveBatch();
