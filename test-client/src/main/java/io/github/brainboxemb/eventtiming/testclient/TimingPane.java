@@ -73,6 +73,7 @@ final class TimingPane {
     private boolean historyRefreshQueued;
     private boolean registrationSyncRunning;
     private boolean registrationSyncAgain;
+    private boolean registrationSyncForceFullAgain;
     // FX-thread-owned generation invalidates obsolete baseline/node history
     // responses after reconnect, disconnect or a newer selection.
     private final ViewRequestEpoch historyRequests = new ViewRequestEpoch();
@@ -731,6 +732,14 @@ final class TimingPane {
     }
 
     private void requestRegistrationProjectionSync() {
+        requestRegistrationProjectionSync(false);
+    }
+
+    void refreshRegistrationProjectionFromServer() {
+        requestRegistrationProjectionSync(true);
+    }
+
+    private void requestRegistrationProjectionSync(boolean forceFull) {
 
         if (!eventsConnected
                 || model.viewState()
@@ -752,11 +761,13 @@ final class TimingPane {
 
         if (registrationSyncRunning) {
             registrationSyncAgain = true;
+            registrationSyncForceFullAgain |= forceFull;
             return;
         }
 
         registrationSyncRunning = true;
         registrationSyncAgain = false;
+        registrationSyncForceFullAgain = false;
 
         final long requestGeneration =
                 historyRequests.current();
@@ -775,12 +786,16 @@ final class TimingPane {
                 .supplyAsync(
                         () -> {
                             try {
-                                return RegistrationProjectionReader.read(
-                                        clientSupplier.get(),
-                                        selected,
-                                        cachedInfo,
-                                        cachedCount,
-                                        cachedLastSequence);
+                                return forceFull
+                                        ? RegistrationProjectionReader.readFull(
+                                                clientSupplier.get(),
+                                                selected)
+                                        : RegistrationProjectionReader.read(
+                                                clientSupplier.get(),
+                                                selected,
+                                                cachedInfo,
+                                                cachedCount,
+                                                cachedLastSequence);
                             } catch (Exception ex) {
                                 throw new CompletionException(ex);
                             }
@@ -806,7 +821,9 @@ final class TimingPane {
 
         registrationSyncRunning = false;
         boolean runAgain = registrationSyncAgain;
+        boolean forceFullAgain = registrationSyncForceFullAgain;
         registrationSyncAgain = false;
+        registrationSyncForceFullAgain = false;
 
         ApiClient.TimingNodeInfo current =
                 model.selectedNode();
@@ -851,7 +868,7 @@ final class TimingPane {
         }
 
         if (runAgain && currentRequest) {
-            requestRegistrationProjectionSync();
+            requestRegistrationProjectionSync(forceFullAgain);
         }
     }
 

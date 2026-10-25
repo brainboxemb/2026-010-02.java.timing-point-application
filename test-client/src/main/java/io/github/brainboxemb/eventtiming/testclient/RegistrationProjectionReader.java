@@ -18,6 +18,20 @@ final class RegistrationProjectionReader {
     private RegistrationProjectionReader() {
     }
 
+    static Update readFull(
+            ApiClient api,
+            String nodeId)
+            throws IOException, InterruptedException {
+
+        if (api == null) {
+            throw new IllegalArgumentException("api must not be null");
+        }
+        if (nodeId == null || nodeId.isBlank()) {
+            throw new IllegalArgumentException("nodeId must not be blank");
+        }
+        return full(api, nodeId);
+    }
+
     static Update read(
             ApiClient api,
             String nodeId,

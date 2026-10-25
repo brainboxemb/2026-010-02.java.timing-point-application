@@ -817,6 +817,10 @@ public final class TestClientFxApplication extends Application {
                         upstreamEvent.occurredAt(),
                         upstreamEvent.receivedAt(),
                         upstreamEvent.rawPayloadJson());
+                if (upstreamEvent.upstreamData().family()
+                        == UpstreamData.Family.RECV) {
+                    apiPane.refreshRegistrationProjectionFromServer();
+                }
             } catch (RuntimeException ex) {
                 clientLog.error(
                         "Central upstream data error: " + rootMessage(ex));
