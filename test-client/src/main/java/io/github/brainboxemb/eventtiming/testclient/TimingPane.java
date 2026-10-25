@@ -113,8 +113,6 @@ final class TimingPane {
             new TableView<>();
 
     private final TableView<ApiClient.TimingDataInfo> logBook = new TableView<>();
-    private final Label logBookLoadState = new Label("-");
-    private final Button loadAllLogBook = new Button("Load all");
     private boolean logBookLoadAllRunning;
     private final FollowLatestTable<TimingViewModel.InterpretedRegistration> registrationFollow =
             new FollowLatestTable<>(registrations);
@@ -295,12 +293,7 @@ final class TimingPane {
         registrationsPane = interpretedBox;
 
         configureLogBook();
-        loadAllLogBook.setOnAction(event -> loadAllLogBook());
-        loadAllLogBook.setTooltip(new Tooltip(
-                "Load the complete committed LogBook using bounded IF-03 pages."));
-        HBox logBookHeader = new HBox(8, logBookLoadState, loadAllLogBook);
-        logBookHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        VBox historyBox = new VBox(4, logBookHeader, logBook);
+        VBox historyBox = new VBox(logBook);
         VBox.setVgrow(logBook, Priority.ALWAYS);
         logBookPane = historyBox;
 
@@ -667,7 +660,7 @@ final class TimingPane {
                 }));
     }
 
-    private void loadAllLogBook() {
+    void loadAllLogBook() {
         if (logBookLoadAllRunning
                 || !eventsConnected
                 || model.viewState() != TimingViewModel.ViewState.LIVE) {
@@ -1320,12 +1313,6 @@ final class TimingPane {
         autoReg.setDisable(!live || operationBusy || !controls.autoReg());
         directTimeMode.setDisable(!live || operationBusy || !controls.autoReg());
         registrations.setDisable(!live || operationBusy);
-        loadAllLogBook.setDisable(
-                !live
-                        || operationBusy
-                        || logBookLoadAllRunning
-                        || model.selectedNodeId() == null
-                        || model.records().size() >= model.logBookCount());
 
         syncViewButton.setDisable(
                 !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
@@ -1345,13 +1332,28 @@ final class TimingPane {
             lastReportedLogBookCount = count;
             logBookCountListener.accept(count);
         }
-        List<ApiClient.TimingDataInfo> loadedRecords = model.records();
-        logBookFollow.update(loadedRecords);
-        int loaded = loadedRecords.size();
-        logBookLoadState.setText(
-                logBookLoadAllRunning
-                        ? "Loading complete LogBook… " + loaded + " / " + count
-                        : "Loaded " + loaded + " / " + count);
+        logBookFollow.update(model.records());
+    }
+
+    boolean canLoadAllLogBook() {
+        return eventsConnected
+                && model.viewState() == TimingViewModel.ViewState.LIVE
+                && !operationBusy
+                && !logBookLoadAllRunning
+                && model.selectedNodeId() != null
+                && model.records().size() < model.logBookCount();
+    }
+
+    String loadAllLogBookLabel() {
+        int loaded = model.records().size();
+        long count = model.logBookCount();
+        if (logBookLoadAllRunning) {
+            return "Loading complete LogBook… " + loaded + " / " + count;
+        }
+        if (loaded >= count) {
+            return "Complete LogBook loaded (" + loaded + ")";
+        }
+        return "Load complete LogBook (" + loaded + " / " + count + " loaded)";
     }
 
     private void refreshRegistrationProjectionState() {

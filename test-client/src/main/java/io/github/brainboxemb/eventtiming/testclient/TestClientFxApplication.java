@@ -274,7 +274,10 @@ public final class TestClientFxApplication extends Application {
                 eventsPanel,
                 httpPanel,
                 apiPane::showAllRegistrations,
-                apiPane::setShowAllRegistrations);
+                apiPane::setShowAllRegistrations,
+                apiPane::canLoadAllLogBook,
+                apiPane::loadAllLogBookLabel,
+                apiPane::loadAllLogBook);
     }
 
     private void resetLayout(
