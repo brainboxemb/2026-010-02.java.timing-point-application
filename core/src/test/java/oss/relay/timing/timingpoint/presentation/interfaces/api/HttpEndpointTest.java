@@ -1,0 +1,919 @@
+package oss.relay.timing.timingpoint.presentation.interfaces.api;
+
+import oss.relay.timing.eventdata.defaultprofile.DefaultEventData;
+import oss.relay.timing.timingpoint.infra.lifecycle.LifecycleTestSupport;
+import oss.relay.timing.timingdata.TimingRecord;
+import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
+import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
+import oss.relay.timing.timingdata.TimingTimestamp;
+import oss.relay.timing.timingpoint.application.PresentationGateway;
+import oss.relay.timing.timingpoint.application.TimingNodeProxyComponents;
+import oss.relay.timing.timingpoint.application.SimulationControl;
+import oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
+import oss.relay.timing.timingpoint.infra.BuildIdentity;
+import oss.relay.timing.timingpoint.testsupport.PresentationGatewayFixture;
+import oss.relay.timing.timingpoint.testsupport.TimingNodeFixture;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public class HttpEndpointTest {
+    private static final TimingTimestamp RECORDED_AT =
+            TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
+
+    @Test
+    public void exposesVersionAndStatusOverRealHttp() throws Exception {
+        PresentationGatewayFixture fixture = new PresentationGatewayFixture(identity());
+        HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, fixture.handler());
+        server.start();
+
+        try {
+            Response version = request(server.boundPort(), "GET", "/api/v1/version", null);
+            assertEquals(200, version.status);
+            assertTrue(version.contentType.startsWith("application/json"));
+            assertTrue(version.body.contains("\"application\":\"event-timing-app\""));
+            assertTrue(version.body.contains("\"version\":\"test-version\""));
+            assertTrue(version.body.contains("\"sourceRef\":\"feature/test\""));
+            assertTrue(version.body.contains("\"dirty\":false"));
+            assertTrue(version.body.contains("\"apiVersion\":\"1\""));
+
+            Response status = request(server.boundPort(), "GET", "/api/v1/status", null);
+            assertEquals(200, status.status);
+            assertTrue(status.body.contains("\"nodes\":[{"));
+            assertTrue(status.body.contains("\"id\":\"A\""));
+            assertTrue(status.body.contains("\"locId\":null"));
+            assertTrue(status.body.contains("\"state\":\"CLOSED\""));
+            assertTrue(!status.body.contains("\"build\":"));
+            assertTrue(!status.body.contains("\"apiVersion\":"));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void routesNodeCommandsAndStatusAcrossMultipleTimingNodes()
+            throws Exception {
+        TimingNodeFixture.Components first =
+                TimingNodeFixture.createComponents(
+                        new NodeId("A"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        TimingNodeFixture.Components second =
+                TimingNodeFixture.createComponents(
+                        new NodeId("B"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        PresentationGateway gateway =
+                new PresentationGateway(
+                        identity(),
+                        nodes(first, second),
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("A"),
+                                new NodeId("B")));
+
+        LifecycleTestSupport.activate(first.node());
+        LifecycleTestSupport.activate(second.node());
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        gateway);
+        server.start();
+
+        try {
+            Response opened =
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/node/B/open",
+                            "{\"locationId\":24}");
+            assertEquals(200, opened.status);
+            assertTrue(
+                    opened.body.contains(
+                            "\"result\":\"OPENED\""));
+
+            Response status =
+                    request(
+                            server.boundPort(),
+                            "GET",
+                            "/api/v1/status",
+                            null);
+            assertEquals(200, status.status);
+            assertTrue(status.body.contains(
+                    "{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\"}"));
+            assertTrue(status.body.contains(
+                    "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\"}"));
+        } finally {
+            server.close();
+            LifecycleTestSupport.deactivate(second.node());
+            LifecycleTestSupport.deactivate(first.node());
+        }
+    }
+
+    @Test
+    public void controlsAndObservesFirstRegistrationThroughPublicHttp() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.start();
+        HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, fixture.handler);
+        server.start();
+
+        try {
+            Response capabilities =
+                    request(server.boundPort(), "GET", "/api/v1/capabilities", null);
+            assertEquals(200, capabilities.status);
+            assertTrue(capabilities.body.contains(
+                    "\"id\":\"DIRECT_REGISTRATION_SIMULATION\""));
+            assertTrue(capabilities.body.contains(
+                    "\"id\":\"TAG_SCENARIO_SIMULATION\""));
+            assertTrue(capabilities.body.contains("\"supported\":true"));
+            assertTrue(capabilities.body.contains(
+                    "\"id\":\"TAG_SCENARIO_SIMULATION\",\"supported\":true,\"enabled\":false"));
+
+            Response openWithoutLocation =
+                    request(server.boundPort(), "POST", "/api/v1/node/A/open", null);
+            assertEquals(400, openWithoutLocation.status);
+            assertTrue(openWithoutLocation.body.contains("\"code\":\"MALFORMED_REQUEST\""));
+
+            Response obsoleteLocationResource = request(
+                    server.boundPort(),
+                    "PUT",
+                    "/api/v1/node/A/location",
+                    "{\"locationId\":23}");
+            assertEquals(404, obsoleteLocationResource.status);
+            assertTrue(obsoleteLocationResource.body.contains("\"code\":\"NOT_FOUND\""));
+
+            Response opened =
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/node/A/open",
+                            "{\"locationId\":24}");
+            assertEquals(200, opened.status);
+            assertTrue(opened.body.contains("\"result\":\"OPENED\""));
+
+            Response openedStatus =
+                    request(server.boundPort(), "GET", "/api/v1/status", null);
+            assertTrue(openedStatus.body.contains("\"locId\":24"));
+            assertTrue(openedStatus.body.contains("\"state\":\"OPEN\""));
+
+            Response repeatedOpen =
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/node/A/open",
+                            "{\"locationId\":25}");
+            assertEquals(200, repeatedOpen.status);
+            assertTrue(repeatedOpen.body.contains("\"result\":\"ALREADY_OPEN\""));
+
+            Response stillOpenStatus =
+                    request(server.boundPort(), "GET", "/api/v1/status", null);
+            assertTrue(stillOpenStatus.body.contains("\"locId\":24"));
+
+            Response registration = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/dev/node/A/auto-reg",
+                    "{"
+                            + "\"id\":\"N0001\","
+                            + "\"time\":"
+                            + "\"2026-10-01T12:00:00.000000000Z\""
+                            + "}");
+            assertEquals(200, registration.status);
+            assertEquals("{\"seq\":2}", registration.body);
+
+            Response logBookInfo = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/logbook",
+                    null);
+            assertEquals(200, logBookInfo.status);
+            assertEquals("{\"count\":2,\"first\":1,\"last\":2}", logBookInfo.body);
+
+            Response history = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/logbook?from=1&limit=100",
+                    null);
+            assertEquals(200, history.status);
+            assertTrue(history.body.contains("\"count\":2"));
+            assertTrue(history.body.contains("\"next\":null"));
+            assertTrue(history.body.contains("\"seqNr\":1"));
+            assertTrue(history.body.contains("\"recType\":\"NODE_INFO\""));
+            assertTrue(history.body.contains("\"code\":[\"OPEN\"]"));
+            assertTrue(history.body.contains("\"seqNr\":2"));
+            assertTrue(history.body.contains("\"locId\":24"));
+            assertTrue(history.body.contains("\"recType\":\"AUTO_REG\""));
+            assertTrue(history.body.contains("\"regId\":\"N0001\""));
+            assertTrue(history.body.contains("\"code\":[\"ADD\"]"));
+            assertTrue(history.body.contains(
+                    "\"time\":\"2026-10-01T12:00:00.00Z\""));
+
+            Response latest = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/logbook?last=1",
+                    null);
+            assertEquals(200, latest.status);
+            assertTrue(latest.body.contains("\"seqNr\":2"));
+
+            Response revoked = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/revoke",
+                    "{"
+                            + "\"recordType\":\"AUTO_REG\","
+                            + "\"locationId\":24,"
+                            + "\"regId\":\"N0001\","
+                            + "\"time\":\"2026-10-01T12:00:00.000000000Z\""
+                            + "}");
+            assertEquals(200, revoked.status);
+            assertEquals("{\"seq\":3}", revoked.body);
+
+            Response revokedRecord = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/logbook?last=1",
+                    null);
+            assertEquals(200, revokedRecord.status);
+            assertTrue(revokedRecord.body.contains("\"seqNr\":3"));
+            assertTrue(revokedRecord.body.contains("\"recType\":\"AUTO_REG\""));
+            assertTrue(revokedRecord.body.contains("\"regId\":\"N0001\""));
+            assertTrue(revokedRecord.body.contains("\"code\":[\"REV\"]"));
+
+            Response wrongNode = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/other-node/logbook",
+                    null);
+            assertEquals(404, wrongNode.status);
+            assertTrue(wrongNode.body.contains("\"code\":\"NODE_NOT_FOUND\""));
+
+            Response closed =
+                    request(server.boundPort(), "POST", "/api/v1/node/A/close", null);
+            assertEquals(200, closed.status);
+            assertTrue(closed.body.contains("\"result\":\"CLOSED\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void exposesMaintainedRegistrationProjectionAndRevokeRevision()
+            throws Exception {
+        PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(
+                        identity(),
+                        new DefaultEventData(),
+                        "A");
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler());
+        server.start();
+
+        try {
+            Response closed = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations",
+                    null);
+            assertEquals(409, closed.status);
+            assertTrue(closed.body.contains("\"code\":\"NODE_NOT_OPEN\""));
+
+            assertEquals(
+                    200,
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/node/A/open",
+                            "{\"locationId\":24}")
+                            .status);
+
+            assertEquals(
+                    200,
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/dev/node/A/auto-reg",
+                            "{\"id\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\"}")
+                            .status);
+            assertEquals(
+                    200,
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/dev/node/A/auto-reg",
+                            "{\"id\":\"A0002\",\"time\":\"2026-10-01T12:00:01Z\"}")
+                            .status);
+
+            Response info = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations",
+                    null);
+            assertEquals(200, info.status);
+            assertTrue(info.body.contains("\"locId\":24"));
+            assertTrue(info.body.contains("\"count\":2"));
+            assertTrue(info.body.contains("\"uniqueCount\":2"));
+            assertTrue(info.body.contains("\"lastMutationSeq\":3"));
+            assertTrue(info.body.contains("\"lastRevokeSeq\":0"));
+
+            Response first = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations?after=0&limit=1",
+                    null);
+            assertEquals(200, first.status);
+            assertTrue(first.body.contains("\"nextAfter\":2"));
+            assertTrue(first.body.contains("\"seqNr\":2"));
+            assertTrue(first.body.contains("\"regId\":\"A0001\""));
+            assertTrue(first.body.contains("\"valid\":true"));
+
+            Response revoked = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/revoke",
+                    "{"
+                            + "\"recordType\":\"AUTO_REG\","
+                            + "\"locationId\":24,"
+                            + "\"regId\":\"A0001\","
+                            + "\"time\":\"2026-10-01T12:00:00Z\""
+                            + "}");
+            assertEquals(200, revoked.status);
+            assertEquals("{\"seq\":4}", revoked.body);
+
+            Response revokedInfo = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations",
+                    null);
+            assertEquals(200, revokedInfo.status);
+            assertTrue(revokedInfo.body.contains("\"count\":2"));
+            assertTrue(revokedInfo.body.contains("\"uniqueCount\":1"));
+            assertTrue(revokedInfo.body.contains("\"lastMutationSeq\":4"));
+            assertTrue(revokedInfo.body.contains("\"lastRevokeSeq\":4"));
+
+            Response projection = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/registrations?after=0&limit=10",
+                    null);
+            assertEquals(200, projection.status);
+            assertTrue(projection.body.contains(
+                    "\"seqNr\":2,\"regId\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\",\"elapsedMillis\":null,\"valid\":false"));
+            assertTrue(projection.body.contains(
+                    "\"seqNr\":3,\"regId\":\"A0002\",\"time\":\"2026-10-01T12:00:01Z\",\"elapsedMillis\":null,\"valid\":true"));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void omittedSimulationTimeUsesOwningNodeClockAndRetainsAuditMetadata()
+            throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.start();
+        HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, fixture.handler);
+        server.start();
+        try {
+            assertEquals(200, request(
+                    server.boundPort(), "POST", "/api/v1/node/A/open",
+                    "{\"locationId\":24}").status);
+
+            Response generated = request(server.boundPort(), "POST",
+                    "/api/v1/dev/node/A/auto-reg",
+                    "{\"id\":\"A0001\"}");
+            assertEquals(200, generated.status);
+            assertEquals("{\"seq\":2}", generated.body);
+            Response implicit = request(server.boundPort(), "GET",
+                    "/api/v1/node/A/logbook?last=1", null);
+            assertEquals(200, implicit.status);
+            assertTrue(implicit.body.contains("\"time\":\"2026-10-01T12:00:01.00Z\""));
+            assertTrue(implicit.body.contains("\"tagSrc\":\"API\""));
+            assertTrue(implicit.body.contains("\"timeSrc\":\"NODE\""));
+
+            Response explicit = request(server.boundPort(), "POST",
+                    "/api/v1/dev/node/A/auto-reg",
+                    "{\"id\":\"A0002\",\"time\":\"2026-10-01T12:00:00.987Z\"}");
+            assertEquals(200, explicit.status);
+            Response history = request(server.boundPort(), "GET",
+                    "/api/v1/node/A/logbook?last=1", null);
+            assertEquals(200, history.status);
+            assertTrue(history.body.contains("\"time\":\"2026-10-01T12:00:00.98Z\""));
+            assertTrue(history.body.contains("\"tagSrc\":\"API\""));
+            assertTrue(history.body.contains("\"timeSrc\":\"API\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void startsSimulatedTagPassageThroughCapabilityGatedControl()
+            throws Exception {
+        AtomicReference<RegistrationId> registration =
+                new AtomicReference<RegistrationId>();
+        AtomicReference<String> profile =
+                new AtomicReference<String>();
+        SimulationControl simulation =
+                (registrationId, profileId) -> {
+                    registration.set(
+                            registrationId);
+                    profile.set(
+                            profileId);
+                    return SimulationControl.StartResult.ACCEPTED;
+                };
+
+        Fixture fixture =
+                new Fixture(
+                        simulation);
+        fixture.start();
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler);
+        server.start();
+
+        try {
+            Response capabilities =
+                    request(
+                            server.boundPort(),
+                            "GET",
+                            "/api/v1/capabilities",
+                            null);
+            assertEquals(
+                    200,
+                    capabilities.status);
+            assertTrue(
+                    capabilities.body.contains(
+                            "\"id\":\"TAG_SCENARIO_SIMULATION\",\"supported\":true,\"enabled\":true"));
+
+            Response accepted =
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/dev/node/A/simulation/registration",
+                            "{"
+                                    + "\"regId\":\"N0042\","
+                                    + "\"profile\":\"normal\""
+                                    + "}");
+            assertEquals(
+                    200,
+                    accepted.status);
+            assertEquals(
+                    "{\"result\":\"ACCEPTED\"}",
+                    accepted.body);
+            assertEquals(
+                    new RegistrationId("N0042"),
+                    registration.get());
+            assertEquals(
+                    "normal",
+                    profile.get());
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void commitsManualRegistrationThroughNormalHttp() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.start();
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler);
+        server.start();
+
+        try {
+            Response open = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/open",
+                    "{\"locationId\":24}");
+            assertEquals(200, open.status);
+
+            Response automaticTime = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/manual",
+                    "{"
+                            + "\"regId\":\"N0002\","
+                            + "\"time\":\"2026-10-01T12:00:01.25Z\","
+                            + "\"timeSource\":\"AUTO\""
+                            + "}");
+            assertEquals(200, automaticTime.status);
+            assertEquals("{\"seq\":2}", automaticTime.body);
+
+            Response enteredTime = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/manual",
+                    "{"
+                            + "\"regId\":\"N0003\","
+                            + "\"time\":\"2026-10-01T11:59:58.75Z\","
+                            + "\"timeSource\":\"MAN\""
+                            + "}");
+            assertEquals(200, enteredTime.status);
+            assertEquals("{\"seq\":3}", enteredTime.body);
+
+            Response history = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/logbook?from=2&limit=2",
+                    null);
+            assertEquals(200, history.status);
+            assertTrue(history.body.contains("\"recType\":\"MAN_REG\""));
+            assertTrue(history.body.contains("\"regId\":\"N0002\""));
+            assertTrue(history.body.contains("\"code\":[\"ADD\",\"AUTO\"]"));
+            assertTrue(history.body.contains(
+                    "\"time\":\"2026-10-01T12:00:01.25Z\""));
+            assertTrue(history.body.contains("\"regId\":\"N0003\""));
+            assertTrue(history.body.contains("\"code\":[\"ADD\",\"MAN\"]"));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void queriesSetsAndClearsRuntimeConfigurationThroughPublicHttp()
+            throws Exception {
+        PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity());
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler());
+        server.start();
+
+        try {
+            Response initial = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/configuration",
+                    null);
+            assertEquals(200, initial.status);
+            assertTrue(initial.body.contains("\"id\":\"A\""));
+            assertTrue(initial.body.contains(
+                    "\"quietTimeoutMillis\":250"));
+            assertTrue(initial.body.contains(
+                    "\"observationQueueCapacity\":256"));
+            assertTrue(initial.body.contains(
+                    "\"overridden\":false"));
+            assertTrue(initial.body.contains(
+                    "\"observationQueueCapacity\":false"));
+
+            Response applied = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"quietTimeoutMillis\":300,"
+                            + "\"sweepCadenceMillis\":75"
+                            + "}"
+                            + "}");
+            assertEquals(200, applied.status);
+            assertTrue(applied.body.contains(
+                    "\"result\":\"APPLIED\""));
+            assertTrue(applied.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+            assertTrue(applied.body.contains(
+                    "\"sweepCadenceMillis\":75"));
+            assertTrue(applied.body.contains(
+                    "\"overridden\":true"));
+
+            Response current = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/configuration",
+                    null);
+            assertEquals(200, current.status);
+            assertTrue(current.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+            assertTrue(current.body.contains(
+                    "\"sweepCadenceMillis\":75"));
+            assertTrue(current.body.contains(
+                    "\"overridden\":true"));
+
+            Response noChange = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"quietTimeoutMillis\":300"
+                            + "}"
+                            + "}");
+            assertEquals(200, noChange.status);
+            assertTrue(noChange.body.contains(
+                    "\"result\":\"NO_CHANGE\""));
+
+            Response restartRequired = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"observationQueueCapacity\":128"
+                            + "}"
+                            + "}");
+            assertEquals(409, restartRequired.status);
+            assertTrue(restartRequired.body.contains(
+                    "\"result\":\"RESTART_REQUIRED\""));
+            assertTrue(restartRequired.body.contains(
+                    "\"observationQueueCapacity\":256"));
+            assertTrue(restartRequired.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+
+            Response invalid = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"quietTimeoutMillis\":0"
+                            + "}"
+                            + "}");
+            assertEquals(400, invalid.status);
+            assertTrue(invalid.body.contains(
+                    "\"result\":\"INVALID\""));
+            assertTrue(invalid.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+
+            Response cleared = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/configuration/tag-processing",
+                    "{\"action\":\"CLEAR\"}");
+            assertEquals(200, cleared.status);
+            assertTrue(cleared.body.contains(
+                    "\"result\":\"APPLIED\""));
+            assertTrue(cleared.body.contains(
+                    "\"quietTimeoutMillis\":250"));
+            assertTrue(cleared.body.contains(
+                    "\"sweepCadenceMillis\":50"));
+            assertTrue(cleared.body.contains(
+                    "\"overridden\":false"));
+
+            Response wrongNode = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/B/configuration/tag-processing",
+                    "{\"action\":\"CLEAR\"}");
+            assertEquals(404, wrongNode.status);
+            assertTrue(wrongNode.body.contains(
+                    "\"code\":\"NODE_NOT_FOUND\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void recoveryFailureLeavesFunctionalStatusAvailable()
+            throws Exception {
+        TimingNodeFixture.Components node = TimingNodeFixture.createComponents(
+                new NodeId("A"),
+                new FailingLoadStore(),
+                () -> RECORDED_AT.instant());
+        PresentationGateway handler =
+                new PresentationGateway(
+                        identity(),
+                        nodes(node),
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("A")));
+        LifecycleTestSupport.activate(node.node());
+        HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, handler);
+        server.start();
+
+        try {
+            Response status =
+                    request(server.boundPort(), "GET", "/api/v1/status", null);
+            assertEquals(200, status.status);
+            assertTrue(status.body.contains("\"id\":\"A\""));
+            assertTrue(status.body.contains("\"locId\":null"));
+            assertTrue(status.body.contains("\"state\":\"CLOSED\""));
+
+            Response open = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/open",
+                    "{\"locationId\":24}");
+            assertEquals(200, open.status);
+            assertTrue(open.body.contains("\"result\":\"OPENED\""));
+
+            Response afterOpen =
+                    request(server.boundPort(), "GET", "/api/v1/status", null);
+            assertTrue(afterOpen.body.contains("\"locId\":24"));
+            assertTrue(afterOpen.body.contains("\"state\":\"OPEN\""));
+        } finally {
+            server.close();
+            LifecycleTestSupport.deactivate(node.node());
+        }
+    }
+
+    @Test
+    public void mapsRequestAndMethodFailuresToStableJsonErrors() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.start();
+        HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, fixture.handler);
+        server.start();
+
+        try {
+            Response missing =
+                    request(server.boundPort(), "GET", "/api/v1/missing", null);
+            assertEquals(404, missing.status);
+            assertTrue(missing.body.contains("\"code\":\"NOT_FOUND\""));
+
+            Response method =
+                    request(server.boundPort(), "POST", "/api/v1/status", null);
+            assertEquals(405, method.status);
+            assertTrue(method.body.contains("\"code\":\"METHOD_NOT_ALLOWED\""));
+            assertTrue(!method.body.contains("INTERNAL_ERROR"));
+
+            Response malformed = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/open",
+                    "{not-json}");
+            assertEquals(400, malformed.status);
+            assertTrue(malformed.body.contains("\"code\":\"MALFORMED_REQUEST\""));
+
+            Response invalid = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/open",
+                    "{\"locationId\":0}");
+            assertEquals(400, invalid.status);
+            assertTrue(invalid.body.contains("\"code\":\"INVALID_VALUE\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    private static BuildIdentity identity() {
+        return BuildIdentity.firstApiVersion(
+                "event-timing-app",
+                "test-version",
+                "abc123def456",
+                "feature/test",
+                "local",
+                false);
+    }
+
+    private static Response request(
+            int port,
+            String method,
+            String path,
+            String body)
+            throws Exception {
+        HttpURLConnection connection =
+                (HttpURLConnection) new URL("http://127.0.0.1:" + port + path)
+                        .openConnection();
+        connection.setRequestMethod(method);
+        connection.setConnectTimeout(1000);
+        connection.setReadTimeout(3000);
+        connection.setRequestProperty("Accept", "application/json");
+
+        if (body != null) {
+            byte[] payload = body.getBytes(StandardCharsets.UTF_8);
+            connection.setDoOutput(true);
+            connection.setRequestProperty(
+                    "Content-Type",
+                    "application/json; charset=utf-8");
+            connection.setFixedLengthStreamingMode(payload.length);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(payload);
+            }
+        }
+
+        int status = connection.getResponseCode();
+        InputStream stream =
+                status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+        String responseBody = readAll(stream);
+        String contentType = connection.getHeaderField("Content-Type");
+        connection.disconnect();
+        return new Response(status, contentType, responseBody);
+    }
+
+    private static String readAll(InputStream stream) throws Exception {
+        StringBuilder result = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                result.append(line);
+            }
+        }
+        return result.toString();
+    }
+
+    private static List<TimingNodeProxyComponents> nodes(
+            TimingNodeFixture.Components... timingNodes) {
+
+        List<TimingNodeProxyComponents> result =
+                new ArrayList<TimingNodeProxyComponents>();
+        for (TimingNodeFixture.Components timingNode : timingNodes) {
+            result.add(timingNode.presentationComponents());
+        }
+        return result;
+    }
+
+    private static final class Fixture implements AutoCloseable {
+        private final TimingNodeFixture.Components node;
+        private final PresentationGateway handler;
+
+        private Fixture() {
+            this(
+                    null);
+        }
+
+        private Fixture(
+                SimulationControl simulation) {
+            node = TimingNodeFixture.createComponents(
+                    new NodeId("A"),
+                    new MemoryStore(),
+                    () -> RECORDED_AT.instant());
+            handler =
+                    new PresentationGateway(
+                            identity(),
+                            nodes(node),
+                            PresentationGatewayFixture.configurationControl(
+                                    new NodeId("A")),
+                            simulation);
+        }
+
+        private void start() {
+            LifecycleTestSupport.activate(node.node());
+        }
+
+        @Override
+        public void close() {
+            LifecycleTestSupport.deactivate(node.node());
+        }
+    }
+
+    private static final class FailingLoadStore
+            implements TimingDataPersistence {
+        @Override
+        public LoadResult load() throws PersistenceException {
+            throw new PersistenceException("expected persisted-data load failure");
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+            throw new AssertionError("ERROR TimingNode must not append TimingData");
+        }
+    }
+
+    private static final class MemoryStore implements TimingDataPersistence {
+        @Override
+        public LoadResult load() {
+            return new LoadResult(Collections.<TimingRecord>emptyList(), false);
+        }
+
+        @Override
+        public void append(TimingRecord record) {
+        }
+    }
+
+    private static final class Response {
+        private final int status;
+        private final String contentType;
+        private final String body;
+
+        private Response(int status, String contentType, String body) {
+            this.status = status;
+            this.contentType = contentType;
+            this.body = body;
+        }
+    }
+}

@@ -36,6 +36,8 @@
 
 ## Unreleased
 
+- Move the Java/Maven namespace from `io.github.brainboxemb.eventtiming` to `oss.relay.timing`, retaining compound package roots such as `timingpoint`, `timingdata`, `eventdata` and `upstreamdata`; update source packages, reactor coordinates, launch configuration and service/resource names.
+
 - Preserve Central Messages historical inspection viewport during incoming traffic; shorten default IF-06 JSON wire keys to `pckNr`, `msg`, and `rcvPckNr`, and name the typed Java packet positions `packetNr` / `receivedPacketNr`.
 - Show a single TIMING_DATA record concretely in upstream INFO summaries (sequence, IF-05 record type/location/registration/code); retain range + count for actual multi-record batches.
 

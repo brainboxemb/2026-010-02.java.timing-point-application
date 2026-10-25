@@ -1,0 +1,420 @@
+package oss.relay.timing.timingpoint.runtime.simulation;
+
+import oss.relay.timing.eventdata.EventData;
+import oss.relay.timing.eventdata.TagId;
+import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
+import oss.relay.timing.timingpoint.application.SimulationControl;
+import oss.relay.timing.timingpoint.io.devices.antenna.TagObservation;
+import oss.relay.timing.timingpoint.io.devices.antenna.model.SimulatedAntenna;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public class SimulatedTagScenarioRunnerTest {
+    private static final RegistrationId REGISTRATION =
+            new RegistrationId("N0042");
+    private static final TagId TAG_A =
+            new TagId("N0042A");
+    private static final TagId TAG_B =
+            new TagId("N0042B");
+    private static final Instant BASE_TIME =
+            Instant.parse("2026-10-07T12:00:00Z");
+    private static final long BASE_MONOTONIC_NANOS = 1_000_000_000L;
+
+    @Test
+    public void normalProfileEmitsTwoMappedTagsThroughSimulatedAntenna()
+            throws Exception {
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(1);
+        worker.setRemoveOnCancelPolicy(true);
+        SimulatedAntenna antenna =
+                runningAntenna();
+        SimulatedTagScenarioRunner runner =
+                new SimulatedTagScenarioRunner(
+                        antenna,
+                        eventData(),
+                        () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
+                        worker);
+
+        List<TagObservation> observations =
+                Collections.synchronizedList(
+                        new ArrayList<TagObservation>());
+        CountDownLatch emitted =
+                new CountDownLatch(4);
+        antenna.tagObservedEvent()
+                .subscribe(
+                        observation -> {
+                            observations.add(
+                                    observation);
+                            emitted.countDown();
+                        });
+
+        runner.activate();
+        try {
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    runner.startRegistration(
+                            REGISTRATION,
+                            "normal"));
+
+            assertTrue(
+                    emitted.await(
+                            2L,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    4,
+                    observations.size());
+            assertEquals(
+                    TAG_A,
+                    observations.get(0)
+                            .tagId());
+            assertEquals(
+                    TAG_B,
+                    observations.get(1)
+                            .tagId());
+            assertEquals(
+                    TAG_A,
+                    observations.get(2)
+                            .tagId());
+            assertEquals(
+                    TAG_B,
+                    observations.get(3)
+                            .tagId());
+            assertEquals(
+                    BASE_TIME.toEpochMilli(),
+                    observations.get(0).observedAtEpochMillis());
+            assertEquals(
+                    BASE_TIME.plusMillis(80L).toEpochMilli(),
+                    observations.get(2).observedAtEpochMillis());
+            assertEquals(
+                    BASE_MONOTONIC_NANOS + TimeUnit.MILLISECONDS.toNanos(80L),
+                    observations.get(2)
+                            .observedAtMonotonicNanos());
+        } finally {
+            runner.deactivate();
+            antenna.shutdown();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void simpleProfileEmitsOneObservationFromFirstMappedTag()
+            throws Exception {
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(1);
+        worker.setRemoveOnCancelPolicy(true);
+        SimulatedAntenna antenna =
+                runningAntenna();
+        SimulatedTagScenarioRunner runner =
+                new SimulatedTagScenarioRunner(
+                        antenna,
+                        eventData(),
+                        () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
+                        worker);
+
+        AtomicObservation single =
+                new AtomicObservation();
+        CountDownLatch emitted =
+                new CountDownLatch(1);
+        antenna.tagObservedEvent()
+                .subscribe(
+                        observation -> {
+                            single.value =
+                                    observation;
+                            emitted.countDown();
+                        });
+
+        runner.activate();
+        try {
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    runner.startRegistration(
+                            REGISTRATION,
+                            "simple"));
+            assertTrue(
+                    emitted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    TAG_A,
+                    single.value.tagId());
+            assertEquals(
+                    BASE_TIME.toEpochMilli(),
+                    single.value.observedAtEpochMillis());
+        } finally {
+            runner.deactivate();
+            antenna.shutdown();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void edgeProfileDeterministicallyCoversLongAndSingleTagShapes()
+            throws Exception {
+        RegistrationId longRegistration =
+                new RegistrationId("N0001");
+        RegistrationId singleRegistration =
+                new RegistrationId("N0002");
+        TagId longA =
+                new TagId("N0001A");
+        TagId longB =
+                new TagId("N0001B");
+        TagId singleA =
+                new TagId("N0002A");
+        TagId singleB =
+                new TagId("N0002B");
+
+        Map<TagId, RegistrationId> mapping =
+                new LinkedHashMap<TagId, RegistrationId>();
+        mapping.put(longA, longRegistration);
+        mapping.put(longB, longRegistration);
+        mapping.put(singleA, singleRegistration);
+        mapping.put(singleB, singleRegistration);
+
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(1);
+        worker.setRemoveOnCancelPolicy(true);
+        SimulatedAntenna antenna =
+                runningAntenna();
+        SimulatedTagScenarioRunner runner =
+                new SimulatedTagScenarioRunner(
+                        antenna,
+                        new EventData(mapping),
+                        () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
+                        worker);
+
+        List<TagObservation> longObservations =
+                Collections.synchronizedList(
+                        new ArrayList<TagObservation>());
+        List<TagObservation> singleObservations =
+                Collections.synchronizedList(
+                        new ArrayList<TagObservation>());
+        CountDownLatch longEmitted =
+                new CountDownLatch(5);
+        CountDownLatch singleEmitted =
+                new CountDownLatch(3);
+        antenna.tagObservedEvent()
+                .subscribe(
+                        observation -> {
+                            if (observation.tagId()
+                                    .value()
+                                    .startsWith("N0001")) {
+                                longObservations.add(
+                                        observation);
+                                longEmitted.countDown();
+                            } else if (observation.tagId()
+                                    .value()
+                                    .startsWith("N0002")) {
+                                singleObservations.add(
+                                        observation);
+                                singleEmitted.countDown();
+                            }
+                        });
+
+        runner.activate();
+        try {
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    runner.startRegistration(
+                            longRegistration,
+                            "edge"));
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    runner.startRegistration(
+                            singleRegistration,
+                            "edge"));
+
+            assertTrue(
+                    singleEmitted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+            assertTrue(
+                    longEmitted.await(
+                            2L,
+                            TimeUnit.SECONDS));
+
+            assertEquals(
+                    5,
+                    longObservations.size());
+            assertEquals(
+                    BASE_TIME.plusMillis(800L).toEpochMilli(),
+                    longObservations.get(4).observedAtEpochMillis());
+            assertEquals(
+                    longA,
+                    longObservations.get(0)
+                            .tagId());
+            assertEquals(
+                    longB,
+                    longObservations.get(1)
+                            .tagId());
+
+            assertEquals(
+                    3,
+                    singleObservations.size());
+            assertEquals(
+                    singleA,
+                    singleObservations.get(0)
+                            .tagId());
+            assertEquals(
+                    singleA,
+                    singleObservations.get(1)
+                            .tagId());
+            assertEquals(
+                    singleA,
+                    singleObservations.get(2)
+                            .tagId());
+        } finally {
+            runner.deactivate();
+            antenna.shutdown();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void staleDelayedStepsDoNotRunAfterReactivation()
+            throws Exception {
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(1);
+        worker.setRemoveOnCancelPolicy(true);
+        SimulatedAntenna antenna =
+                runningAntenna();
+        SimulatedTagScenarioRunner runner =
+                new SimulatedTagScenarioRunner(
+                        antenna,
+                        eventData(),
+                        () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
+                        worker);
+
+        List<TagObservation> observations =
+                Collections.synchronizedList(
+                        new ArrayList<TagObservation>());
+        CountDownLatch firstEmitted =
+                new CountDownLatch(1);
+        antenna.tagObservedEvent()
+                .subscribe(
+                        observation -> {
+                            observations.add(
+                                    observation);
+                            firstEmitted.countDown();
+                        });
+
+        runner.activate();
+        try {
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    runner.startRegistration(
+                            REGISTRATION,
+                            "normal"));
+            assertTrue(
+                    firstEmitted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            runner.deactivate();
+            runner.activate();
+
+            CountDownLatch afterOldDelay =
+                    new CountDownLatch(1);
+            worker.schedule(
+                    afterOldDelay::countDown,
+                    250L,
+                    TimeUnit.MILLISECONDS);
+            assertTrue(
+                    afterOldDelay.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            assertEquals(
+                    "delayed work from the previous activation must not emit",
+                    1,
+                    observations.size());
+            assertEquals(
+                    0,
+                    runner.activeScenarioCount());
+        } finally {
+            runner.deactivate();
+            antenna.shutdown();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void rejectsUnknownRegistrationProfileAndInactiveInventory() {
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(1);
+        worker.setRemoveOnCancelPolicy(true);
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        SimulatedTagScenarioRunner runner =
+                new SimulatedTagScenarioRunner(
+                        antenna,
+                        eventData(),
+                        () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
+                        worker);
+
+        runner.activate();
+        try {
+            assertEquals(
+                    SimulationControl.StartResult.UNKNOWN_REGISTRATION,
+                    runner.startRegistration(
+                            new RegistrationId("N9999"),
+                            "normal"));
+            assertEquals(
+                    SimulationControl.StartResult.UNKNOWN_PROFILE,
+                    runner.startRegistration(
+                            REGISTRATION,
+                            "missing"));
+            assertEquals(
+                    SimulationControl.StartResult.UNAVAILABLE,
+                    runner.startRegistration(
+                            REGISTRATION,
+                            "simple"));
+        } finally {
+            runner.deactivate();
+            antenna.shutdown();
+            worker.shutdownNow();
+        }
+    }
+
+    private static final class AtomicObservation {
+        private volatile TagObservation value;
+    }
+
+    private static SimulatedAntenna runningAntenna() {
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        antenna.initialize();
+        antenna.startInventory();
+        return antenna;
+    }
+
+    private static EventData eventData() {
+        Map<TagId, RegistrationId> mapping =
+                new LinkedHashMap<TagId, RegistrationId>();
+        mapping.put(
+                TAG_A,
+                REGISTRATION);
+        mapping.put(
+                TAG_B,
+                REGISTRATION);
+        return new EventData(
+                mapping);
+    }
+}
