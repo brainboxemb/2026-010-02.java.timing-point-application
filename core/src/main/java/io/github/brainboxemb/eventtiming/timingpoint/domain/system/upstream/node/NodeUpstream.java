@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
@@ -50,7 +51,7 @@ public final class NodeUpstream extends LifecycleComponent {
     private final TimingDataSync timingDataSync;
     private final TimingDataLiveTask timingDataLiveTask;
     private final UpstreamInputTask inputTask;
-    private final Duration timingDataReplayPacketDelay;
+    private final ReadOnlyConfiguration<Duration> timingDataReplayPacketDelay;
 
     private ScheduledFuture<?> heartbeatSchedule;
     private long nextUpPacketNr = 1L;
@@ -72,10 +73,11 @@ public final class NodeUpstream extends LifecycleComponent {
                 logBook,
                 nodeService,
                 timeSource,
-                Duration.ZERO);
+                ReadOnlyConfiguration.fixed(
+                        Duration.ZERO));
     }
 
-    /** Creates one node's upstream protocol state with explicit replay pacing. */
+    /** Creates one node's upstream protocol state with explicit fixed replay pacing. */
     public NodeUpstream(
             NodeId nodeId,
             ScheduledExecutorService scheduler,
@@ -85,6 +87,28 @@ public final class NodeUpstream extends LifecycleComponent {
             NodeService nodeService,
             TimeSource timeSource,
             Duration timingDataReplayPacketDelay) {
+        this(
+                nodeId,
+                scheduler,
+                stream,
+                codec,
+                logBook,
+                nodeService,
+                timeSource,
+                ReadOnlyConfiguration.fixed(
+                        timingDataReplayPacketDelay));
+    }
+
+    /** Creates one node's upstream protocol state with live replay pacing configuration. */
+    public NodeUpstream(
+            NodeId nodeId,
+            ScheduledExecutorService scheduler,
+            UpstreamStream stream,
+            UpstreamDataCodec codec,
+            LogBookAccessor logBook,
+            NodeService nodeService,
+            TimeSource timeSource,
+            ReadOnlyConfiguration<Duration> timingDataReplayPacketDelay) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
@@ -95,7 +119,8 @@ public final class NodeUpstream extends LifecycleComponent {
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
         failIfInvalidArgument(
                 timingDataReplayPacketDelay != null
-                        && !timingDataReplayPacketDelay.isNegative(),
+                        && timingDataReplayPacketDelay.currentValue() != null
+                        && !timingDataReplayPacketDelay.currentValue().isNegative(),
                 "TIMING_DATA replay packet delay must not be negative");
 
         this.nodeId = nodeId;
@@ -387,7 +412,7 @@ public final class NodeUpstream extends LifecycleComponent {
                         (UpstreamData.TimingDataRequest) packet.message(),
                         () -> downstreamDelivery.complete(packet),
                         this::wakeLiveTimingData,
-                        timingDataReplayPacketDelay);
+                        timingDataReplayPacketDelay.currentValue());
 
             case SEQ:
                 return oneStepTask(

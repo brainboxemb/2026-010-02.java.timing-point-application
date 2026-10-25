@@ -81,6 +81,40 @@ public class TerminalSessionTest {
     }
 
     @Test
+    public void timingDataDelayCanBeShownSetAndClearedThroughConfig()
+            throws Exception {
+        StringWriter output = new StringWriter();
+
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity())) {
+            TerminalSession session =
+                    new TerminalSession(
+                            fixture.handler(),
+                            null,
+                            null,
+                            () -> { },
+                            ZoneId.of("Europe/Amsterdam"));
+            session.run(
+                    new StringReader(
+                            "config upstream timing-data-delay\n"
+                                    + "config upstream timing-data-delay 500\n"
+                                    + "config upstream timing-data-delay clear\n"
+                                    + "quit\n"),
+                    output,
+                    "ready");
+        }
+
+        String text = output.toString();
+        assertTrue(text.contains(
+                "timingDataReplayPacketDelayMillis : current=0 startup=0"));
+        assertTrue(text.contains("TimingData packet delay update: APPLIED"));
+        assertTrue(text.contains(
+                "timingDataReplayPacketDelayMillis : current=500 startup=0"));
+        assertTrue(text.contains(
+                "timingDataReplayPacketDelayMillis : current=0 startup=0"));
+    }
+
+    @Test
     public void compactTimeIsLocalUnlessExplicitlySuffixedUtc() throws Exception {
         StringWriter output = new StringWriter();
 
