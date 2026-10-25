@@ -79,7 +79,9 @@ final class TimingApplicationAssembler {
                     new TimingSystemComposer(
                             applicationConfiguration,
                             executors,
-                            platform);
+                            platform,
+                            config.upstream()
+                                    .timingDataReplayPacketDelay());
 
             for (TimingSystemResolvedData resolvedSystem
                     : resolvedSystems) {

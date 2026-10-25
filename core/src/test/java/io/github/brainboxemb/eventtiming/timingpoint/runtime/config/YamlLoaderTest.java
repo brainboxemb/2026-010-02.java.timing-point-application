@@ -302,6 +302,11 @@ public class YamlLoaderTest {
         assertEquals(
                 UpstreamConfig.Transport.ENGINEERING_API,
                 config.upstream().transport());
+        assertEquals(
+                0L,
+                config.upstream()
+                        .timingDataReplayPacketDelay()
+                        .toMillis());
     }
 
     @Test
@@ -317,6 +322,35 @@ public class YamlLoaderTest {
         assertEquals(
                 UpstreamConfig.Transport.ENGINEERING_API,
                 config.upstream().transport());
+    }
+
+    @Test
+    public void loadsTimingDataReplayPacketDelay()
+            throws Exception {
+        Config config =
+                load(
+                        timingNode("A")
+                                + timingDataStorage()
+                                + "upstream:\n"
+                                + "  transport: engineering-api\n"
+                                + "  timingDataReplayPacketDelayMillis: 250\n");
+
+        assertEquals(
+                250L,
+                config.upstream()
+                        .timingDataReplayPacketDelay()
+                        .toMillis());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNegativeTimingDataReplayPacketDelay()
+            throws Exception {
+        load(
+                timingNode("A")
+                        + timingDataStorage()
+                        + "upstream:\n"
+                        + "  transport: engineering-api\n"
+                        + "  timingDataReplayPacketDelayMillis: -1\n");
     }
 
     @Test(expected = IllegalArgumentException.class)

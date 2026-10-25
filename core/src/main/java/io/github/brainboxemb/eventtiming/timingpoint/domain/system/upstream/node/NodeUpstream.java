@@ -17,6 +17,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -49,6 +50,7 @@ public final class NodeUpstream extends LifecycleComponent {
     private final TimingDataSync timingDataSync;
     private final TimingDataLiveTask timingDataLiveTask;
     private final UpstreamInputTask inputTask;
+    private final Duration timingDataReplayPacketDelay;
 
     private ScheduledFuture<?> heartbeatSchedule;
     private long nextUpPacketNr = 1L;
@@ -62,6 +64,27 @@ public final class NodeUpstream extends LifecycleComponent {
             LogBookAccessor logBook,
             NodeService nodeService,
             TimeSource timeSource) {
+        this(
+                nodeId,
+                scheduler,
+                stream,
+                codec,
+                logBook,
+                nodeService,
+                timeSource,
+                Duration.ZERO);
+    }
+
+    /** Creates one node's upstream protocol state with explicit replay pacing. */
+    public NodeUpstream(
+            NodeId nodeId,
+            ScheduledExecutorService scheduler,
+            UpstreamStream stream,
+            UpstreamDataCodec codec,
+            LogBookAccessor logBook,
+            NodeService nodeService,
+            TimeSource timeSource,
+            Duration timingDataReplayPacketDelay) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
@@ -70,6 +93,10 @@ public final class NodeUpstream extends LifecycleComponent {
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
+        failIfInvalidArgument(
+                timingDataReplayPacketDelay != null
+                        && !timingDataReplayPacketDelay.isNegative(),
+                "TIMING_DATA replay packet delay must not be negative");
 
         this.nodeId = nodeId;
         this.scheduler = scheduler;
@@ -81,6 +108,8 @@ public final class NodeUpstream extends LifecycleComponent {
         this.stream = stream;
         this.codec = codec;
         this.nodeService = nodeService;
+        this.timingDataReplayPacketDelay =
+                timingDataReplayPacketDelay;
         this.heartbeat =
                 new Heartbeat(
                         nodeId,
@@ -357,7 +386,8 @@ public final class NodeUpstream extends LifecycleComponent {
                         timingDataSync,
                         (UpstreamData.TimingDataRequest) packet.message(),
                         () -> downstreamDelivery.complete(packet),
-                        this::wakeLiveTimingData);
+                        this::wakeLiveTimingData,
+                        timingDataReplayPacketDelay);
 
             case SEQ:
                 return oneStepTask(

@@ -47,12 +47,20 @@ final class TimingSystemComposer {
 
     private final RuntimeExecutors executors;
     private final TimingNodeComposer nodeComposer;
+    private final Duration timingDataReplayPacketDelay;
 
     /** The composer retains shared runtime infrastructure but owns no lifecycle. */
     TimingSystemComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
-            PlatformEnvironment platform) {
+            PlatformEnvironment platform,
+            Duration timingDataReplayPacketDelay) {
+
+        if (timingDataReplayPacketDelay == null
+                || timingDataReplayPacketDelay.isNegative()) {
+            throw new IllegalArgumentException(
+                    "TIMING_DATA replay packet delay must not be negative");
+        }
 
         this.executors = executors;
         this.nodeComposer =
@@ -60,6 +68,8 @@ final class TimingSystemComposer {
                         configuration,
                         executors,
                         platform.monotonicClock());
+        this.timingDataReplayPacketDelay =
+                timingDataReplayPacketDelay;
     }
 
     /** Composes one complete TimingSystem from already resolved runtime inputs. */
@@ -184,7 +194,8 @@ final class TimingSystemComposer {
                             new DefaultUpstreamDataCodec(system.timingDataCodec()),
                             composition.logBook(),
                             composition.nodeService(),
-                            node.timeSource());
+                            node.timeSource(),
+                            timingDataReplayPacketDelay);
 
             nodeUpstreams.add(nodeUpstream);
         }

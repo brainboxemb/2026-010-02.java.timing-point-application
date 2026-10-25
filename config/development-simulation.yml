@@ -26,6 +26,8 @@ timingSystems:
 upstream:
   # Development simulation uses the same Engineering upstream transport.
   transport: engineering-api
+  # Optional pacing between successive TIMING_DATA replay packets; 0 disables it.
+  timingDataReplayPacketDelayMillis: 0
 
 io:
   storage:

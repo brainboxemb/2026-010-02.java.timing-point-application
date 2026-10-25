@@ -29,6 +29,8 @@ timingSystems:
 upstream:
   # Reference application uses the IF-03 full-duplex Engineering connector.
   transport: engineering-api
+  # Optional pacing between successive TIMING_DATA replay packets; 0 disables it.
+  timingDataReplayPacketDelayMillis: 0
 
 io:
   storage:
