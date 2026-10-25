@@ -44,6 +44,7 @@ final class PresentationRuntime {
             ConsolePromptControl consolePromptControl,
             Runnable shutdownRequest,
             Runnable restartRequest,
+            Runnable restartKeepLoggingRequest,
             Reader consoleInput,
             Writer consoleOutput) {
         if (configuration == null) {
@@ -65,6 +66,10 @@ final class PresentationRuntime {
         if (restartRequest == null) {
             throw new IllegalArgumentException(
                     "restartRequest must not be null");
+        }
+        if (restartKeepLoggingRequest == null) {
+            throw new IllegalArgumentException(
+                    "restartKeepLoggingRequest must not be null");
         }
         if ((consoleInput == null) != (consoleOutput == null)) {
             throw new IllegalArgumentException(
@@ -110,7 +115,8 @@ final class PresentationRuntime {
                                 gateway,
                                 loggingLevelControl,
                                 shutdownRequest,
-                                restartRequest);
+                                restartRequest,
+                                restartKeepLoggingRequest);
 
         localConsole =
                 consoleInput == null
@@ -121,6 +127,7 @@ final class PresentationRuntime {
                                 consolePromptControl,
                                 shutdownRequest,
                                 restartRequest,
+                                restartKeepLoggingRequest,
                                 consoleInput,
                                 consoleOutput);
     }

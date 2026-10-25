@@ -153,6 +153,46 @@ public class RemoteShellServerTest {
     }
 
     @Test
+    public void rebootPlusLogUsesRetainedLoggingRestartRequest()
+            throws Exception {
+        AtomicBoolean shutdown = new AtomicBoolean(false);
+        AtomicBoolean restart = new AtomicBoolean(false);
+        AtomicBoolean retainedLogging = new AtomicBoolean(false);
+        PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity());
+        RemoteShellServer server =
+                new RemoteShellServer(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler(),
+                        null,
+                        () -> shutdown.set(true),
+                        () -> restart.set(true),
+                        () -> retainedLogging.set(true));
+        server.start();
+
+        try (Socket client = connect(server.boundPort())) {
+            readUntil(client.getInputStream(), "event-timing> ");
+            Writer writer =
+                    new OutputStreamWriter(
+                            client.getOutputStream(),
+                            StandardCharsets.UTF_8);
+            writer.write("reboot +log\n");
+            writer.flush();
+
+            String response = readToEnd(client.getInputStream());
+            assertTrue(response.contains(
+                    "Rebooting application; keeping logging connection."));
+            assertTrue(retainedLogging.get());
+            assertFalse(restart.get());
+            assertFalse(shutdown.get());
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
     public void testWriteFailIsNodeScopedAndOneShot() throws Exception {
         PresentationGatewayFixture fixture =
                 new PresentationGatewayFixture(identity());

@@ -49,6 +49,38 @@ public class TerminalSessionTest {
     }
 
     @Test
+    public void rebootPlusLogRequestsRetainedLoggingRestartOnly()
+            throws Exception {
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        AtomicBoolean restarted = new AtomicBoolean(false);
+        AtomicBoolean retainedLogging = new AtomicBoolean(false);
+        StringWriter output = new StringWriter();
+
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity())) {
+            TerminalSession session =
+                    new TerminalSession(
+                            fixture.handler(),
+                            null,
+                            null,
+                            () -> stopped.set(true),
+                            () -> restarted.set(true),
+                            () -> retainedLogging.set(true));
+
+            session.run(
+                    new StringReader("reboot +log\n"),
+                    output,
+                    "ready");
+        }
+
+        assertTrue(output.toString().contains(
+                "Rebooting application; keeping logging connection."));
+        assertTrue(retainedLogging.get());
+        assertTrue(!restarted.get());
+        assertTrue(!stopped.get());
+    }
+
+    @Test
     public void compactTimeIsLocalUnlessExplicitlySuffixedUtc() throws Exception {
         StringWriter output = new StringWriter();
 

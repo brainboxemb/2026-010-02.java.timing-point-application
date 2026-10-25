@@ -42,7 +42,8 @@ public final class TimingApplicationRuntime {
 
     public enum ExitRequest {
         STOP,
-        RESTART
+        RESTART,
+        RESTART_KEEP_LOGGING
     }
 
     private final BuildIdentity buildIdentity;
