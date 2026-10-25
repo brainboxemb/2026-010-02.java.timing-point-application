@@ -143,6 +143,33 @@ public class TimingDataSyncTest {
     }
 
     @Test
+    public void sourceHeadRefreshRequiresAnExplicitConnectionHandoff() {
+        NodeId nodeId = new NodeId("A");
+        LogBook logBook = emptyLogBook(nodeId);
+        List<UpstreamData.Message> sent =
+                new ArrayList<UpstreamData.Message>();
+        activate(logBook);
+        try {
+            TimingDataSync sync =
+                    new TimingDataSync(
+                            nodeId,
+                            () -> true,
+                            sent::add,
+                            logBook);
+
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+            sync.refreshSourceHeadNotification();
+
+            assertFalse(sync.handoffPending());
+            assertTrue(sent.isEmpty());
+        } finally {
+            deactivate(logBook);
+        }
+    }
+
+    @Test
     public void pendingHandoffRefreshesSourceHeadOnlyWhenItChanges() {
         NodeId nodeId = new NodeId("A");
         LogBook logBook = emptyLogBook(nodeId);
