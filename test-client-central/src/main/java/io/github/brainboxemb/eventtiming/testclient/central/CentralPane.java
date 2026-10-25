@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import javafx.animation.KeyFrame;

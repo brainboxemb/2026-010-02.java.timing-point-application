@@ -21,6 +21,7 @@
     <customcaption.version>1.0</customcaption.version>
     <junit.version>5.10.2</junit.version>
     <event-timing-shared.version>0.2.4-SNAPSHOT</event-timing-shared.version>
+    <event-timing-central.version>0.1.0-SNAPSHOT</event-timing-central.version>
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
     <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
     <javafx.maven.plugin.version>0.0.8</javafx.maven.plugin.version>
@@ -30,7 +31,13 @@
   </properties>
 
   <dependencies>
-    <!-- Shared public IF-05/IF-06 semantic contracts used by the Central simulator. -->
+    <dependency>
+      <groupId>io.github.brainboxemb.eventtiming</groupId>
+      <artifactId>event-timing-engineering-central</artifactId>
+      <version>${event-timing-central.version}</version>
+    </dependency>
+
+    <!-- Shared public IF-05/IF-06 semantic contracts used by the Central transport adapter. -->
     <dependency>
       <groupId>io.github.brainboxemb.eventtiming</groupId>
       <artifactId>event-upstream-data</artifactId>

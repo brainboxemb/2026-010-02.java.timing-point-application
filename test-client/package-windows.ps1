@@ -46,6 +46,16 @@ try {
         throw "Unable to install shared Event Timing contracts."
     }
 
+    $centralArgs = @(
+        "-f", "test-client-central\pom.xml",
+        "-DskipTests",
+        "install"
+    )
+    & $Maven @centralArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to install Engineering Central boundary."
+    }
+
     $packageArgs = @(
         "-f", "test-client\pom.xml",
         "-DeventTiming.buildOrigin=local",

@@ -1,7 +1,7 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
 /** Central System Simulator actions shared by GUI controls and local engineering scripts. */
-interface CentralActions {
+public interface CentralActions {
     long setTeamAssignment(
             String nodeId,
             String registrationId,

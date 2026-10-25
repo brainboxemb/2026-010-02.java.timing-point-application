@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -29,7 +29,7 @@ final class CentralLogBookPaneTest {
                         TimingRecord.TagSource.API,
                         TimingRecord.AutomaticTimeSource.API);
 
-        ApiClient.TimingDataInfo view =
+        CentralTimingDataInfo view =
                 CentralLogBookPane.toInfo(record);
 
         assertEquals("A", view.timingNodeId());
@@ -55,7 +55,7 @@ final class CentralLogBookPaneTest {
                         millis,
                         millis);
 
-        ApiClient.TimingDataInfo view =
+        CentralTimingDataInfo view =
                 CentralLogBookPane.toInfo(record);
 
         assertEquals("B", view.timingNodeId());

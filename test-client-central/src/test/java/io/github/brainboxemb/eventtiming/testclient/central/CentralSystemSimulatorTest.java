@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
@@ -383,9 +383,9 @@ final class CentralSystemSimulatorTest {
                                         RECEIVED.plusMillis(2))));
 
         String inboundRaw =
-                ApiEventClient.encodeUpstreamData(inbound);
+                CentralUpstreamJson.encode(inbound);
         String outboundRaw =
-                ApiEventClient.encodeUpstreamData(outbound);
+                CentralUpstreamJson.encode(outbound);
 
         simulator.accept(
                 inbound,
@@ -451,7 +451,7 @@ final class CentralSystemSimulatorTest {
                 packet,
                 eventTime,
                 receivedAt,
-                ApiEventClient.encodeUpstreamData(packet));
+                CentralUpstreamJson.encode(packet));
 
         CentralSystemSimulator.MessageView message =
                 simulator.messages().get(0);
@@ -477,7 +477,7 @@ final class CentralSystemSimulatorTest {
             simulator.recordSent(
                     outbound,
                     RECEIVED.plusMillis(index),
-                    ApiEventClient.encodeUpstreamData(outbound));
+                    CentralUpstreamJson.encode(outbound));
         }
 
         List<CentralSystemSimulator.MessageView> messages =

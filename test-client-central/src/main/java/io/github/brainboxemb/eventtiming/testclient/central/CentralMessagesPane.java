@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -564,7 +564,7 @@ final class CentralMessagesPane {
     static String formatTime(
             Instant instant,
             boolean includeDate) {
-        return ViewerTime.instant(
+        return CentralViewerTime.instant(
                 instant,
                 includeDate);
     }
@@ -573,7 +573,7 @@ final class CentralMessagesPane {
             Instant instant,
             boolean includeDate,
             java.time.ZoneId zone) {
-        return ViewerTime.instant(
+        return CentralViewerTime.instant(
                 instant,
                 includeDate,
                 zone);

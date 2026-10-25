@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.testclient.central.CentralActions;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;

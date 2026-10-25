@@ -1,6 +1,5 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
@@ -31,14 +30,13 @@ import java.util.function.Function;
  */
 final class CentralLogBookPane {
     private static final String ALL = "ALL";
-    private static final ObjectMapper JSON = new ObjectMapper();
     private static final TimingDataCodec CODEC = new DefaultTimingDataCodec();
 
     private final CentralSystemSimulator simulator;
     private final ComboBox<String> nodeFilter = new ComboBox<>();
-    private final TableView<ApiClient.TimingDataInfo> table = new TableView<>();
-    private final FollowLatestTable<ApiClient.TimingDataInfo> follow =
-            new FollowLatestTable<>(table);
+    private final TableView<CentralTimingDataInfo> table = new TableView<>();
+    private final CentralFollowLatestTable<CentralTimingDataInfo> follow =
+            new CentralFollowLatestTable<>(table);
     private final TextArea rawRecord = new TextArea();
     private final VBox pane;
 
@@ -106,7 +104,7 @@ final class CentralLogBookPane {
 
     private void refreshRows() {
         String selectedNode = nodeFilter.getValue();
-        List<ApiClient.TimingDataInfo> rows = new ArrayList<>();
+        List<CentralTimingDataInfo> rows = new ArrayList<>();
         for (TimingRecord record : simulator.timingRecords()) {
             if (selectedNode != null
                     && !ALL.equals(selectedNode)
@@ -119,27 +117,27 @@ final class CentralLogBookPane {
     }
 
     private void configureTable() {
-        TableColumn<ApiClient.TimingDataInfo, String> node =
-                column("Node", ApiClient.TimingDataInfo::timingNodeId);
-        TableColumn<ApiClient.TimingDataInfo, String> seq =
+        TableColumn<CentralTimingDataInfo, String> node =
+                column("Node", CentralTimingDataInfo::timingNodeId);
+        TableColumn<CentralTimingDataInfo, String> seq =
                 column("Seq", value -> Long.toString(value.sequenceNumber()));
-        TableColumn<ApiClient.TimingDataInfo, String> type =
-                column("Type", ApiClient.TimingDataInfo::recordType);
-        TableColumn<ApiClient.TimingDataInfo, String> code =
+        TableColumn<CentralTimingDataInfo, String> type =
+                column("Type", CentralTimingDataInfo::recordType);
+        TableColumn<CentralTimingDataInfo, String> code =
                 column("Code", value -> String.join("/", value.codes()));
-        TableColumn<ApiClient.TimingDataInfo, String> location =
+        TableColumn<CentralTimingDataInfo, String> location =
                 column("Location", value -> Integer.toString(value.locationId()));
-        TableColumn<ApiClient.TimingDataInfo, String> registration =
+        TableColumn<CentralTimingDataInfo, String> registration =
                 column(
                         "RegistrationId",
                         value -> value.registrationId() == null
                                 ? ""
                                 : value.registrationId());
-        TableColumn<ApiClient.TimingDataInfo, String> effective =
-                column("Effective", value -> ViewerTime.effective(value.effectiveTime()));
-        TableColumn<ApiClient.TimingDataInfo, String> recorded =
-                column("Recorded", value -> ViewerTime.recorded(value.recordedAt()));
-        TableColumn<ApiClient.TimingDataInfo, Void> end =
+        TableColumn<CentralTimingDataInfo, String> effective =
+                column("Effective", value -> CentralViewerTime.effective(value.effectiveTime()));
+        TableColumn<CentralTimingDataInfo, String> recorded =
+                column("Recorded", value -> CentralViewerTime.recorded(value.recordedAt()));
+        TableColumn<CentralTimingDataInfo, Void> end =
                 new TableColumn<>("");
         Label endLabel = new Label("End");
         endLabel.setTooltip(new Tooltip("Follow new Central LogBook rows at the end"));
@@ -173,22 +171,8 @@ final class CentralLogBookPane {
         table.setPlaceholder(new Label("No Central LogBook records"));
     }
 
-    static ApiClient.TimingDataInfo toInfo(TimingRecord record) {
-        if (record == null) {
-            throw new IllegalArgumentException("record must not be null");
-        }
-        try {
-            String rawJson =
-                    new String(
-                            CODEC.encode(record),
-                            StandardCharsets.UTF_8);
-            return ApiClient.parseTimingData(
-                    JSON.readTree(rawJson));
-        } catch (TimingDataCodec.CodecException | java.io.IOException ex) {
-            throw new IllegalStateException(
-                    "Could not project Central TimingRecord",
-                    ex);
-        }
+    static CentralTimingDataInfo toInfo(TimingRecord record) {
+        return CentralTimingDataInfo.from(record);
     }
 
     private static <T> TableColumn<T, String> column(

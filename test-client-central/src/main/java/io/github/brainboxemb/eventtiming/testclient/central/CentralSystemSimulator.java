@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -55,7 +55,7 @@ final class CentralSystemSimulator {
                     messageTime,
                     receivedAt,
                     data,
-                    ApiEventClient.encodeUpstreamData(data));
+                    CentralUpstreamJson.encode(data));
         }
     }
 
@@ -223,7 +223,7 @@ final class CentralSystemSimulator {
                 data,
                 receivedAt,
                 receivedAt,
-                ApiEventClient.encodeUpstreamData(data));
+                CentralUpstreamJson.encode(data));
     }
 
     /**
@@ -307,7 +307,7 @@ final class CentralSystemSimulator {
         recordSent(
                 data,
                 sentAt,
-                ApiEventClient.encodeUpstreamData(data));
+                CentralUpstreamJson.encode(data));
     }
 
     void recordSent(

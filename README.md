@@ -107,6 +107,7 @@ core/                 reusable SI-01 application core
 app/                  runnable Timing Point Application
 system-test/          black-box packaged-process verification
 runtime-characterization/ engineering-only runtime measurement harness (optional profile)
+test-client-central/  isolated SI-02 Central IF-06 simulator boundary
 test-client/          standalone JavaFX Development Client
 docs/                 focused repository support documentation
 ```

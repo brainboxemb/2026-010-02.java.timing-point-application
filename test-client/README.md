@@ -89,13 +89,21 @@ not appear as Engineering Client runtime threads.
 The Engineering Client communicates with SI-01 only through supported external
 interfaces.
 
+The Central simulator is built as the separate `test-client-central` Maven artifact.
+That artifact has no dependency on the Engineering Client HTTP/API implementation.
+Its only outbound application port is `CentralTransport.send(UpstreamData)`; desktop
+composition adapts that port to the already connected upstream-role WebSocket. Central
+presentation records and raw IF-06 encoding are Central-owned types, so Central code
+cannot reuse `ApiClient` DTOs as an accidental shortcut. CI also rejects ordinary
+`testclient` imports and JDK HTTP usage inside Central production sources.
+
 Current client services are:
 
 ```text
 TestClientFxApplication
   +-- ApiClient             IF-03 HTTP / JSON
   +-- ApiEventClient        IF-03 WebSocket + typed IF-06 UpstreamData
-  +-- CentralSystemSimulator Central-side IF-06 state (transport-independent)
+  +-- CentralClient         separate test-client-central module; IF-06 only
   +-- RemoteShellClient     line-oriented Remote Shell
   +-- LiveLogClient         LoggingServer diagnostics socket
 ```
@@ -478,6 +486,7 @@ execution checklist and shall not redefine the VTS.
 ## Verify
 
 ```powershell
+.\mvnw.cmd -f test-client-central\pom.xml install
 .\mvnw.cmd -f test-client\pom.xml verify
 ```
 

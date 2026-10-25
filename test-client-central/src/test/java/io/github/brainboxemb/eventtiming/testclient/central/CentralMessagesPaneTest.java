@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.testclient;
+package io.github.brainboxemb.eventtiming.testclient.central;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -297,7 +297,7 @@ final class CentralMessagesPaneTest {
                         18L,
                         java.util.List.of(first, second));
         String raw =
-                ApiEventClient.encodeUpstreamData(packet);
+                CentralUpstreamJson.encode(packet);
 
         String displayed =
                 CentralMessagesPane.detailPayload(
@@ -332,7 +332,7 @@ final class CentralMessagesPaneTest {
                         19L,
                         java.util.List.of(record));
         String raw =
-                ApiEventClient.encodeUpstreamData(packet);
+                CentralUpstreamJson.encode(packet);
 
         assertEquals(
                 raw,
