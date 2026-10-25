@@ -59,7 +59,7 @@
         <properties>
             <exec.vmArgs></exec.vmArgs>
             <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass}</exec.args>
-            <exec.mainClass>io.github.brainboxemb.eventtiming.testclient.TestClientApplication</exec.mainClass>
+            <exec.mainClass>oss.relay.eventtiming.testclient.TestClientApplication</exec.mainClass>
             <exec.executable>${java.home}/bin/java</exec.executable>
             <exec.classpathScope>runtime</exec.classpathScope>
             <exec.longClasspath>true</exec.longClasspath>
@@ -82,7 +82,7 @@
         <properties>
             <exec.vmArgs>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</exec.vmArgs>
             <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass}</exec.args>
-            <exec.mainClass>io.github.brainboxemb.eventtiming.testclient.TestClientApplication</exec.mainClass>
+            <exec.mainClass>oss.relay.eventtiming.testclient.TestClientApplication</exec.mainClass>
             <exec.executable>${java.home}/bin/java</exec.executable>
             <exec.classpathScope>runtime</exec.classpathScope>
             <exec.longClasspath>true</exec.longClasspath>

@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.github.brainboxemb.eventtiming</groupId>
+    <groupId>oss.relay.eventtiming</groupId>
     <artifactId>timing-point-parent</artifactId>
     <version>0.2.4-SNAPSHOT</version>
   </parent>
