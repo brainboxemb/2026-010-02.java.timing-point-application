@@ -1,0 +1,86 @@
+name: Finalize timing namespace
+
+on:
+  push:
+    branches:
+      - refactor/issue-971-oss-relay-namespace
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: ${{ !contains(github.event.head_commit.message, 'Use oss.relay.timing package family') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout refactor branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: refactor/issue-971-oss-relay-namespace
+          fetch-depth: 0
+
+      - name: Finalize namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          old_ns = "oss.relay.eventtiming"
+          new_ns = "oss.relay.timing"
+          old_path = "oss/relay/eventtiming"
+          new_path = "oss/relay/timing"
+          root = Path(".")
+          workflow = Path(".github/workflows/finalize-timing-namespace.yml")
+
+          for path in [p for p in root.rglob("*") if p.is_file() and ".git" not in p.parts]:
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+              if old_ns in text:
+                  path.write_text(text.replace(old_ns, new_ns), encoding="utf-8")
+
+          files = [p for p in root.rglob("*") if p.is_file() and ".git" not in p.parts]
+          moves = []
+          for path in files:
+              raw = path.as_posix()
+              target = raw.replace(old_path, new_path)
+              if target != raw:
+                  moves.append((path, Path(target)))
+
+          for source, target in sorted(moves, key=lambda item: len(item[0].parts), reverse=True):
+              if not source.exists():
+                  continue
+              target.parent.mkdir(parents=True, exist_ok=True)
+              os.replace(str(source), str(target))
+
+          if workflow.exists():
+              workflow.unlink()
+
+          bad_paths = [
+              p.as_posix() for p in root.rglob("*")
+              if old_path in p.as_posix() or "io/github/brainboxemb/eventtiming" in p.as_posix()
+          ]
+          if bad_paths:
+              raise SystemExit("Old package paths remain:\n" + "\n".join(bad_paths[:50]))
+
+          bad_refs = []
+          for path in [p for p in root.rglob("*") if p.is_file() and ".git" not in p.parts and p.name != "CHANGELOG.md"]:
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+              if old_ns in text or "io.github.brainboxemb.eventtiming" in text:
+                  bad_refs.append(path.as_posix())
+          if bad_refs:
+              raise SystemExit("Old active namespace references remain:\n" + "\n".join(bad_refs[:50]))
+          PY
+
+          git config user.name "brainboxemb"
+          git config user.email "285184499+brainboxemb@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "Use oss.relay.timing package family"
+          git push origin HEAD:refactor/issue-971-oss-relay-namespace
