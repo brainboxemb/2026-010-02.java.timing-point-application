@@ -247,8 +247,11 @@ Client Log
 
 The upper-left explorer keeps the direct API system view and Central node/location
 projections visible close to the controls. **Node Controls** contains TimingNode, API,
-Registration, Simulation and Scripts. **Central Controls** currently contains the
-Central RaceData editor and is the home for future Central input controls.
+Registration, Simulation and Scripts. **Central Controls** separates **RaceData** from
+**TimingData**: RaceData owns team/stage-start changes; TimingData shows Central's
+contiguous received sequence and lets an operator request TimingData from an explicit
+source sequence. The existing Central **LogBook** viewer remains the record-oriented view
+of received TimingData.
 
 Device Log, Terminal and Client Log are restored to their original vertically stacked
 left-side docks, so all three can remain visible and be resized independently.
@@ -400,8 +403,9 @@ NodeId at another LocationId implicitly closes the previously active location.
 an observed Central NodeId and applies RegistrationId-to-TeamId and RegistrationId-to-
 StageStartTime SET/DEL changes to Central-owned current RaceData. Stage start accepts the
 same IF-06 timestamp forms as the shared TimingTimestamp parser: time-only, local
-date/time or absolute UTC. The same pane can explicitly issue a TIMING_DATA_REQ from an
-operator-entered sequence so replay/replay-to-live behavior can be exercised without
+date/time or absolute UTC. The separate **TimingData** control tab can explicitly issue
+a TIMING_DATA_REQ from an operator-entered sequence so retained-data synchronization can
+be exercised without
 forcing a reconnect. When no normal DN_PACKET is outstanding, the next action is sent
 with the next downstream packet number; while a packet is outstanding it remains
 immutable and later actions wait behind it. The pane shows the last acknowledged
