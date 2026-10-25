@@ -1,5 +1,7 @@
 # Changelog
 
+- Split SI-02 Central controls into separate RaceData and TimingData tabs: keep team/stage-start mutations on RaceData, move manual TIMING_DATA_REQ into TimingData with the selected node's contiguous received head and downstream packet state, and remove misleading operator-facing "replay" wording while retaining the Central LogBook viewer for received records.
+
 - Add a secondary Engineering Client **Reconnect** action for partial target connectivity: it rechecks the API and restores only missing Events, Terminal and Device Log links while leaving already-connected links (notably Device Log after `reboot +log`) untouched; Central remains explicit.
 
 - Add terminal `reboot +log`: restart SI-01 while retaining the active process Logging engine and LoggingServer client connection; ordinary `reboot` remains a full restart that recreates logging, and logging-related YAML changes are deferred until that full reboot when `+log` is used.

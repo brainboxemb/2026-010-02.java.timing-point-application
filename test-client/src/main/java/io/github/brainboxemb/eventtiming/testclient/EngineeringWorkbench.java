@@ -67,6 +67,7 @@ final class EngineeringWorkbench {
             Node centralMessages,
             Node centralLogBook,
             Node centralRaceData,
+            Node centralTimingData,
             Node timingNode,
             Node apiInfo,
             Node registration,
@@ -91,7 +92,10 @@ final class EngineeringWorkbench {
                 registration,
                 simulation,
                 scripts);
-        Node centralControls = createCentralControls(centralRaceData);
+        Node centralControls =
+                createCentralControls(
+                        centralRaceData,
+                        centralTimingData);
         Node centralExplorer =
                 createCentralExplorer(
                         centralNodes,
@@ -325,7 +329,9 @@ final class EngineeringWorkbench {
         return controlsRoot;
     }
 
-    private Node createCentralControls(Node centralRaceData) {
+    private Node createCentralControls(
+            Node centralRaceData,
+            Node centralTimingData) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
         DockContainerRootBranch controlsRoot =
@@ -337,12 +343,17 @@ final class EngineeringWorkbench {
         registerHomeOrder(controlsRoot, controls);
         configureLeaf(controls);
 
-        controls.addDockable(
+        controls.addDockables(
                 dockable(builder, controls,
                         new WorkbenchPanel(
                                 "central-race-data",
                                 "RaceData",
-                                centralRaceData)));
+                                centralRaceData)),
+                dockable(builder, controls,
+                        new WorkbenchPanel(
+                                "central-timing-data",
+                                "TimingData",
+                                centralTimingData)));
         return controlsRoot;
     }
 

@@ -32,18 +32,26 @@ final class CentralPane implements AutoCloseable {
     private final TextField raceRegistration = new TextField();
     private final TextField raceTeam = new TextField();
     private final TextField raceStageStart = new TextField();
-    private final TextField replayFromSequence = new TextField("1");
     private final Button raceSet = new Button("Set team");
     private final Button raceDelete = new Button("Delete team");
     private final Button stageStartSet = new Button("Set start");
     private final Button stageStartDelete = new Button("Delete start");
-    private final Button replayRequest = new Button("Request TIMING_DATA");
-    private final Label downstreamAck = new Label("0");
-    private final Label downstreamPending = new Label("—");
+    private final Label raceDnAck = new Label("0");
+    private final Label raceDnPending = new Label("—");
     private final Label raceFeedback = new Label("Central upstream not connected");
+
+    private final ComboBox<String> timingNode = new ComboBox<>();
+    private final Label timingHead = new Label("0");
+    private final TextField timingFromSequence = new TextField("1");
+    private final Button timingRequest = new Button("Request TimingData");
+    private final Label timingDnAck = new Label("0");
+    private final Label timingDnPending = new Label("—");
+    private final Label timingFeedback = new Label("Central upstream not connected");
+
     private final VBox nodesPane;
     private final VBox locationsPane;
     private final VBox raceDataPane;
+    private final VBox timingDataPane;
     private final Timeline heartbeatAgeRefresh;
 
     CentralPane(
@@ -61,6 +69,7 @@ final class CentralPane implements AutoCloseable {
         configureNodes();
         configureLocations();
         configureRaceData();
+        configureTimingData();
 
         connectionState.getStyleClass().add("sync-state");
         nodesPane = new VBox(6, connectionState, nodes);
@@ -68,6 +77,7 @@ final class CentralPane implements AutoCloseable {
         locationsPane = new VBox(locations);
         locationsPane.getStyleClass().add("engineering-explorer-pane");
         raceDataPane = createRaceDataPane();
+        timingDataPane = createTimingDataPane();
         VBox.setVgrow(nodes, Priority.ALWAYS);
         VBox.setVgrow(locations, Priority.ALWAYS);
 
@@ -91,6 +101,10 @@ final class CentralPane implements AutoCloseable {
         return raceDataPane;
     }
 
+    javafx.scene.Node timingDataPane() {
+        return timingDataPane;
+    }
+
     void refresh() {
         boolean connected = simulator.isConnected();
         connectionState.setText(
@@ -103,8 +117,9 @@ final class CentralPane implements AutoCloseable {
         List<CentralSystemSimulator.NodeView> nodeViews = simulator.nodes();
         nodes.setItems(FXCollections.observableArrayList(nodeViews));
         locations.setItems(FXCollections.observableArrayList(simulator.locations()));
-        refreshRaceNodes(nodeViews);
+        refreshNodeSelectors(nodeViews);
         refreshRaceDataState();
+        refreshTimingDataState();
     }
 
     private void configureNodes() {
@@ -235,13 +250,21 @@ final class CentralPane implements AutoCloseable {
         raceRegistration.setPromptText("A0001");
         raceTeam.setPromptText("TeamId");
         raceStageStart.setPromptText("HH:mm:ss[.fraction] or date/time");
-        replayFromSequence.setPrefColumnCount(8);
 
         raceSet.setOnAction(event -> applyTeamAssignment(false));
         raceDelete.setOnAction(event -> applyTeamAssignment(true));
         stageStartSet.setOnAction(event -> applyStageStart(false));
         stageStartDelete.setOnAction(event -> applyStageStart(true));
-        replayRequest.setOnAction(event -> requestTimingData());
+    }
+
+    private void configureTimingData() {
+        timingNode.setPromptText("Node");
+        timingNode.setMaxWidth(Double.MAX_VALUE);
+        timingNode.valueProperty().addListener((ignored, oldValue, newValue) ->
+                refreshTimingDataState());
+
+        timingFromSequence.setPrefColumnCount(8);
+        timingRequest.setOnAction(event -> requestTimingData());
     }
 
     private VBox createRaceDataPane() {
@@ -263,15 +286,10 @@ final class CentralPane implements AutoCloseable {
 
         HBox teamActions = new HBox(8, raceSet, raceDelete);
         HBox stageActions = new HBox(8, stageStartSet, stageStartDelete);
-        HBox replay = new HBox(
-                8,
-                new Label("Replay from seq"),
-                replayFromSequence,
-                replayRequest);
         HBox protocol = new HBox(
                 12,
-                new Label("DN ack"), downstreamAck,
-                new Label("DN pending"), downstreamPending);
+                new Label("DN ack"), raceDnAck,
+                new Label("DN pending"), raceDnPending);
 
         VBox pane = new VBox(
                 10,
@@ -279,10 +297,38 @@ final class CentralPane implements AutoCloseable {
                 form,
                 teamActions,
                 stageActions,
-                new Label("TIMING_DATA replay"),
-                replay,
                 protocol,
                 raceFeedback);
+        pane.setPadding(new Insets(8));
+        return pane;
+    }
+
+    private VBox createTimingDataPane() {
+        GridPane form = new GridPane();
+        form.setHgap(8);
+        form.setVgap(8);
+        form.add(new Label("Node"), 0, 0);
+        form.add(timingNode, 1, 0);
+        form.add(new Label("Received through seq"), 0, 1);
+        form.add(timingHead, 1, 1);
+        form.add(new Label("Request from sequence"), 0, 2);
+        form.add(timingFromSequence, 1, 2);
+        GridPane.setHgrow(timingNode, Priority.ALWAYS);
+        GridPane.setHgrow(timingFromSequence, Priority.ALWAYS);
+
+        HBox request = new HBox(8, timingRequest);
+        HBox protocol = new HBox(
+                12,
+                new Label("DN ack"), timingDnAck,
+                new Label("DN pending"), timingDnPending);
+
+        VBox pane = new VBox(
+                10,
+                new Label("Central TimingData"),
+                form,
+                request,
+                protocol,
+                timingFeedback);
         pane.setPadding(new Insets(8));
         return pane;
     }
@@ -303,7 +349,7 @@ final class CentralPane implements AutoCloseable {
                                     + (delete ? " DEL queued" : " SET queued"));
             refresh();
         } catch (RuntimeException ex) {
-            showRaceError(ex);
+            showError(raceFeedback, ex);
         }
     }
 
@@ -323,21 +369,21 @@ final class CentralPane implements AutoCloseable {
                                     + (delete ? " start DEL queued" : " start SET queued"));
             refresh();
         } catch (RuntimeException ex) {
-            showRaceError(ex);
+            showError(raceFeedback, ex);
         }
     }
 
     private void requestTimingData() {
-        String nodeId = raceNode.getValue();
+        String nodeId = timingNode.getValue();
         try {
             long fromSequence =
                     Long.parseLong(
-                            replayFromSequence.getText().trim());
+                            timingFromSequence.getText().trim());
             long packetNr =
                     centralActions.requestTimingData(
                             nodeId,
                             fromSequence);
-            raceFeedback.setText(
+            timingFeedback.setText(
                     packetNr == 0L
                             ? "TIMING_DATA_REQ queued behind pending DN_PACKET"
                             : "DN_PACKET #" + packetNr
@@ -346,33 +392,43 @@ final class CentralPane implements AutoCloseable {
                                     + " queued");
             refresh();
         } catch (NumberFormatException ex) {
-            raceFeedback.setText("Replay from sequence must be an integer");
+            timingFeedback.setText("From sequence must be an integer");
         } catch (RuntimeException ex) {
-            showRaceError(ex);
+            showError(timingFeedback, ex);
         }
     }
 
-    private void showRaceError(RuntimeException ex) {
+    private static void showError(
+            Label feedback,
+            RuntimeException ex) {
         String message = ex.getMessage();
-        raceFeedback.setText(
+        feedback.setText(
                 message == null || message.isBlank()
                         ? ex.getClass().getSimpleName()
                         : message);
     }
 
-    private void refreshRaceNodes(List<CentralSystemSimulator.NodeView> nodeViews) {
-        String selected = raceNode.getValue();
+    private void refreshNodeSelectors(
+            List<CentralSystemSimulator.NodeView> nodeViews) {
         List<String> nodeIds = nodeViews.stream()
                 .map(CentralSystemSimulator.NodeView::nodeId)
                 .toList();
-        raceNode.setItems(FXCollections.observableArrayList(nodeIds));
+        refreshNodeSelector(raceNode, nodeIds);
+        refreshNodeSelector(timingNode, nodeIds);
+    }
+
+    private static void refreshNodeSelector(
+            ComboBox<String> selector,
+            List<String> nodeIds) {
+        String selected = selector.getValue();
+        selector.setItems(FXCollections.observableArrayList(nodeIds));
 
         if (selected != null && nodeIds.contains(selected)) {
-            raceNode.setValue(selected);
+            selector.setValue(selected);
         } else if (!nodeIds.isEmpty()) {
-            raceNode.setValue(nodeIds.get(0));
+            selector.setValue(nodeIds.get(0));
         } else {
-            raceNode.setValue(null);
+            selector.setValue(null);
         }
     }
 
@@ -383,11 +439,11 @@ final class CentralPane implements AutoCloseable {
                 .findFirst()
                 .orElse(null);
 
-        downstreamAck.setText(
+        raceDnAck.setText(
                 view == null
                         ? "0"
                         : Long.toString(view.lastDnPacketAcknowledged()));
-        downstreamPending.setText(
+        raceDnPending.setText(
                 view == null || view.outstandingDnPacketNr() == null
                         ? "—"
                         : Long.toString(view.outstandingDnPacketNr()));
@@ -397,16 +453,48 @@ final class CentralPane implements AutoCloseable {
         raceRegistration.setDisable(!enabled);
         raceTeam.setDisable(!enabled);
         raceStageStart.setDisable(!enabled);
-        replayFromSequence.setDisable(!enabled);
         raceSet.setDisable(!enabled);
         raceDelete.setDisable(!enabled);
         stageStartSet.setDisable(!enabled);
         stageStartDelete.setDisable(!enabled);
-        replayRequest.setDisable(!enabled);
         if (!simulator.isConnected()) {
             raceFeedback.setText("Central upstream not connected");
         } else if (view == null) {
             raceFeedback.setText("No Central NodeId observed yet");
+        }
+    }
+
+    private void refreshTimingDataState() {
+        String selected = timingNode.getValue();
+        CentralSystemSimulator.NodeView view = simulator.nodes().stream()
+                .filter(value -> value.nodeId().equals(selected))
+                .findFirst()
+                .orElse(null);
+
+        timingHead.setText(
+                view == null
+                        ? "0"
+                        : Long.toString(view.timingDataHead()));
+        timingDnAck.setText(
+                view == null
+                        ? "0"
+                        : Long.toString(view.lastDnPacketAcknowledged()));
+        timingDnPending.setText(
+                view == null || view.outstandingDnPacketNr() == null
+                        ? "—"
+                        : Long.toString(view.outstandingDnPacketNr()));
+
+        boolean enabled = simulator.isConnected() && view != null;
+        timingNode.setDisable(
+                !simulator.isConnected()
+                        || simulator.nodes().isEmpty());
+        timingFromSequence.setDisable(!enabled);
+        timingRequest.setDisable(!enabled);
+
+        if (!simulator.isConnected()) {
+            timingFeedback.setText("Central upstream not connected");
+        } else if (view == null) {
+            timingFeedback.setText("No Central NodeId observed yet");
         }
     }
 
