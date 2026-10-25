@@ -12,4 +12,8 @@ enum ConnectionToolbarState {
         int count = countConnected(events, terminal, deviceLog);
         return count == 0 ? NONE : count == 3 ? ALL : PARTIAL;
     }
+
+    boolean reconnectAvailable() {
+        return this == PARTIAL;
+    }
 }
