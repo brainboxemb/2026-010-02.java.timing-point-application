@@ -68,7 +68,9 @@ final class CentralSystemSimulator {
             Long outstandingDnPacketNr,
             String lifecycleState,
             Integer locationId,
-            TimingRecord lastRecord) {
+            TimingRecord lastRecord,
+            Long sourceHead,
+            boolean sourceHeadQueryPending) {
     }
 
     record LocationView(
@@ -203,6 +205,30 @@ final class CentralSystemSimulator {
         }
 
         node.pendingMessages.addLast(request);
+        return sendNextNormalPacketIfPossible(node);
+    }
+
+    /** Queues one operator source-head query through normal downstream stop-and-wait delivery. */
+    List<UpstreamData> requestSourceHead(NodeId nodeId) {
+        requireConnected();
+        if (nodeId == null) {
+            throw new IllegalArgumentException("nodeId must not be null");
+        }
+
+        NodeState node = nodes.get(nodeId.value());
+        if (node == null) {
+            throw new IllegalStateException(
+                    "No Central state observed for node " + nodeId.value());
+        }
+        if (node.sourceHeadQueryPending) {
+            throw new IllegalStateException(
+                    "SI-01 source-head query already pending for "
+                            + nodeId.value());
+        }
+
+        node.sourceHeadQueryPending = true;
+        node.pendingMessages.addLast(
+                DefaultUpstreamData.createSequenceRequest());
         return sendNextNormalPacketIfPossible(node);
     }
 
@@ -358,7 +384,9 @@ final class CentralSystemSimulator {
                                             state.outstanding.packetNr()),
                             state.lifecycleState,
                             state.locationId,
-                            state.lastRecord));
+                            state.lastRecord,
+                            state.sourceHead,
+                            state.sourceHeadQueryPending));
         }
         return List.copyOf(result);
     }
@@ -415,6 +443,12 @@ final class CentralSystemSimulator {
                             + sourceHead
                             + " is behind Central receive head "
                             + node.timingDataHead);
+        }
+        node.sourceHead = Long.valueOf(sourceHead);
+
+        if (sequence.operation() == UpstreamData.SequenceOperation.ANS) {
+            node.sourceHeadQueryPending = false;
+            return Collections.emptyList();
         }
 
         if (sourceHead > node.timingDataHead
@@ -520,6 +554,7 @@ final class CentralSystemSimulator {
         node.pendingMessages.clear();
         node.lastDnPacketAcknowledged = 0L;
         node.nextDnPacketNr = 1L;
+        node.sourceHeadQueryPending = false;
         node.acknowledgedTeams.clear();
         node.acknowledgedStageStarts.clear();
     }
@@ -932,6 +967,8 @@ final class CentralSystemSimulator {
         private long nextDnPacketNr = 1L;
         private long lastDnPacketAcknowledged;
         private UpstreamData outstanding;
+        private Long sourceHead;
+        private boolean sourceHeadQueryPending;
         private String lifecycleState = "UNKNOWN";
         private Integer locationId;
         private TimingRecord lastRecord;
