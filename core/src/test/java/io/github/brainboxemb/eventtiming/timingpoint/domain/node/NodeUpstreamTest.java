@@ -443,6 +443,14 @@ public class NodeUpstreamTest {
             node.logBook().process(
                     LogBookCommands.commitNodeOpen(
                             new LocationId(24)));
+            UpstreamData refreshedSequence = stream.takeSent();
+            assertSame(
+                    UpstreamData.Family.SEQ,
+                    refreshedSequence.family());
+            assertEquals(
+                    Long.valueOf(1L),
+                    ((UpstreamData.Sequence) refreshedSequence.message())
+                            .sequence());
             assertEquals(0, stream.sentCount());
 
             stream.receive(timingDataRequestPacket("A", 1L, 1L));
@@ -498,6 +506,14 @@ public class NodeUpstreamTest {
             node.logBook().process(
                     LogBookCommands.commitNodeClose(
                             new LocationId(24)));
+            UpstreamData refreshedSequence = stream.takeSent();
+            assertSame(
+                    UpstreamData.Family.SEQ,
+                    refreshedSequence.family());
+            assertEquals(
+                    Long.valueOf(2L),
+                    ((UpstreamData.Sequence) refreshedSequence.message())
+                            .sequence());
             assertEquals(0, stream.sentCount());
 
             stream.receive(timingDataRequestPacket("A", 2L, 2L));
@@ -506,6 +522,49 @@ public class NodeUpstreamTest {
                     2L,
                     transfer(stream.takeSent())
                             .records().get(0).sequenceNumber());
+        } finally {
+            deactivate(node.nodeUpstream());
+            deactivate(node.node());
+        }
+    }
+
+    @Test
+    public void equalPeerSequenceCompletesReconnectWithoutReplayRequest() {
+        InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
+        stream.setAvailable(false);
+        TimingNodeFixture.Components node =
+                node("A", stream, timingData("A", 1));
+        activate(node.node());
+        activate(node.nodeUpstream());
+        try {
+            stream.connect();
+            stream.takeSent(); // RECV 0
+            UpstreamData sourceHead = stream.takeSent();
+            stream.takeSent(); // PING
+            assertSame(
+                    UpstreamData.Family.SEQ,
+                    sourceHead.family());
+            assertEquals(
+                    Long.valueOf(1L),
+                    ((UpstreamData.Sequence) sourceHead.message())
+                            .sequence());
+
+            stream.receive(
+                    DefaultUpstreamData.createDnPacket(
+                            new NodeId("A"),
+                            1L,
+                            DefaultUpstreamData.createSequenceNotification(1L)));
+            assertReceive(stream.takeSent(), 1L);
+            assertEquals(0, stream.sentCount());
+
+            node.logBook().process(
+                    LogBookCommands.commitNodeClose(
+                            new LocationId(24)));
+            UpstreamData.TimingDataTransfer live =
+                    transfer(stream.takeSent());
+            assertEquals(
+                    2L,
+                    live.records().get(0).sequenceNumber());
         } finally {
             deactivate(node.nodeUpstream());
             deactivate(node.node());
