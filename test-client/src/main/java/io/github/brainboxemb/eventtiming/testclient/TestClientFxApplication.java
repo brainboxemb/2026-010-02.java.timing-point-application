@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
+import io.github.brainboxemb.eventtiming.testclient.central.CentralActions;
+import io.github.brainboxemb.eventtiming.testclient.central.CentralClient;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -91,10 +93,7 @@ public final class TestClientFxApplication extends Application {
     private EngineeringSystemContext system;
     private ClientLog clientLog;
     private ApiPane apiPane;
-    private CentralSystemSimulator centralSimulator;
-    private CentralPane centralPane;
-    private CentralMessagesPane centralMessagesPane;
-    private CentralLogBookPane centralLogBookPane;
+    private CentralClient centralClient;
     private EventTrafficPane eventTrafficPane;
     private HttpTrafficPane httpTrafficPane;
     private EngineeringWorkbench workbench;
@@ -117,57 +116,11 @@ public final class TestClientFxApplication extends Application {
         VBox deviceLogPanel = deviceLogPane();
         VBox clientLogPanel = clientLogPane();
 
-        centralSimulator = new CentralSystemSimulator(config.centralLocationIds());
-        CentralActions centralActions = new CentralActions() {
-            @Override
-            public long setTeamAssignment(
-                    String nodeId,
-                    String registrationId,
-                    String teamId) {
-                return sendCentralTeamAssignmentSet(
-                        nodeId,
-                        registrationId,
-                        teamId);
-            }
-
-            @Override
-            public long deleteTeamAssignment(
-                    String nodeId,
-                    String registrationId) {
-                return sendCentralTeamAssignmentDelete(
-                        nodeId,
-                        registrationId);
-            }
-
-            @Override
-            public long setStageStart(
-                    String nodeId,
-                    String registrationId,
-                    String start) {
-                return sendCentralStageStartSet(
-                        nodeId,
-                        registrationId,
-                        start);
-            }
-
-            @Override
-            public long deleteStageStart(
-                    String nodeId,
-                    String registrationId) {
-                return sendCentralStageStartDelete(
-                        nodeId,
-                        registrationId);
-            }
-
-            @Override
-            public long requestTimingData(
-                    String nodeId,
-                    long fromSequence) {
-                return sendCentralTimingDataRequest(
-                        nodeId,
-                        fromSequence);
-            }
-        };
+        centralClient =
+                new CentralClient(
+                        config.centralLocationIds(),
+                        this::sendCentralTransport);
+        CentralActions centralActions = centralClient.actions();
         apiPane = new ApiPane(
                 this::client,
                 requests,
@@ -175,12 +128,6 @@ public final class TestClientFxApplication extends Application {
                 this::setApiState,
                 clientLog,
                 centralActions);
-        centralPane = new CentralPane(
-                centralSimulator,
-                centralActions);
-        centralMessagesPane = new CentralMessagesPane(centralSimulator);
-        centralLogBookPane = new CentralLogBookPane(centralSimulator);
-
         workbench = createWorkbench(
                 deviceLogPanel,
                 terminalPanel,
@@ -307,12 +254,12 @@ public final class TestClientFxApplication extends Application {
             VBox httpPanel) {
         return new EngineeringWorkbench(
                 apiPane.systemsPane(),
-                centralPane.nodesPane(),
-                centralPane.locationsPane(),
-                centralMessagesPane.pane(),
-                centralLogBookPane.pane(),
-                centralPane.raceDataPane(),
-                centralPane.timingDataPane(),
+                centralClient.nodesPane(),
+                centralClient.locationsPane(),
+                centralClient.messagesPane(),
+                centralClient.logBookPane(),
+                centralClient.raceDataPane(),
+                centralClient.timingDataPane(),
                 apiPane.timingNodePane(),
                 apiPane.apiInfoPane(),
                 apiPane.registrationPane(),
@@ -725,9 +672,8 @@ public final class TestClientFxApplication extends Application {
      */
     private void disconnectCentral() {
         if (!system.eventClient().isUpstreamRoleConnected()) {
-            centralSimulator.disconnected();
-            refreshCentralViews();
-            setCentralConnected(false, "CONNECT");
+            centralClient.disconnected();
+                        setCentralConnected(false, "CONNECT");
             return;
         }
 
@@ -735,9 +681,8 @@ public final class TestClientFxApplication extends Application {
         setBoundaryState(eventBoundary, "Events", "CONNECTING");
         setBoundaryState(centralBoundary, "Central", "DISCONNECTING");
         system.eventClient().disconnect();
-        centralSimulator.disconnected();
-        refreshCentralViews();
-        connectEventSession(false);
+        centralClient.disconnected();
+                connectEventSession(false);
     }
 
     private void connectEventSession(boolean upstreamRole) {
@@ -764,14 +709,13 @@ public final class TestClientFxApplication extends Application {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         setEventConnected(true, "CONNECTED");
                         if (upstreamRole) {
-                            centralSimulator.connected();
+                            centralClient.connected();
                             setCentralConnected(true, "CONNECTED");
                         } else {
-                            centralSimulator.disconnected();
+                            centralClient.disconnected();
                             setCentralConnected(false, "CONNECT");
                         }
-                        refreshCentralViews();
-                        apiPane.connected();
+                                                apiPane.connected();
                         clientLog.info(
                                 upstreamRole
                                         ? "IF-03 Events + Central upstream connected"
@@ -794,9 +738,8 @@ public final class TestClientFxApplication extends Application {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         eventConnectionEpoch.invalidate();
                         setEventConnected(false, "CONNECT");
-                        centralSimulator.disconnected();
-                        refreshCentralViews();
-                        setCentralConnected(false, "CONNECT");
+                        centralClient.disconnected();
+                                                setCentralConnected(false, "CONNECT");
                         apiPane.disconnected(true);
                         clientLog.warn(
                                 "IF-03 event session disconnected (" + statusCode + ")");
@@ -810,9 +753,8 @@ public final class TestClientFxApplication extends Application {
                         clientLog.error("IF-03 Events error: " + message);
                         if (!system.eventClient().isConnected()) {
                             setEventConnected(false, "ERROR");
-                            centralSimulator.disconnected();
-                            refreshCentralViews();
-                            setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
+                            centralClient.disconnected();
+                                                        setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
                             apiPane.disconnected(true);
                         }
                         feedback.setText("Events error: " + message);
@@ -824,9 +766,8 @@ public final class TestClientFxApplication extends Application {
                         if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         Throwable cause = rootCause(error);
                         setEventConnected(false, "ERROR");
-                        centralSimulator.disconnected();
-                        refreshCentralViews();
-                        setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
+                        centralClient.disconnected();
+                                                setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
                         apiPane.disconnected(true);
                         clientLog.error(
                                 "IF-03 event connect failed: " + rootMessage(cause));
@@ -836,9 +777,8 @@ public final class TestClientFxApplication extends Application {
             });
         } catch (RuntimeException ex) {
             setEventConnected(false, "CONNECT");
-            centralSimulator.disconnected();
-            refreshCentralViews();
-            setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
+            centralClient.disconnected();
+                        setCentralConnected(false, upstreamRole ? "ERROR" : "CONNECT");
             clientLog.error("IF-03 event connect failed: " + ex.getMessage());
         }
     }
@@ -851,9 +791,8 @@ public final class TestClientFxApplication extends Application {
         }
         system.eventClient().disconnect();
         setEventConnected(false, "CONNECT");
-        centralSimulator.disconnected();
-        refreshCentralViews();
-        setCentralConnected(false, "CONNECT");
+        centralClient.disconnected();
+                setCentralConnected(false, "CONNECT");
         apiPane.disconnected(true);
         clientLog.info("IF-03 Events disconnected");
     }
@@ -870,27 +809,11 @@ public final class TestClientFxApplication extends Application {
         } else if (event instanceof ApiEventClient.UpstreamDataEvent upstreamEvent
                 && system.eventClient().isUpstreamRoleConnected()) {
             try {
-                for (UpstreamData reply
-                        : centralSimulator.accept(
-                                upstreamEvent.upstreamData(),
-                                upstreamEvent.occurredAt(),
-                                upstreamEvent.receivedAt(),
-                                upstreamEvent.rawPayloadJson())) {
-                    sendUpstreamDataWithTraffic(reply)
-                            .whenComplete((ignored, error) -> {
-                                if (error != null) {
-                                    Platform.runLater(() -> {
-                                        clientLog.error(
-                                                "Central upstream reply failed: "
-                                                        + rootMessage(error));
-                                        feedback.setText(
-                                                "Central error: "
-                                                        + rootMessage(error));
-                                    });
-                                }
-                            });
-                }
-                refreshCentralViews();
+                centralClient.accept(
+                        upstreamEvent.upstreamData(),
+                        upstreamEvent.occurredAt(),
+                        upstreamEvent.receivedAt(),
+                        upstreamEvent.rawPayloadJson());
             } catch (RuntimeException ex) {
                 clientLog.error(
                         "Central upstream data error: " + rootMessage(ex));
@@ -901,166 +824,29 @@ public final class TestClientFxApplication extends Application {
 
     }
 
-    private long sendCentralTeamAssignmentSet(
-            String nodeId,
-            String registrationId,
-            String teamId) {
-        requireCentralUpstreamRole();
-
-        List<UpstreamData> packets =
-                centralSimulator.updateRaceData(
-                        new NodeId(nodeId),
-                        java.util.List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        registrationId,
-                                        teamId)),
-                        java.util.List.of());
-        return sendCentralPackets(
-                nodeId,
-                packets);
-    }
-
-    private long sendCentralTeamAssignmentDelete(
-            String nodeId,
-            String registrationId) {
-        requireCentralUpstreamRole();
-
-        List<UpstreamData> packets =
-                centralSimulator.updateRaceData(
-                        new NodeId(nodeId),
-                        java.util.List.of(
-                                DefaultUpstreamData.createTeamAssignmentDelete(
-                                        registrationId)),
-                        java.util.List.of());
-        return sendCentralPackets(
-                nodeId,
-                packets);
-    }
-
-    private long sendCentralStageStartSet(
-            String nodeId,
-            String registrationId,
-            String start) {
-        requireCentralUpstreamRole();
-
-        io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp parsed =
-                io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp.parse(
-                        start == null ? null : start.trim());
-        List<UpstreamData> packets =
-                centralSimulator.updateRaceData(
-                        new NodeId(nodeId),
-                        java.util.List.of(),
-                        java.util.List.of(
-                                DefaultUpstreamData.createStageStartSet(
-                                        registrationId,
-                                        parsed)));
-        return sendCentralPackets(
-                nodeId,
-                packets);
-    }
-
-    private long sendCentralStageStartDelete(
-            String nodeId,
-            String registrationId) {
-        requireCentralUpstreamRole();
-
-        List<UpstreamData> packets =
-                centralSimulator.updateRaceData(
-                        new NodeId(nodeId),
-                        java.util.List.of(),
-                        java.util.List.of(
-                                DefaultUpstreamData.createStageStartDelete(
-                                        registrationId)));
-        return sendCentralPackets(
-                nodeId,
-                packets);
-    }
-
-    private long sendCentralTimingDataRequest(
-            String nodeId,
-            long fromSequence) {
-        requireCentralUpstreamRole();
-
-        List<UpstreamData> packets =
-                centralSimulator.requestTimingData(
-                        new NodeId(nodeId),
-                        fromSequence);
-        return sendCentralPackets(
-                nodeId,
-                packets);
-    }
-
-    /**
-     * Sends packets that became eligible after one Central state update.
-     *
-     * @return the new packet number, or 0 when the state is waiting behind an outstanding packet
-     */
-    private long sendCentralPackets(
-            String nodeId,
-            List<UpstreamData> packets) {
-        long packetNr = 0L;
-        for (UpstreamData packet : packets) {
-            packetNr = packet.packetNr();
-            final long sentPacketNr = packetNr;
-            try {
-                sendUpstreamDataWithTraffic(packet)
-                        .whenComplete((ignored, error) -> {
-                            if (error != null) {
-                                Platform.runLater(() -> {
-                                    clientLog.error(
-                                            "Central DN_PACKET #"
-                                                    + sentPacketNr
-                                                    + " send failed: "
-                                                    + rootMessage(error));
-                                    feedback.setText(
-                                            "Central packet send failed: "
-                                                    + rootMessage(error));
-                                    refreshCentralViews();
-                                });
-                            }
-                        });
-            } catch (RuntimeException ex) {
-                refreshCentralViews();
-                throw ex;
-            }
-        }
-
-        refreshCentralViews();
-        if (packetNr == 0L) {
-            clientLog.info(
-                    "Central action queued for node "
-                            + nodeId
-                            + "; waiting behind outstanding DN_PACKET");
-        } else {
-            clientLog.info(
-                    "Central DN_PACKET #"
-                            + packetNr
-                            + " queued for node "
-                            + nodeId);
-        }
-        return packetNr;
-    }
-
-    private CompletableFuture<Void> sendUpstreamDataWithTraffic(
-            UpstreamData data) {
-        String rawPayload = ApiEventClient.encodeUpstreamData(data);
-        java.time.Instant sentAt = java.time.Instant.now();
-        CompletableFuture<Void> send = system.eventClient().sendUpstreamData(data);
-        centralSimulator.recordSent(data, sentAt, rawPayload);
-        centralMessagesPane.refresh();
-        return send;
-    }
-
-    private void refreshCentralViews() {
-        centralPane.refresh();
-        centralMessagesPane.refresh();
-        centralLogBookPane.refresh();
-    }
-
-    private void requireCentralUpstreamRole() {
-        if (!system.eventClient().isUpstreamRoleConnected()) {
-            throw new IllegalStateException(
-                    "Central upstream is not connected");
+    private void sendCentralTransport(UpstreamData data) {
+        final long packetNr = data.packetNr();
+        try {
+            system.eventClient()
+                    .sendUpstreamData(data)
+                    .whenComplete((ignored, error) -> {
+                        if (error != null) {
+                            Platform.runLater(() -> {
+                                clientLog.error(
+                                        "Central packet #"
+                                                + packetNr
+                                                + " send failed: "
+                                                + rootMessage(error));
+                                feedback.setText(
+                                        "Central packet send failed: "
+                                                + rootMessage(error));
+                                centralClient.refresh();
+                            });
+                        }
+                    });
+        } catch (RuntimeException ex) {
+            centralClient.refresh();
+            throw ex;
         }
     }
 
@@ -1250,9 +1036,8 @@ public final class TestClientFxApplication extends Application {
             eventConnectionEpoch.invalidate();
             apiCheckEpoch.invalidate();
             setEventConnected(false, "CONNECT");
-            centralSimulator.resetTargetState();
-            refreshCentralViews();
-            setCentralConnected(false, "CONNECT");
+            centralClient.resetTargetState();
+                        setCentralConnected(false, "CONNECT");
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
             setApiState("CHECK");
@@ -1413,8 +1198,8 @@ public final class TestClientFxApplication extends Application {
         if (apiPane != null) {
             apiPane.close();
         }
-        if (centralPane != null) {
-            centralPane.close();
+        if (centralClient != null) {
+            centralClient.close();
         }
         if (system != null) {
             system.close();
