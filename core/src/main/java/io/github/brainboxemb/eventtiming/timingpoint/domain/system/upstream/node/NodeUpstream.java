@@ -20,6 +20,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
@@ -29,6 +32,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * semantic dispatch, downstream RECV state, TIMING_DATA synchronization and PING cadence.</p>
  */
 public final class NodeUpstream extends LifecycleComponent {
+    private static final Logger LOG = LoggerFactory.getLogger(NodeUpstream.class);
     private static final int TASK_QUEUE_CAPACITY = 32;
     private static final long HEARTBEAT_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(30L);
 
@@ -221,9 +225,11 @@ public final class NodeUpstream extends LifecycleComponent {
                             codec.encode(packet),
                             StandardCharsets.UTF_8);
 
-            NodeUpstreamLogging.queued(packet);
+            String summary = NodeUpstreamLogging.summary(packet);
+
+            LOG.info("Upstream queued: {}", summary);
             stream.send(encoded);
-            NodeUpstreamLogging.sent(packet);
+            LOG.info("Upstream sent: {}", summary);
         } catch (UpstreamDataCodec.CodecException ex) {
             throw new IllegalStateException(
                     "Could not encode UpstreamData for node " + nodeId.value(),
@@ -290,7 +296,9 @@ public final class NodeUpstream extends LifecycleComponent {
             UpstreamData packet =
                     codec.decode(
                             encoded.getBytes(StandardCharsets.UTF_8));
-            NodeUpstreamLogging.received(packet);
+            LOG.info(
+                    "Upstream received: {}",
+                    NodeUpstreamLogging.summary(packet));
             return packet;
         } catch (UpstreamDataCodec.CodecException ex) {
             throw new IllegalArgumentException(

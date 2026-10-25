@@ -7,27 +7,9 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.Instant;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /** Diagnostic logging for the node-scoped IF-06 semantic boundary. */
 final class NodeUpstreamLogging {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(NodeUpstream.class);
-
     private NodeUpstreamLogging() {
-    }
-
-    static void queued(UpstreamData packet) {
-        LOG.info("Upstream queued: {}", summary(packet));
-    }
-
-    static void sent(UpstreamData packet) {
-        LOG.info("Upstream sent: {}", summary(packet));
-    }
-
-    static void received(UpstreamData packet) {
-        LOG.info("Upstream received: {}", summary(packet));
     }
 
     /** Builds one compact summary at the semantic packet boundary. */
