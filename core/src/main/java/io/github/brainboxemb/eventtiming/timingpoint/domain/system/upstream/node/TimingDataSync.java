@@ -45,6 +45,7 @@ final class TimingDataSync {
     private boolean liveActive;
     private long nextLiveSequence;
     private long centralProcessedSequence;
+    private boolean sequenceHandoffPending;
     private long lastNotifiedSourceHead = -1L;
 
     TimingDataSync(
@@ -66,6 +67,7 @@ final class TimingDataSync {
     synchronized void sendSourceHeadNotification() {
         replayActive = false;
         liveActive = false;
+        sequenceHandoffPending = true;
         lastNotifiedSourceHead = -1L;
         refreshSourceHeadNotification();
     }
@@ -73,6 +75,7 @@ final class TimingDataSync {
     /** Refreshes the source-head NTF while a connection handoff is still pending. */
     synchronized void refreshSourceHeadNotification() {
         if (!available.getAsBoolean()
+                || !sequenceHandoffPending
                 || replayActive
                 || liveActive) {
             return;
@@ -113,8 +116,10 @@ final class TimingDataSync {
                         localHead);
                 centralProcessedSequence = peerSequence;
 
-                if (!replayActive
+                if (sequenceHandoffPending
+                        && !replayActive
                         && peerSequence == localHead) {
+                    sequenceHandoffPending = false;
                     enableLive(localHead + 1L);
                     LOG.info(
                             "TIMING_DATA handoff synchronized: node={}, head={}, liveFrom={}",
@@ -173,6 +178,7 @@ final class TimingDataSync {
 
         replayActive = false;
         liveActive = false;
+        sequenceHandoffPending = false;
 
         long capturedHead = headSequence();
         LOG.info(
@@ -223,6 +229,7 @@ final class TimingDataSync {
     synchronized void sessionUnavailable() {
         replayActive = false;
         liveActive = false;
+        sequenceHandoffPending = false;
         lastNotifiedSourceHead = -1L;
     }
 
@@ -285,7 +292,7 @@ final class TimingDataSync {
 
     /** Returns whether SEQ reconciliation is still waiting for replay or equal peer position. */
     synchronized boolean handoffPending() {
-        return !replayActive && !liveActive;
+        return sequenceHandoffPending;
     }
 
     /** Reports whether the live cursor currently trails the authoritative LogBook head. */
