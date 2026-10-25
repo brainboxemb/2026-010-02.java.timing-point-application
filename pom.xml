@@ -45,13 +45,21 @@
     <!--
       NetBeans exposes Maven profiles as selectable project configurations.
       Configuration-specific Run/Debug bindings live in matching
-      nbactions-dev-reference.xml and nbactions-dev-simulation.xml files.
+      nbactions-dev-reference.xml, nbactions-dev-simulation.xml and
+      nbactions-dev-client.xml files.
     -->
     <profile>
       <id>dev-reference</id>
     </profile>
     <profile>
       <id>dev-simulation</id>
+    </profile>
+    <profile>
+      <id>dev-client</id>
+      <modules>
+        <module>test-client-central</module>
+        <module>test-client</module>
+      </modules>
     </profile>
 
     <profile>
