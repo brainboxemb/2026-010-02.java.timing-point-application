@@ -48,7 +48,7 @@
 
 - Add optional absolute UTC `time` to IF-06 PING values for legacy-compatible message-time visibility. SI-01 heartbeat requests and answers populate it from the composed TimeSource, while readers still accept older PING values without time; Central reference replies create their own answer timestamp rather than echoing the request time.
 
-- Refine the TIMING_DATA synchronization handoff: Central requests retained data only when its processed head is behind SI-01; an already caught-up reconnect completes through equal SEQ positions, while SI-01 refreshes its source-head notification if the LogBook advances before that confirmation. Captured-head replay ordering and replay/live session cancellation remain unchanged.
+- Simplify TIMING_DATA synchronization: live forwarding is enabled by default for an available session; SEQ reports positions without gating live traffic; Central sends no automatic response when already caught up, while a real TIMING_DATA_REQ pauses live forwarding for its captured replay and replay completion resumes it at capturedHead+1.
 
 - Tighten the shared IF-06 data contract: RACE_DATA now carries a required message-level LocationId, TIMING_DATA is limited to 16 TimingRecords per message, RACE_DATA is limited to 16 combined team/stage-start changes, and LogBook replay uses the same 16-record batch size. SI-02 Central creates RACE_DATA only for a currently OPEN location and shows the location in the semantic Messages position column.
 

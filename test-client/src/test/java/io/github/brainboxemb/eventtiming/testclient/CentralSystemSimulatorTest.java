@@ -76,7 +76,7 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void caughtUpSequenceUsesPeerPositionConfirmationWithoutReplayRequest() {
+    void caughtUpSequenceNeedsNoAutomaticCentralResponse() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));
         simulator.connected();
@@ -91,15 +91,7 @@ final class CentralSystemSimulatorTest {
                                 DefaultUpstreamData.createSequenceNotification(1L)),
                         RECEIVED.plusSeconds(1));
 
-        assertEquals(1, replies.size());
-        UpstreamData.Sequence confirmation =
-                (UpstreamData.Sequence) replies.get(0).message();
-        assertEquals(
-                UpstreamData.SequenceOperation.NTF,
-                confirmation.operation());
-        assertEquals(
-                Long.valueOf(1L),
-                confirmation.sequence());
+        assertTrue(replies.isEmpty());
     }
 
     @Test
