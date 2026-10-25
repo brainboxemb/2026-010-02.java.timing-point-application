@@ -21,7 +21,6 @@ import org.junit.Test;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TimingDataSyncTest {
@@ -130,6 +129,43 @@ public class TimingDataSyncTest {
                     DefaultUpstreamData.createSequenceNotification(1L));
 
             assertEquals(1L, sync.centralProcessedSequence());
+            assertTrue(sync.liveReady());
+        } finally {
+            deactivate(logBook);
+        }
+    }
+
+    @Test
+    public void replayPausesLiveForwardingUntilCapturedRangeCompletes() {
+        NodeId nodeId = new NodeId("A");
+        LogBook logBook = emptyLogBook(nodeId);
+        activate(logBook);
+        try {
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+            logBook.process(
+                    LogBookCommands.commitNodeClose(
+                            new LocationId(1)));
+
+            TimingDataSync sync =
+                    new TimingDataSync(
+                            nodeId,
+                            () -> true,
+                            message -> { },
+                            logBook);
+            sync.sendSourceHeadNotification();
+            assertTrue(sync.liveReady());
+
+            sync.startReplay(
+                    DefaultUpstreamData.createTimingDataRequest(1L));
+            assertTrue(sync.replayPending());
+            assertTrue(!sync.liveReady());
+
+            sync.sendNextBatch(
+                    sync.submitNextBatch().join());
+
+            assertTrue(!sync.replayPending());
             assertTrue(sync.liveReady());
         } finally {
             deactivate(logBook);

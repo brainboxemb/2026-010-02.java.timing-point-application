@@ -424,7 +424,7 @@ public class NodeUpstreamTest {
     }
 
     @Test
-    public void commitBetweenSequenceNotificationAndRequestWaitsForHandoff() {
+    public void commitBeforeReplayRequestUsesLiveForwarding() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         stream.setAvailable(false);
         TimingNodeFixture.Components node = node("A", stream);
@@ -468,7 +468,7 @@ public class NodeUpstreamTest {
     }
 
     @Test
-    public void reconnectKeepsDownstreamPositionButRequiresNewTimingDataHandoff() {
+    public void reconnectKeepsDownstreamPositionAndLiveForwardingUntilReplay() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         stream.setAvailable(false);
         TimingNodeFixture.Components node = node("A", stream);
