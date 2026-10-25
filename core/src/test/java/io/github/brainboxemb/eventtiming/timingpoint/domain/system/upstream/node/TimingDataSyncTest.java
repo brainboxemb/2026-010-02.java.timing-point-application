@@ -21,6 +21,7 @@ import org.junit.Test;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TimingDataSyncTest {
@@ -160,12 +161,12 @@ public class TimingDataSyncTest {
             sync.startReplay(
                     DefaultUpstreamData.createTimingDataRequest(1L));
             assertTrue(sync.replayPending());
-            assertTrue(!sync.liveReady());
+            assertFalse(sync.liveReady());
 
             sync.sendNextBatch(
                     sync.submitNextBatch().join());
 
-            assertTrue(!sync.replayPending());
+            assertFalse(sync.replayPending());
             assertTrue(sync.liveReady());
         } finally {
             deactivate(logBook);
