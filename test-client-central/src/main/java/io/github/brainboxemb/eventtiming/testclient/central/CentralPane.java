@@ -24,7 +24,7 @@ import java.util.List;
 /** JavaFX projections and operator controls for the Central System Simulator state. */
 final class CentralPane implements AutoCloseable {
     private final CentralSystemSimulator simulator;
-    private final CentralActions centralActions;
+    private final CentralControlActions centralActions;
     private final Label connectionState = new Label("CENTRAL UPSTREAM NOT CONNECTED");
     private final ListView<CentralSystemSimulator.NodeView> nodes = new ListView<>();
     private final ListView<CentralSystemSimulator.LocationView> locations = new ListView<>();
@@ -42,6 +42,8 @@ final class CentralPane implements AutoCloseable {
 
     private final ComboBox<String> timingNode = new ComboBox<>();
     private final Label timingHead = new Label("0");
+    private final Label timingSourceHead = new Label("—");
+    private final Button timingSourceHeadQuery = new Button("Query SI-01");
     private final TextField timingFromSequence = new TextField("1");
     private final Button timingRequest = new Button("Request TimingData");
     private final Label timingDnAck = new Label("0");
@@ -56,7 +58,7 @@ final class CentralPane implements AutoCloseable {
 
     CentralPane(
             CentralSystemSimulator simulator,
-            CentralActions centralActions) {
+            CentralControlActions centralActions) {
         if (simulator == null) {
             throw new IllegalArgumentException("simulator must not be null");
         }
@@ -263,6 +265,10 @@ final class CentralPane implements AutoCloseable {
         timingNode.valueProperty().addListener((ignored, oldValue, newValue) ->
                 refreshTimingDataState());
 
+        timingSourceHeadQuery.setTooltip(
+                new Tooltip(
+                        "Ask SI-01 for its current LogBook/TIMING_DATA source position via IF-06 SEQ REQ"));
+        timingSourceHeadQuery.setOnAction(event -> querySourceHead());
         timingFromSequence.setPrefColumnCount(8);
         timingRequest.setOnAction(event -> requestTimingData());
     }
@@ -311,8 +317,16 @@ final class CentralPane implements AutoCloseable {
         form.add(timingNode, 1, 0);
         form.add(new Label("Received through seq"), 0, 1);
         form.add(timingHead, 1, 1);
-        form.add(new Label("Request from sequence"), 0, 2);
-        form.add(timingFromSequence, 1, 2);
+        form.add(new Label("SI-01 LogBook count"), 0, 2);
+        form.add(
+                new HBox(
+                        8,
+                        timingSourceHead,
+                        timingSourceHeadQuery),
+                1,
+                2);
+        form.add(new Label("Request from sequence"), 0, 3);
+        form.add(timingFromSequence, 1, 3);
         GridPane.setHgrow(timingNode, Priority.ALWAYS);
         GridPane.setHgrow(timingFromSequence, Priority.ALWAYS);
 
@@ -370,6 +384,22 @@ final class CentralPane implements AutoCloseable {
             refresh();
         } catch (RuntimeException ex) {
             showError(raceFeedback, ex);
+        }
+    }
+
+    private void querySourceHead() {
+        String nodeId = timingNode.getValue();
+        try {
+            long packetNr =
+                    centralActions.requestSourceHead(nodeId);
+            timingFeedback.setText(
+                    packetNr == 0L
+                            ? "SEQ REQ queued behind pending DN_PACKET"
+                            : "DN_PACKET #" + packetNr
+                                    + " SEQ REQ queued");
+            refresh();
+        } catch (RuntimeException ex) {
+            showError(timingFeedback, ex);
         }
     }
 
@@ -475,6 +505,10 @@ final class CentralPane implements AutoCloseable {
                 view == null
                         ? "0"
                         : Long.toString(view.timingDataHead()));
+        timingSourceHead.setText(
+                view == null || view.sourceHead() == null
+                        ? "—"
+                        : Long.toString(view.sourceHead().longValue()));
         timingDnAck.setText(
                 view == null
                         ? "0"
@@ -488,6 +522,13 @@ final class CentralPane implements AutoCloseable {
         timingNode.setDisable(
                 !simulator.isConnected()
                         || simulator.nodes().isEmpty());
+        timingSourceHeadQuery.setDisable(
+                !enabled
+                        || view.sourceHeadQueryPending());
+        timingSourceHeadQuery.setText(
+                view != null && view.sourceHeadQueryPending()
+                        ? "Querying…"
+                        : "Query SI-01");
         timingFromSequence.setDisable(!enabled);
         timingRequest.setDisable(!enabled);
 
