@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'test-client/**'
+      - 'test-client-central/**'
       - 'shared/timing-data/**'
       - 'shared/event-data/**'
       - 'shared/upstream-data/**'
@@ -15,6 +16,7 @@ on:
       - main
     paths:
       - 'test-client/**'
+      - 'test-client-central/**'
       - 'shared/timing-data/**'
       - 'shared/event-data/**'
       - 'shared/upstream-data/**'
@@ -47,6 +49,13 @@ jobs:
       - name: Install shared Event Timing contracts
         shell: bash
         run: ./mvnw -pl shared/upstream-data -am -DskipTests install
+
+      - name: Verify Central dependency boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -F '<artifactId>event-timing-engineering-client</artifactId>' test-client-central/pom.xml
+          ./mvnw -f test-client-central/pom.xml verify install
 
       - name: Verify standalone SI-02 Engineering Client
         shell: bash
