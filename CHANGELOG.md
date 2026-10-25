@@ -1,5 +1,7 @@
 # Changelog
 
+- Add an operator-only Central TimingData source-head query over IF-06: `Query SI-01` sends a normal downstream `SEQ REQ`, displays the returned SI-01 LogBook/source count from `SEQ ANS`, and deliberately does not turn that answer into an automatic TIMING_DATA_REQ; automatic missing-suffix synchronization remains driven by source `SEQ NTF`.
+
 - Add live terminal control for TIMING_DATA packet pacing: `config upstream timing-data-delay [<millis>|clear]` shows/overrides/clears the application-scoped delay without rebooting; future TIMING_DATA_REQ tasks capture the current value while YAML remains the startup value.
 
 - Split SI-02 Central controls into separate RaceData and TimingData tabs: keep team/stage-start mutations on RaceData, move manual TIMING_DATA_REQ into TimingData with the selected node's contiguous received head and downstream packet state, and remove misleading operator-facing "replay" wording while retaining the Central LogBook viewer for received records.
