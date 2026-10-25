@@ -40,7 +40,7 @@ public class NodeUpstreamLogSummaryTest {
                 "node=A, packetNr=80, type=TIMING_DATA, seq=1190, "
                         + "recType=AUTO_REG, loc=2, time=2026-10-26T11:20:00Z, "
                         + "regId=A0001, code=ADD",
-                NodeUpstream.logSummary(packet));
+                NodeUpstreamLogging.summary(packet));
     }
 
     @Test
@@ -66,7 +66,7 @@ public class NodeUpstreamLogSummaryTest {
                 "node=A, packetNr=81, type=TIMING_DATA, seq=1191, "
                         + "recType=MAN_REG, loc=2, time=2026-10-26T11:20:00Z, "
                         + "regId=A0002, code=REV,MAN",
-                NodeUpstream.logSummary(packet));
+                NodeUpstreamLogging.summary(packet));
     }
 
     @Test
@@ -86,6 +86,6 @@ public class NodeUpstreamLogSummaryTest {
 
         assertEquals(
                 "node=A, packetNr=82, type=TIMING_DATA, seq=1192..1193, records=2",
-                NodeUpstream.logSummary(packet));
+                NodeUpstreamLogging.summary(packet));
     }
 }
