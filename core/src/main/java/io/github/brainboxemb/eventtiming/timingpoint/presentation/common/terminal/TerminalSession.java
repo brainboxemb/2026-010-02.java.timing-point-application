@@ -96,21 +96,6 @@ public final class TerminalSession {
     public TerminalSession(
             PresentationGateway presentationGateway,
             LoggingLevelControl loggingLevelControl,
-            Runnable shutdown,
-            Runnable restart,
-            Runnable restartKeepLogging) {
-        this(
-                presentationGateway,
-                loggingLevelControl,
-                null,
-                shutdown,
-                restart,
-                restartKeepLogging);
-    }
-
-    public TerminalSession(
-            PresentationGateway presentationGateway,
-            LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
             Runnable shutdown) {
         this(

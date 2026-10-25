@@ -91,6 +91,7 @@ public final class RemoteShellServer implements AutoCloseable {
         this.session = new TerminalSession(
                 presentationGateway,
                 loggingLevelControl,
+                null,
                 shutdown,
                 restart,
                 restartKeepLogging);
