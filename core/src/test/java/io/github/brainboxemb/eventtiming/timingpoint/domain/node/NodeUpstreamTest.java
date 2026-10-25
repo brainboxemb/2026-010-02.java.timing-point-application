@@ -424,7 +424,7 @@ public class NodeUpstreamTest {
     }
 
     @Test
-    public void commitBetweenSequenceNotificationAndRequestWaitsForHandoff() {
+    public void commitBeforeReplayRequestUsesLiveForwarding() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         stream.setAvailable(false);
         TimingNodeFixture.Components node = node("A", stream);
@@ -443,15 +443,11 @@ public class NodeUpstreamTest {
             node.logBook().process(
                     LogBookCommands.commitNodeOpen(
                             new LocationId(24)));
-            UpstreamData refreshedSequence = stream.takeSent();
-            assertSame(
-                    UpstreamData.Family.SEQ,
-                    refreshedSequence.family());
+            UpstreamData.TimingDataTransfer liveBeforeReplay =
+                    transfer(stream.takeSent());
             assertEquals(
-                    Long.valueOf(1L),
-                    ((UpstreamData.Sequence) refreshedSequence.message())
-                            .sequence());
-            assertEquals(0, stream.sentCount());
+                    1L,
+                    liveBeforeReplay.records().get(0).sequenceNumber());
 
             stream.receive(timingDataRequestPacket("A", 1L, 1L));
             assertReceive(stream.takeSent(), 1L);
@@ -472,7 +468,7 @@ public class NodeUpstreamTest {
     }
 
     @Test
-    public void reconnectKeepsDownstreamPositionButRequiresNewTimingDataHandoff() {
+    public void reconnectKeepsDownstreamPositionAndLiveForwardingUntilReplay() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         stream.setAvailable(false);
         TimingNodeFixture.Components node = node("A", stream);
@@ -506,15 +502,11 @@ public class NodeUpstreamTest {
             node.logBook().process(
                     LogBookCommands.commitNodeClose(
                             new LocationId(24)));
-            UpstreamData refreshedSequence = stream.takeSent();
-            assertSame(
-                    UpstreamData.Family.SEQ,
-                    refreshedSequence.family());
+            UpstreamData.TimingDataTransfer liveBeforeReplay =
+                    transfer(stream.takeSent());
             assertEquals(
-                    Long.valueOf(2L),
-                    ((UpstreamData.Sequence) refreshedSequence.message())
-                            .sequence());
-            assertEquals(0, stream.sentCount());
+                    2L,
+                    liveBeforeReplay.records().get(0).sequenceNumber());
 
             stream.receive(timingDataRequestPacket("A", 2L, 2L));
             assertReceive(stream.takeSent(), 2L);
@@ -529,7 +521,7 @@ public class NodeUpstreamTest {
     }
 
     @Test
-    public void equalPeerSequenceCompletesReconnectWithoutReplayRequest() {
+    public void caughtUpReconnectNeedsNoPeerSequenceToContinueLiveForwarding() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         stream.setAvailable(false);
         TimingNodeFixture.Components node =
@@ -548,13 +540,6 @@ public class NodeUpstreamTest {
                     Long.valueOf(1L),
                     ((UpstreamData.Sequence) sourceHead.message())
                             .sequence());
-
-            stream.receive(
-                    DefaultUpstreamData.createDnPacket(
-                            new NodeId("A"),
-                            1L,
-                            DefaultUpstreamData.createSequenceNotification(1L)));
-            assertReceive(stream.takeSent(), 1L);
             assertEquals(0, stream.sentCount());
 
             node.logBook().process(

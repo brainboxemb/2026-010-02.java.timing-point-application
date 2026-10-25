@@ -417,11 +417,8 @@ final class CentralSystemSimulator {
                             + node.timingDataHead);
         }
 
-        if (sourceHead == node.timingDataHead) {
-            node.pendingMessages.addLast(
-                    DefaultUpstreamData.createSequenceNotification(
-                            node.timingDataHead));
-        } else if (node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
+        if (sourceHead > node.timingDataHead
+                && node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
             queueAutomaticTimingDataRequest(
                     node,
                     node.timingDataHead + 1L);

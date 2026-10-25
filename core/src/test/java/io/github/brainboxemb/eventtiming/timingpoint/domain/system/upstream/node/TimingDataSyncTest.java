@@ -75,7 +75,7 @@ public class TimingDataSyncTest {
     }
 
     @Test
-    public void equalPeerSequenceCompletesHandoffWithoutReplay() {
+    public void sourceHeadNotificationEnablesLiveForwardingAtNextSequence() {
         NodeId nodeId = new NodeId("A");
         LogBook logBook = emptyLogBook(nodeId);
         List<UpstreamData.Message> sent =
@@ -93,15 +93,15 @@ public class TimingDataSyncTest {
                             sent::add,
                             logBook);
             sync.sendSourceHeadNotification();
-            sync.handleSequence(
-                    DefaultUpstreamData.createSequenceNotification(1L));
 
             assertTrue(sync.liveReady());
-            assertEquals(1L, sync.centralProcessedSequence());
             assertEquals(1, sent.size());
+            assertEquals(
+                    Long.valueOf(1L),
+                    ((UpstreamData.Sequence) sent.get(0)).sequence());
 
             logBook.process(
-                    LogBookCommands.commitNodeOpen(
+                    LogBookCommands.commitNodeClose(
                             new LocationId(1)));
             assertTrue(sync.livePending());
         } finally {
@@ -110,16 +110,11 @@ public class TimingDataSyncTest {
     }
 
     @Test
-    public void peerBehindCurrentHeadDoesNotCompleteCaughtUpHandoff() {
+    public void peerSequenceUpdatesPositionWithoutGatingLiveForwarding() {
         NodeId nodeId = new NodeId("A");
         LogBook logBook = emptyLogBook(nodeId);
-        List<UpstreamData.Message> sent =
-                new ArrayList<UpstreamData.Message>();
         activate(logBook);
         try {
-            logBook.process(
-                    LogBookCommands.commitNodeOpen(
-                            new LocationId(1)));
             logBook.process(
                     LogBookCommands.commitNodeOpen(
                             new LocationId(1)));
@@ -128,77 +123,51 @@ public class TimingDataSyncTest {
                     new TimingDataSync(
                             nodeId,
                             () -> true,
-                            sent::add,
+                            message -> { },
                             logBook);
             sync.sendSourceHeadNotification();
             sync.handleSequence(
                     DefaultUpstreamData.createSequenceNotification(1L));
 
-            assertFalse(sync.liveReady());
-            assertTrue(sync.handoffPending());
             assertEquals(1L, sync.centralProcessedSequence());
+            assertTrue(sync.liveReady());
         } finally {
             deactivate(logBook);
         }
     }
 
     @Test
-    public void sourceHeadRefreshRequiresAnExplicitConnectionHandoff() {
+    public void replayPausesLiveForwardingUntilCapturedRangeCompletes() {
         NodeId nodeId = new NodeId("A");
         LogBook logBook = emptyLogBook(nodeId);
-        List<UpstreamData.Message> sent =
-                new ArrayList<UpstreamData.Message>();
         activate(logBook);
         try {
-            TimingDataSync sync =
-                    new TimingDataSync(
-                            nodeId,
-                            () -> true,
-                            sent::add,
-                            logBook);
-
             logBook.process(
                     LogBookCommands.commitNodeOpen(
                             new LocationId(1)));
-            sync.refreshSourceHeadNotification();
+            logBook.process(
+                    LogBookCommands.commitNodeClose(
+                            new LocationId(1)));
 
-            assertFalse(sync.handoffPending());
-            assertTrue(sent.isEmpty());
-        } finally {
-            deactivate(logBook);
-        }
-    }
-
-    @Test
-    public void pendingHandoffRefreshesSourceHeadOnlyWhenItChanges() {
-        NodeId nodeId = new NodeId("A");
-        LogBook logBook = emptyLogBook(nodeId);
-        List<UpstreamData.Message> sent =
-                new ArrayList<UpstreamData.Message>();
-        activate(logBook);
-        try {
             TimingDataSync sync =
                     new TimingDataSync(
                             nodeId,
                             () -> true,
-                            sent::add,
+                            message -> { },
                             logBook);
             sync.sendSourceHeadNotification();
-            sync.refreshSourceHeadNotification();
-            assertEquals(1, sent.size());
+            assertTrue(sync.liveReady());
 
-            logBook.process(
-                    LogBookCommands.commitNodeOpen(
-                            new LocationId(1)));
-            sync.refreshSourceHeadNotification();
+            sync.startReplay(
+                    DefaultUpstreamData.createTimingDataRequest(1L));
+            assertTrue(sync.replayPending());
+            assertFalse(sync.liveReady());
 
-            assertEquals(2, sent.size());
-            assertEquals(
-                    Long.valueOf(0L),
-                    ((UpstreamData.Sequence) sent.get(0)).sequence());
-            assertEquals(
-                    Long.valueOf(1L),
-                    ((UpstreamData.Sequence) sent.get(1)).sequence());
+            sync.sendNextBatch(
+                    sync.submitNextBatch().join());
+
+            assertFalse(sync.replayPending());
+            assertTrue(sync.liveReady());
         } finally {
             deactivate(logBook);
         }
