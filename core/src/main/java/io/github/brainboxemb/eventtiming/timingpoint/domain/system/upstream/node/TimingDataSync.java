@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
@@ -120,8 +121,20 @@ final class TimingDataSync {
      * caught up. It completes the synchronization handoff immediately and enables live forwarding
      * from that sequence. A request further beyond the current head does not establish live state.</p>
      */
-    synchronized void startReplay(UpstreamData.TimingDataRequest request) {
+    void startReplay(UpstreamData.TimingDataRequest request) {
+        startReplay(
+                request,
+                Duration.ZERO);
+    }
+
+    synchronized void startReplay(
+            UpstreamData.TimingDataRequest request,
+            Duration replayPacketDelay) {
         failIfInvalidArgument(request != null, "request must not be null");
+        failIfInvalidArgument(
+                replayPacketDelay != null
+                        && !replayPacketDelay.isNegative(),
+                "replayPacketDelay must not be negative");
 
         long fromSequence = request.fromSequence();
         failIfInvalidArgument(
@@ -137,11 +150,13 @@ final class TimingDataSync {
             if (fromSequence == capturedHead + 1L) {
                 enableLive(fromSequence);
                 LOG.info(
-                        "TIMING_DATA replay empty: node={}, fromSeq={}, head={}, liveFrom={}",
+                        "TIMING_DATA replay empty: node={}, fromSeq={}, head={}, liveFrom={}, "
+                                + "packetDelayMs={}",
                         nodeId.value(),
                         fromSequence,
                         capturedHead,
-                        fromSequence);
+                        fromSequence,
+                        replayPacketDelay.toMillis());
             } else {
                 LOG.warn(
                         "TIMING_DATA replay not started: node={}, fromSeq={}, head={}, "
@@ -157,10 +172,11 @@ final class TimingDataSync {
         replayHead = capturedHead;
         replayActive = true;
         LOG.info(
-                "TIMING_DATA replay started: node={}, fromSeq={}, head={}",
+                "TIMING_DATA replay started: node={}, fromSeq={}, head={}, packetDelayMs={}",
                 nodeId.value(),
                 fromSequence,
-                capturedHead);
+                capturedHead,
+                replayPacketDelay.toMillis());
     }
 
     /** Reports whether the captured replay still has records to send. */

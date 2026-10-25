@@ -1,5 +1,7 @@
 # Changelog
 
+- Add formal `upstream.timingDataReplayPacketDelayMillis` configuration for TIMING_DATA replay pacing: zero preserves immediate replay; positive values release the node upstream task between successive replay packets without delaying the first/final boundary or normal live forwarding.
+
 - Encode IF-06 PING message times in UTC with fixed millisecond precision instead of extending the wire value to nanoseconds; accept older higher-precision PING inputs unchanged.
 
 - Make TIMING_DATA replay progress observable at INFO level: log active replay start with requested sequence and captured LogBook head, each queued LogBook replay range, empty handoffs, completed handoff to live forwarding, and requests beyond the next valid sequence without changing IF-06 delivery semantics.

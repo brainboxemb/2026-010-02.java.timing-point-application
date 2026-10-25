@@ -62,6 +62,11 @@ public class ExampleConfigurationTest {
                 UpstreamConfig.Transport.ENGINEERING_API,
                 config.upstream().transport());
         assertEquals(
+                0L,
+                config.upstream()
+                        .timingDataReplayPacketDelay()
+                        .toMillis());
+        assertEquals(
                 TagProcessingPolicy.defaults(),
                 config.timingNodes().get(0).tagProcessingPolicy());
     }

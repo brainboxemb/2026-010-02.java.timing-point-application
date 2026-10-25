@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Ta
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
@@ -23,6 +24,7 @@ final class TimingDataReplayTask implements YieldingTask {
     private final UpstreamData.TimingDataRequest request;
     private final Runnable requestAccepted;
     private final Runnable handoffCompleted;
+    private final Duration replayPacketDelay;
 
     private boolean started;
     private CompletableFuture<List<TimingRecord>> pendingBatch;
@@ -33,16 +35,37 @@ final class TimingDataReplayTask implements YieldingTask {
             UpstreamData.TimingDataRequest request,
             Runnable requestAccepted,
             Runnable handoffCompleted) {
+        this(
+                available,
+                sync,
+                request,
+                requestAccepted,
+                handoffCompleted,
+                Duration.ZERO);
+    }
+
+    TimingDataReplayTask(
+            BooleanSupplier available,
+            TimingDataSync sync,
+            UpstreamData.TimingDataRequest request,
+            Runnable requestAccepted,
+            Runnable handoffCompleted,
+            Duration replayPacketDelay) {
         failIfInvalidArgument(available != null, "available must not be null");
         failIfInvalidArgument(sync != null, "sync must not be null");
         failIfInvalidArgument(request != null, "request must not be null");
         failIfInvalidArgument(requestAccepted != null, "requestAccepted must not be null");
         failIfInvalidArgument(handoffCompleted != null, "handoffCompleted must not be null");
+        failIfInvalidArgument(
+                replayPacketDelay != null
+                        && !replayPacketDelay.isNegative(),
+                "replayPacketDelay must not be negative");
         this.available = available;
         this.sync = sync;
         this.request = request;
         this.requestAccepted = requestAccepted;
         this.handoffCompleted = handoffCompleted;
+        this.replayPacketDelay = replayPacketDelay;
     }
 
     @Override
@@ -53,15 +76,19 @@ final class TimingDataReplayTask implements YieldingTask {
         }
 
         if (!started) {
-            sync.startReplay(request);
+            sync.startReplay(
+                    request,
+                    replayPacketDelay);
             requestAccepted.run();
             started = true;
         }
 
+        boolean sentBatch = false;
         if (pendingBatch != null) {
             List<TimingRecord> records = pendingBatch.join();
             pendingBatch = null;
             sync.sendNextBatch(records);
+            sentBatch = true;
         }
 
         if (!sync.replayPending()) {
@@ -69,6 +96,12 @@ final class TimingDataReplayTask implements YieldingTask {
                 handoffCompleted.run();
             }
             return TaskStep.done();
+        }
+
+        if (sentBatch
+                && !replayPacketDelay.isZero()) {
+            return TaskStep.after(
+                    replayPacketDelay);
         }
 
         pendingBatch = sync.submitNextBatch();

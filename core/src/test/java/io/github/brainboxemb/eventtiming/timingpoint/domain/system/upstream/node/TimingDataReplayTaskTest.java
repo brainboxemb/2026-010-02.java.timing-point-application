@@ -11,8 +11,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Ta
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -70,6 +74,49 @@ public class TimingDataReplayTaskTest {
         assertEquals(1L, transfer.records().get(0).sequenceNumber());
     }
 
+    @Test
+    public void delaysOnlyBetweenSuccessiveReplayPackets() {
+        TestUpstreamStream stream = new TestUpstreamStream();
+        List<TimingRecord> firstBatch = new ArrayList<TimingRecord>();
+        for (int sequence = 1; sequence <= 16; sequence++) {
+            firstBatch.add(timingRecord(sequence));
+        }
+        TimingDataSync sync =
+                new TimingDataSync(
+                        new NodeId("A"),
+                        stream::isAvailable,
+                        stream::send,
+                        new SequencedLogBook(
+                                17L,
+                                firstBatch,
+                                Collections.singletonList(
+                                        timingRecord(17))));
+        TimingDataReplayTask task =
+                new TimingDataReplayTask(
+                        stream::isAvailable,
+                        sync,
+                        DefaultUpstreamData.createTimingDataRequest(1L),
+                        () -> { },
+                        () -> { },
+                        Duration.ofMillis(250L));
+
+        assertSame(TaskStep.Type.AWAIT, task.runStep().type());
+
+        TaskStep delay = task.runStep();
+        assertSame(TaskStep.Type.AFTER, delay.type());
+        assertEquals(Duration.ofMillis(250L), delay.delay());
+        UpstreamData.TimingDataTransfer first =
+                (UpstreamData.TimingDataTransfer) stream.takeSent();
+        assertEquals(16, first.records().size());
+
+        assertSame(TaskStep.Type.AWAIT, task.runStep().type());
+        assertSame(TaskStep.Type.DONE, task.runStep().type());
+        UpstreamData.TimingDataTransfer last =
+                (UpstreamData.TimingDataTransfer) stream.takeSent();
+        assertEquals(1, last.records().size());
+        assertEquals(17L, last.records().get(0).sequenceNumber());
+    }
+
     private static TimingRecord timingRecord(int sequence) {
         long timestamp =
                 Instant.parse("2026-10-13T12:00:00Z")
@@ -85,6 +132,59 @@ public class TimingDataReplayTaskTest {
                 TimingRecord.Action.ADD,
                 null,
                 null);
+    }
+
+    private static final class SequencedLogBook
+            implements LogBookAccessor {
+        private final long head;
+        private final Deque<List<TimingRecord>> batches =
+                new ArrayDeque<List<TimingRecord>>();
+
+        @SafeVarargs
+        private SequencedLogBook(
+                long head,
+                List<TimingRecord>... batches) {
+            this.head = head;
+            Collections.addAll(
+                    this.batches,
+                    batches);
+        }
+
+        @Override
+        public LogBookStatus status() {
+            return null;
+        }
+
+        @Override
+        public <R> R process(LogBookCommand<R> command) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void execute(LogBookCommand<?> command) {
+            throw new UnsupportedOperationException();
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <R> CompletableFuture<R> submit(LogBookQuery<R> query) {
+            return (CompletableFuture<R>) (CompletableFuture<?>)
+                    CompletableFuture.completedFuture(
+                            batches.removeFirst());
+        }
+
+        @Override
+        public <R> R process(LogBookQuery<R> query) {
+            throw new UnsupportedOperationException();
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <R> R process(
+                LogBookQuery<R> query,
+                LogBookQuery.ReadConsistency consistency) {
+            return (R) Long.valueOf(head);
+        }
     }
 
     private static final class PendingLogBook
