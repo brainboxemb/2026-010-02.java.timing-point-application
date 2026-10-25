@@ -36,9 +36,7 @@ $OutputDir = if ([string]::IsNullOrWhiteSpace($Destination)) {
 Push-Location $RepoRoot
 try {
     $packageArgs = @(
-        "-Pdev-client",
-        "-pl", "test-client",
-        "-am",
+        "-f", "engineering-client\pom.xml",
         "-DskipTests",
         "-DeventTiming.buildOrigin=local",
         "install"

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>oss.relay.timing</groupId>
+    <artifactId>timing-point-parent</artifactId>
+    <version>0.2.4-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>event-timing-engineering-client-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>Event Timing Engineering Client Parent</name>
+  <description>Developer reactor and runnable NetBeans entrypoint for SI-02 Engineering Client.</description>
+
+  <modules>
+    <module>../shared/timing-data</module>
+    <module>../shared/event-data</module>
+    <module>../shared/upstream-data</module>
+    <module>../test-client-central</module>
+    <module>../test-client</module>
+  </modules>
+
+  <build>
+    <plugins>
+      <!--
+        The shared IF-05/IF-06 modules inherit from the root Timing Point parent.
+        They can be built from this reactor through relativePath, but a later
+        standalone test-client Maven invocation also needs that parent POM in
+        the local repository. Install only the parent POM here; SI-01 modules
+        remain outside the SI-02 reactor.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+        <version>3.1.4</version>
+        <executions>
+          <execution>
+            <id>install-timing-point-parent-pom</id>
+            <phase>install</phase>
+            <goals>
+              <goal>install-file</goal>
+            </goals>
+            <configuration>
+              <file>${project.basedir}/../pom.xml</file>
+              <groupId>${project.parent.groupId}</groupId>
+              <artifactId>${project.parent.artifactId}</artifactId>
+              <version>${project.parent.version}</version>
+              <packaging>pom</packaging>
+              <generatePom>false</generatePom>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

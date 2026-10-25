@@ -50,7 +50,7 @@
             <packaging>pom</packaging>
         </packagings>
         <preAction>CUSTOM-prepare-run</preAction>
-        <basedir>test-client</basedir>
+        <basedir>../test-client</basedir>
         <recursive>false</recursive>
         <goals>
             <goal>process-classes</goal>
@@ -73,7 +73,7 @@
             <packaging>pom</packaging>
         </packagings>
         <preAction>CUSTOM-prepare-run</preAction>
-        <basedir>test-client</basedir>
+        <basedir>../test-client</basedir>
         <recursive>false</recursive>
         <goals>
             <goal>process-classes</goal>

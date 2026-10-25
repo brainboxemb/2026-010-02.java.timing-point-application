@@ -9,6 +9,7 @@ on:
       - 'shared/event-data/**'
       - 'shared/upstream-data/**'
       - 'pom.xml'
+      - 'engineering-client/**'
       - 'config/engineering-client.properties'
       - '.github/workflows/test-client-verify.yml'
   push:
@@ -21,6 +22,7 @@ on:
       - 'shared/event-data/**'
       - 'shared/upstream-data/**'
       - 'pom.xml'
+      - 'engineering-client/**'
       - 'config/engineering-client.properties'
       - '.github/workflows/test-client-verify.yml'
   workflow_dispatch:
@@ -54,7 +56,7 @@ jobs:
 
       - name: Verify SI-02 reactor
         shell: bash
-        run: ./mvnw -Pdev-client -pl test-client -am -DeventTiming.buildOrigin=github-actions verify
+        run: ./mvnw -f engineering-client/pom.xml -DeventTiming.buildOrigin=github-actions verify
 
   package-windows:
     runs-on: windows-2025
