@@ -115,19 +115,19 @@ used at IF-05/IF-06 boundaries.
 
 ## Run on Windows
 
-With `JAVA_HOME` pointing to a JDK 21 installation, use the repository reactor
-entrypoint so Maven automatically builds the shared IF-05/IF-06 contracts and the
+With `JAVA_HOME` pointing to a JDK 21 installation, use the dedicated SI-02
+reactor so Maven automatically builds the shared IF-05/IF-06 contracts and the
 isolated Central module before the runnable Engineering Client:
 
 ```powershell
-.\mvnw.cmd -Pdev-client -pl test-client -am verify
-.\mvnw.cmd -f test-client\pom.xml javafx:run
+.\mvnw.cmd -f engineering-client\pom.xml verify
 ```
 
-In NetBeans, open only the root **Timing Point Parent** project, select the
-**dev-client** configuration and use Run or Debug. Do not run
-`test-client-central`: it is an internal SI-02 module and dependency boundary,
-not a second desktop application.
+In NetBeans, open `engineering-client/pom.xml` as the
+**Event Timing Engineering Client Parent** project and use normal Run or Debug.
+No configuration switch is required. Do not run `test-client-central`: it is
+an internal SI-02 module and dependency boundary, not a second desktop
+application.
 
 Start SI-01 separately from the normal Java-8 project/NetBeans run configuration.
 To exercise the built-in simulated-tag profiles on the Windows development fallback,

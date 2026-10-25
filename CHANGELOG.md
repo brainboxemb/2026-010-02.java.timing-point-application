@@ -36,6 +36,8 @@
 
 ## Unreleased
 
+- Restore separate one-click SI-02 development startup: `engineering-client/pom.xml` is now the Engineering Client parent/reactor and normal NetBeans Run/Debug entrypoint, while the root Timing Point Parent remains the SI-01 run project without a `dev-client` configuration switch.
+
 - Move the Java/Maven namespace from `io.github.brainboxemb.eventtiming` to `oss.relay.timing`, retaining compound package roots such as `timingpoint`, `timingdata`, `eventdata` and `upstreamdata`; update source packages, reactor coordinates, launch configuration and service/resource names.
 
 - Preserve Central Messages historical inspection viewport during incoming traffic; shorten default IF-06 JSON wire keys to `pckNr`, `msg`, and `rcvPckNr`, and name the typed Java packet positions `packetNr` / `receivedPacketNr`.

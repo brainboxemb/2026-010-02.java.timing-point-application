@@ -37,7 +37,7 @@ Formal packaged-process black-box verification is explicit:
 
 ## NetBeans development configurations
 
-The Maven parent project exposes three selectable NetBeans configurations
+The Timing Point parent project exposes two selectable NetBeans configurations
 in **Project > Properties > Configurations** / **Set Configuration**:
 
 - **dev-reference** — Run and Debug SI-01 with `config/application.yml`.
@@ -45,16 +45,17 @@ in **Project > Properties > Configurations** / **Set Configuration**:
 - **dev-simulation** — Run and Debug SI-01 with `config/development-simulation.yml`.
   This uses the same `reference` EventData mapping as normal startup but a
   separate engineering LogBook.
-- **dev-client** — Build, Run and Debug SI-02 Engineering Client from the same
-  **Timing Point Parent** project. Maven automatically includes and orders
-  `test-client-central` before the runnable `test-client` module.
-
 Normal/default still starts SI-01 with `config/application.yml`. Select a
 configuration on the **Timing Point Parent** Maven project, then run or debug the
-project. The SI-01 configurations and `dev-client` all use an external Java
-process (`exec:exec`), not Maven's in-process `exec:java`. `dev-client`
-requires JDK 21; the normal SI-01 reactor remains Java-8-compatible and does not
-include the client modules unless that profile is selected.
+project. The SI-01 configurations use an external Java process (`exec:exec`),
+not Maven's in-process `exec:java`.
+
+SI-02 has its own **Event Timing Engineering Client Parent** at
+`engineering-client/pom.xml`. Open that Maven project and use normal Build,
+Run or Debug; its reactor automatically builds the shared IF-05/IF-06 contracts
+and `test-client-central` before launching `test-client`. No NetBeans
+configuration switch is required. This parent requires JDK 21, while the normal
+SI-01 reactor remains Java-8-compatible.
 
 **SimulatedAntenna produces tag observations.** EventData only maps TagIds,
 RegistrationIds and TeamIds, regardless of whether the antenna is physical or
@@ -112,6 +113,7 @@ core/                 reusable SI-01 application core
 app/                  runnable Timing Point Application
 system-test/          black-box packaged-process verification
 runtime-characterization/ engineering-only runtime measurement harness (optional profile)
+engineering-client/  SI-02 developer parent/reactor and NetBeans Run/Debug entrypoint
 test-client-central/  isolated SI-02 Central IF-06 simulator boundary
 test-client/          standalone JavaFX Development Client
 docs/                 focused repository support documentation
