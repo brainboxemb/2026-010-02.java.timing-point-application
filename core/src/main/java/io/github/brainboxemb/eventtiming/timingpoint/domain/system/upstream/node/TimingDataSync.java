@@ -44,6 +44,7 @@ final class TimingDataSync {
     private boolean liveActive;
     private long nextLiveSequence;
     private long centralProcessedSequence;
+    private long lastNotifiedSourceHead = -1L;
 
     TimingDataSync(
             NodeId nodeId,
@@ -64,12 +65,27 @@ final class TimingDataSync {
     synchronized void sendSourceHeadNotification() {
         replayActive = false;
         liveActive = false;
+        lastNotifiedSourceHead = -1L;
+        refreshSourceHeadNotification();
+    }
 
-        if (available.getAsBoolean()) {
-            sender.accept(
-                    DefaultUpstreamData.createSequenceNotification(
-                            headSequence()));
+    /** Refreshes the source-head NTF while a connection handoff is still pending. */
+    synchronized void refreshSourceHeadNotification() {
+        if (!available.getAsBoolean()
+                || replayActive
+                || liveActive) {
+            return;
         }
+
+        long currentHead = headSequence();
+        if (currentHead == lastNotifiedSourceHead) {
+            return;
+        }
+
+        sender.accept(
+                DefaultUpstreamData.createSequenceNotification(
+                        currentHead));
+        lastNotifiedSourceHead = currentHead;
     }
 
     /** Handles one peer TIMING_DATA sequence request, answer or notification. */
@@ -87,13 +103,24 @@ final class TimingDataSync {
 
             case ANS:
             case NTF:
+                long localHead = headSequence();
                 long peerSequence = sequence.sequence().longValue();
                 failIfIllegalState(
-                        peerSequence <= headSequence(),
+                        peerSequence <= localHead,
                         "Central TIMING_DATA sequence %s exceeds local LogBook head %s",
                         peerSequence,
-                        headSequence());
+                        localHead);
                 centralProcessedSequence = peerSequence;
+
+                if (!replayActive
+                        && peerSequence == localHead) {
+                    enableLive(localHead + 1L);
+                    LOG.info(
+                            "TIMING_DATA handoff synchronized: node={}, head={}, liveFrom={}",
+                            nodeId.value(),
+                            localHead,
+                            localHead + 1L);
+                }
                 return;
 
             default:
@@ -194,6 +221,7 @@ final class TimingDataSync {
     synchronized void sessionUnavailable() {
         replayActive = false;
         liveActive = false;
+        lastNotifiedSourceHead = -1L;
     }
 
     /** Submits the next ordered replay batch without blocking NodeUpstream. */
@@ -251,6 +279,11 @@ final class TimingDataSync {
     /** Returns whether the replay handoff has completed and proactive live forwarding is enabled. */
     synchronized boolean liveReady() {
         return liveActive;
+    }
+
+    /** Returns whether SEQ reconciliation is still waiting for replay or equal peer position. */
+    synchronized boolean handoffPending() {
+        return !replayActive && !liveActive;
     }
 
     /** Reports whether the live cursor currently trails the authoritative LogBook head. */

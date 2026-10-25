@@ -76,7 +76,7 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void timingDataHandoffRequestIsSentEvenWhenCentralIsCaughtUp() {
+    void caughtUpSequenceUsesPeerPositionConfirmationWithoutReplayRequest() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));
         simulator.connected();
@@ -92,10 +92,40 @@ final class CentralSystemSimulatorTest {
                         RECEIVED.plusSeconds(1));
 
         assertEquals(1, replies.size());
+        UpstreamData.Sequence confirmation =
+                (UpstreamData.Sequence) replies.get(0).message();
+        assertEquals(
+                UpstreamData.SequenceOperation.NTF,
+                confirmation.operation());
+        assertEquals(
+                Long.valueOf(1L),
+                confirmation.sequence());
+    }
+
+    @Test
+    void missingTimingDataStillRequestsCentralNextExpectedSequence() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(7));
+        simulator.connected();
+        simulator.accept(
+                timingDataPacket(1L, opened(1L, 7)),
+                RECEIVED);
+
+        List<UpstreamData> replies =
+                simulator.accept(
+                        upPacket(
+                                2L,
+                                DefaultUpstreamData.createSequenceNotification(4L)),
+                        RECEIVED.plusSeconds(1));
+
+        assertEquals(1, replies.size());
+        UpstreamData requestPacket = replies.get(0);
+        assertEquals(
+                UpstreamData.Family.TIMING_DATA_REQ,
+                requestPacket.family());
         assertEquals(
                 2L,
-                ((UpstreamData.TimingDataRequest)
-                        replies.get(0).message())
+                ((UpstreamData.TimingDataRequest) requestPacket.message())
                         .fromSequence());
     }
 

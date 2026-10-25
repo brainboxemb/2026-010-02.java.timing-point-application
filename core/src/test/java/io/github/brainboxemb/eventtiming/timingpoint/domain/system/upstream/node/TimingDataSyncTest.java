@@ -21,6 +21,7 @@ import org.junit.Test;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TimingDataSyncTest {
@@ -68,6 +69,109 @@ public class TimingDataSyncTest {
             assertEquals(33L, first.records().get(15).sequenceNumber());
             assertEquals(1, second.records().size());
             assertEquals(34L, second.records().get(0).sequenceNumber());
+        } finally {
+            deactivate(logBook);
+        }
+    }
+
+    @Test
+    public void equalPeerSequenceCompletesHandoffWithoutReplay() {
+        NodeId nodeId = new NodeId("A");
+        LogBook logBook = emptyLogBook(nodeId);
+        List<UpstreamData.Message> sent =
+                new ArrayList<UpstreamData.Message>();
+        activate(logBook);
+        try {
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+
+            TimingDataSync sync =
+                    new TimingDataSync(
+                            nodeId,
+                            () -> true,
+                            sent::add,
+                            logBook);
+            sync.sendSourceHeadNotification();
+            sync.handleSequence(
+                    DefaultUpstreamData.createSequenceNotification(1L));
+
+            assertTrue(sync.liveReady());
+            assertEquals(1L, sync.centralProcessedSequence());
+            assertEquals(1, sent.size());
+
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+            assertTrue(sync.livePending());
+        } finally {
+            deactivate(logBook);
+        }
+    }
+
+    @Test
+    public void peerBehindCurrentHeadDoesNotCompleteCaughtUpHandoff() {
+        NodeId nodeId = new NodeId("A");
+        LogBook logBook = emptyLogBook(nodeId);
+        List<UpstreamData.Message> sent =
+                new ArrayList<UpstreamData.Message>();
+        activate(logBook);
+        try {
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+
+            TimingDataSync sync =
+                    new TimingDataSync(
+                            nodeId,
+                            () -> true,
+                            sent::add,
+                            logBook);
+            sync.sendSourceHeadNotification();
+            sync.handleSequence(
+                    DefaultUpstreamData.createSequenceNotification(1L));
+
+            assertFalse(sync.liveReady());
+            assertTrue(sync.handoffPending());
+            assertEquals(1L, sync.centralProcessedSequence());
+        } finally {
+            deactivate(logBook);
+        }
+    }
+
+    @Test
+    public void pendingHandoffRefreshesSourceHeadOnlyWhenItChanges() {
+        NodeId nodeId = new NodeId("A");
+        LogBook logBook = emptyLogBook(nodeId);
+        List<UpstreamData.Message> sent =
+                new ArrayList<UpstreamData.Message>();
+        activate(logBook);
+        try {
+            TimingDataSync sync =
+                    new TimingDataSync(
+                            nodeId,
+                            () -> true,
+                            sent::add,
+                            logBook);
+            sync.sendSourceHeadNotification();
+            sync.refreshSourceHeadNotification();
+            assertEquals(1, sent.size());
+
+            logBook.process(
+                    LogBookCommands.commitNodeOpen(
+                            new LocationId(1)));
+            sync.refreshSourceHeadNotification();
+
+            assertEquals(2, sent.size());
+            assertEquals(
+                    Long.valueOf(0L),
+                    ((UpstreamData.Sequence) sent.get(0)).sequence());
+            assertEquals(
+                    Long.valueOf(1L),
+                    ((UpstreamData.Sequence) sent.get(1)).sequence());
         } finally {
             deactivate(logBook);
         }

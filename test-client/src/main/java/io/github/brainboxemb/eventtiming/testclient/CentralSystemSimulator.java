@@ -417,11 +417,11 @@ final class CentralSystemSimulator {
                             + node.timingDataHead);
         }
 
-        /*
-         * TIMING_DATA_REQ remains the replay-to-live handoff barrier even when Central is
-         * already caught up. SI-01 captures the LogBook head when processing this request.
-         */
-        if (node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
+        if (sourceHead == node.timingDataHead) {
+            node.pendingMessages.addLast(
+                    DefaultUpstreamData.createSequenceNotification(
+                            node.timingDataHead));
+        } else if (node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
             node.pendingMessages.addLast(
                     DefaultUpstreamData.createTimingDataRequest(
                             node.timingDataHead + 1L));
