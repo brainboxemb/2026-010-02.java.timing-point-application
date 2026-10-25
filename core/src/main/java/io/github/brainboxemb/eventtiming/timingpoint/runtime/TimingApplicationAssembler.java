@@ -148,6 +148,7 @@ final class TimingApplicationAssembler {
                             consolePromptControl,
                             exitSignal::requestStop,
                             exitSignal::requestRestart,
+                            exitSignal::requestRestartKeepLogging,
                             consoleInput,
                             consoleOutput);
 

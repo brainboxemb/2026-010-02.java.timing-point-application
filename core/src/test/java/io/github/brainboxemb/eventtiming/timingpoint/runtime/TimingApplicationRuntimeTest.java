@@ -88,6 +88,37 @@ public class TimingApplicationRuntimeTest {
     }
 
     @Test
+    public void composedLocalConsoleCanRequestRestartWithRetainedLogging()
+            throws Exception {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve("reboot-log-terminal-timing-data.jsonl");
+        StringWriter output = new StringWriter();
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
+                        identity(),
+                        config(file),
+                        null,
+                        null,
+                        new StringReader("reboot +log\n"),
+                        output);
+        application.activate();
+        try {
+            assertEquals(
+                    TimingApplicationRuntime.ExitRequest.RESTART_KEEP_LOGGING,
+                    application.awaitShutdownRequest());
+        } finally {
+            application.deactivate();
+        }
+
+        assertTrue(output.toString().contains(
+                "Rebooting application; keeping logging connection."));
+    }
+
+    @Test
     public void composesConfiguredAntennasAcrossTwoSystems() {
         Path root = temporaryFolder.getRoot().toPath();
         List<Config.TimingSystemConfig> systems = new ArrayList<Config.TimingSystemConfig>();

@@ -25,6 +25,10 @@ final class ApplicationExitSignal {
         request(TimingApplicationRuntime.ExitRequest.RESTART);
     }
 
+    void requestRestartKeepLogging() {
+        request(TimingApplicationRuntime.ExitRequest.RESTART_KEEP_LOGGING);
+    }
+
     private void request(TimingApplicationRuntime.ExitRequest value) {
         if (request.compareAndSet(null, value)) {
             requested.countDown();

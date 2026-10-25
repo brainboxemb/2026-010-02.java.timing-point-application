@@ -62,6 +62,7 @@ public final class TerminalSession {
     private final ConsolePromptControl consolePromptControl;
     private final Runnable shutdown;
     private final Runnable restart;
+    private final Runnable restartKeepLogging;
     private final ZoneId operatorZone;
     private final DateTimeFormatter registrationTimeFormat;
     private NodeId currentNodeId;
@@ -95,6 +96,21 @@ public final class TerminalSession {
     public TerminalSession(
             PresentationGateway presentationGateway,
             LoggingLevelControl loggingLevelControl,
+            Runnable shutdown,
+            Runnable restart,
+            Runnable restartKeepLogging) {
+        this(
+                presentationGateway,
+                loggingLevelControl,
+                null,
+                shutdown,
+                restart,
+                restartKeepLogging);
+    }
+
+    public TerminalSession(
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
             Runnable shutdown) {
         this(
@@ -118,6 +134,24 @@ public final class TerminalSession {
                 consolePromptControl,
                 shutdown,
                 restart,
+                unsupportedRestartKeepLogging(),
+                ZoneId.systemDefault());
+    }
+
+    public TerminalSession(
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
+            Runnable shutdown,
+            Runnable restart,
+            Runnable restartKeepLogging) {
+        this(
+                presentationGateway,
+                loggingLevelControl,
+                consolePromptControl,
+                shutdown,
+                restart,
+                restartKeepLogging,
                 ZoneId.systemDefault());
     }
 
@@ -144,6 +178,24 @@ public final class TerminalSession {
             Runnable shutdown,
             Runnable restart,
             ZoneId operatorZone) {
+        this(
+                presentationGateway,
+                loggingLevelControl,
+                consolePromptControl,
+                shutdown,
+                restart,
+                unsupportedRestartKeepLogging(),
+                operatorZone);
+    }
+
+    TerminalSession(
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
+            Runnable shutdown,
+            Runnable restart,
+            Runnable restartKeepLogging,
+            ZoneId operatorZone) {
         if (presentationGateway == null) {
             throw new IllegalArgumentException(
                     "presentationGateway must not be null");
@@ -156,6 +208,10 @@ public final class TerminalSession {
             throw new IllegalArgumentException(
                     "restart must not be null");
         }
+        if (restartKeepLogging == null) {
+            throw new IllegalArgumentException(
+                    "restartKeepLogging must not be null");
+        }
         if (operatorZone == null) {
             throw new IllegalArgumentException(
                     "operatorZone must not be null");
@@ -165,6 +221,7 @@ public final class TerminalSession {
         this.consolePromptControl = consolePromptControl;
         this.shutdown = shutdown;
         this.restart = restart;
+        this.restartKeepLogging = restartKeepLogging;
         this.operatorZone = operatorZone;
         this.registrationTimeFormat =
                 DateTimeFormatter.ofPattern("HHmmssSS")
@@ -319,16 +376,20 @@ public final class TerminalSession {
                     logging(arguments, output);
                     return false;
                 case "reboot":
-                    if (!requireArgumentCount(
-                            arguments,
-                            1,
-                            command,
-                            output)) {
-                        return false;
+                    if (arguments.length == 1) {
+                        output.println("Rebooting application.");
+                        restart.run();
+                        return true;
                     }
-                    output.println("Rebooting application.");
-                    restart.run();
-                    return true;
+                    if (arguments.length == 2
+                            && "+log".equalsIgnoreCase(arguments[1])) {
+                        output.println(
+                                "Rebooting application; keeping logging connection.");
+                        restartKeepLogging.run();
+                        return true;
+                    }
+                    output.println("Usage: reboot [+log]");
+                    return false;
                 case "quit":
                 case "exit":
                     if (!requireArgumentCount(
@@ -1945,8 +2006,13 @@ public final class TerminalSession {
                 output.println("  Engineering control for the next LogBook write only.");
                 break;
             case "reboot":
-                output.println("Usage: reboot");
+                output.println("Usage: reboot [+log]");
                 output.println("  Restart the application in the current JVM.");
+                output.println(
+                        "  +log keeps the active Logging engine and live LoggingServer "
+                                + "client connection.");
+                output.println(
+                        "  Logging configuration changes are applied by a later full reboot.");
                 break;
             case "quit":
             case "exit":
@@ -1982,7 +2048,7 @@ public final class TerminalSession {
         output.println("  data [options]               Inspect current live RaceData");
         output.println("  config [options]             Show/update configuration");
         output.println("  test <options>               Engineering test controls");
-        output.println("  reboot                       Restart the application");
+        output.println("  reboot [+log]                Restart; +log keeps live logging");
         output.println("  quit                         Stop the application");
         output.println("  exit                         Alias for quit");
         output.println("Use 'help <command>' for syntax, semantics and examples.");
@@ -1992,6 +2058,13 @@ public final class TerminalSession {
         return () -> {
             throw new IllegalStateException(
                     "Application reboot is not configured");
+        };
+    }
+
+    private static Runnable unsupportedRestartKeepLogging() {
+        return () -> {
+            throw new IllegalStateException(
+                    "Application reboot with retained logging is not configured");
         };
     }
 

@@ -18,6 +18,20 @@ public class ApplicationExitSignalTest {
     }
 
     @Test
+    public void keepLoggingRestartIsDistinctAndWinsWhenRequestedFirst()
+            throws Exception {
+        ApplicationExitSignal signal = new ApplicationExitSignal();
+
+        signal.requestRestartKeepLogging();
+        signal.requestRestart();
+        signal.requestStop();
+
+        assertEquals(
+                TimingApplicationRuntime.ExitRequest.RESTART_KEEP_LOGGING,
+                signal.awaitRequest());
+    }
+
+    @Test
     public void firstStopRequestIsNotOverwrittenByLaterRestart() throws Exception {
         ApplicationExitSignal signal = new ApplicationExitSignal();
 

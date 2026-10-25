@@ -111,28 +111,90 @@ final class ApplicationLauncher {
             Path configPath,
             PrintStream out,
             PrintStream err) {
+        ProcessLoggingResources processLogging =
+                new ProcessLoggingResources();
+        boolean retainLogging = false;
+
         try {
-            boolean restart;
-            do {
+            while (true) {
                 final Config config;
                 try {
                     config = YamlLoader.load(configPath);
                 } catch (IOException | RuntimeException ex) {
-                    // No configured log sink exists yet, so keep the build identity
-                    // visible when loading configuration fails.
-                    printLines(
-                            out,
-                            startupIdentityLines(buildIdentity));
+                    if (processLogging.logging() == null) {
+                        // No configured log sink exists yet, so keep the build
+                        // identity visible when loading configuration fails.
+                        printLines(
+                                out,
+                                startupIdentityLines(buildIdentity));
+                    } else {
+                        LOGGER.log(
+                                Level.SEVERE,
+                                "Unable to reload application configuration",
+                                ex);
+                    }
                     throw ex;
                 }
-                restart =
-                        runConfiguredApplication(
+
+                boolean retainingCurrentLogging =
+                        retainLogging
+                                && processLogging.logging() != null;
+                if (!retainingCurrentLogging) {
+                    processLogging.close();
+                    processLogging.startLogging(
+                            config,
+                            buildIdentity,
+                            out);
+                } else {
+                    LOGGER.info(
+                            "Application reboot retaining Logging and LoggingServer; "
+                                    + "reloaded logging configuration is deferred until "
+                                    + "a full reboot");
+                }
+
+                /*
+                 * Queue the complete human-readable startup context before a newly
+                 * created LoggingServer, API, antenna or domain/runtime thread starts.
+                 * On reboot +log the existing LoggingServer remains active, so the
+                 * connected client also observes this restart context.
+                 */
+                announceStartupIdentity(
+                        buildIdentity,
+                        processLogging.logging(),
+                        out);
+                announceStartupConfiguration(
+                        configPath,
+                        config,
+                        processLogging.logging(),
+                        out);
+
+                if (!retainingCurrentLogging) {
+                    processLogging.startLoggingServer(config);
+                }
+
+                TimingApplicationRuntime.ExitRequest request =
+                        runTimingApplication(
                                 buildIdentity,
-                                configPath,
                                 config,
-                                out);
-            } while (restart);
-            return 0;
+                                processLogging.logging());
+
+                if (request
+                        == TimingApplicationRuntime.ExitRequest.STOP) {
+                    return 0;
+                }
+
+                retainLogging =
+                        request
+                                == TimingApplicationRuntime.ExitRequest
+                                        .RESTART_KEEP_LOGGING
+                                && processLogging.logging() != null;
+                if (retainLogging) {
+                    LOGGER.info(
+                            "Application restart requested with process logging retained");
+                } else {
+                    processLogging.close();
+                }
+            }
         } catch (IOException | RuntimeException ex) {
             err.println(
                     "Unable to start application from configuration: "
@@ -141,63 +203,66 @@ final class ApplicationLauncher {
                             + ex.getMessage()
                             + ")");
             return 1;
+        } finally {
+            processLogging.close();
         }
     }
 
-    /**
-     * Starts cross-cutting logging before the reusable runtime and tears those
-     * resources down after the TimingApplicationRuntime process returns.
-     */
-    private static boolean runConfiguredApplication(
-            BuildIdentity buildIdentity,
-            Path configPath,
-            Config config,
-            PrintStream out)
-            throws IOException {
-        Logging logging = null;
-        LoggingServer loggingServer = null;
-        try {
-            if (config.logging() != null) {
-                try {
-                    logging = Logging.start(config.logging());
-                } catch (IOException | RuntimeException ex) {
-                    // Log initialization failed; preserve the original
-                    // pre-configuration console fallback for diagnosis.
-                    printLines(
-                            out,
-                            startupIdentityLines(buildIdentity));
-                    throw ex;
-                }
-            }
-            /*
-             * Queue the complete human-readable startup context before any
-             * LoggingServer, API, antenna or domain/runtime threads are started.
-             * Logging.start() itself owns only the tp-inf-logging writer thread.
-             */
-            announceStartupIdentity(buildIdentity, logging, out);
-            announceStartupConfiguration(configPath, config, logging, out);
-            if (config.loggingServer() != null) {
-                if (logging == null) {
-                    throw new IllegalStateException(
-                            "LoggingServer requires the Logging component");
-                }
-                loggingServer = new LoggingServer(
-                        config.loggingServer(),
-                        logging);
-                loggingServer.start();
+    /** Process-owned logging resources that may outlive one TimingApplicationRuntime. */
+    private static final class ProcessLoggingResources
+            implements AutoCloseable {
+        private Logging logging;
+        private LoggingServer loggingServer;
+
+        private Logging logging() {
+            return logging;
+        }
+
+        private void startLogging(
+                Config config,
+                BuildIdentity buildIdentity,
+                PrintStream out)
+                throws IOException {
+            if (config.logging() == null) {
+                return;
             }
 
-            return runTimingApplication(
-                            buildIdentity,
-                            config,
-                            logging)
-                    == TimingApplicationRuntime.ExitRequest.RESTART;
-        } finally {
+            try {
+                logging = Logging.start(config.logging());
+            } catch (IOException | RuntimeException ex) {
+                printLines(
+                        out,
+                        startupIdentityLines(buildIdentity));
+                throw ex;
+            }
+        }
+
+        private void startLoggingServer(Config config)
+                throws IOException {
+            if (config.loggingServer() == null) {
+                return;
+            }
+            if (logging == null) {
+                throw new IllegalStateException(
+                        "LoggingServer requires the Logging component");
+            }
+
+            loggingServer =
+                    new LoggingServer(
+                            config.loggingServer(),
+                            logging);
+            loggingServer.start();
+        }
+
+        @Override
+        public void close() {
             if (loggingServer != null) {
                 loggingServer.close();
+                loggingServer = null;
             }
             if (logging != null) {
                 logging.close();
+                logging = null;
             }
         }
     }
