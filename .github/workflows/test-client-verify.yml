@@ -46,20 +46,15 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Install shared Event Timing contracts
-        shell: bash
-        run: ./mvnw -pl shared/upstream-data -am -DskipTests install
-
       - name: Verify Central dependency boundary
         shell: bash
         run: |
           set -euo pipefail
           ! grep -F '<artifactId>event-timing-engineering-client</artifactId>' test-client-central/pom.xml
-          ./mvnw -f test-client-central/pom.xml verify install
 
-      - name: Verify standalone SI-02 Engineering Client
+      - name: Verify SI-02 reactor
         shell: bash
-        run: ./mvnw -f test-client/pom.xml -DeventTiming.buildOrigin=github-actions verify
+        run: ./mvnw -Pdev-client -pl test-client -am -DeventTiming.buildOrigin=github-actions verify
 
   package-windows:
     runs-on: windows-2025

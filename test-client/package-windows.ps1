@@ -35,35 +35,17 @@ $OutputDir = if ([string]::IsNullOrWhiteSpace($Destination)) {
 
 Push-Location $RepoRoot
 try {
-    $sharedArgs = @(
-        "-pl", "shared/upstream-data",
+    $packageArgs = @(
+        "-Pdev-client",
+        "-pl", "test-client",
         "-am",
         "-DskipTests",
-        "install"
-    )
-    & $Maven @sharedArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to install shared Event Timing contracts."
-    }
-
-    $centralArgs = @(
-        "-f", "test-client-central\pom.xml",
-        "-DskipTests",
-        "install"
-    )
-    & $Maven @centralArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to install Engineering Central boundary."
-    }
-
-    $packageArgs = @(
-        "-f", "test-client\pom.xml",
         "-DeventTiming.buildOrigin=local",
-        "clean", "package"
+        "install"
     )
     & $Maven @packageArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "Engineering Client Maven package failed."
+        throw "Engineering Client reactor build failed."
     }
 
     Remove-Item -Recurse -Force $InputDir -ErrorAction SilentlyContinue
