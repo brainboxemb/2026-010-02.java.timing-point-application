@@ -190,6 +190,7 @@ class TimingViewModelTest {
         assertEquals(2, values.size());
         assertEquals("N0001", values.get(0).registrationId());
         assertEquals("12:00:00.00", values.get(0).displayTime());
+        assertEquals("-", values.get(0).runningTime());
         assertEquals("AUTO", values.get(0).type());
         assertNull(values.get(0).teamId());
         assertEquals("", values.get(0).code());
@@ -528,6 +529,35 @@ class TimingViewModelTest {
     }
 
     @Test
+    void presentsAuthoritativeRegistrationRunningTime() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+        model.replaceRegistrationProjection(
+                projectionInfo(24, 2, 2, 3L, 0L),
+                List.of(
+                        new ApiClient.RegistrationProjectionRow(
+                                2L,
+                                "A0001",
+                                "2026-10-01T10:00:00Z",
+                                Long.valueOf(3_723_450L),
+                                true),
+                        new ApiClient.RegistrationProjectionRow(
+                                3L,
+                                "A0002",
+                                "2026-10-01T10:00:01Z",
+                                null,
+                                true)));
+
+        List<TimingViewModel.InterpretedRegistration> values =
+                model.interpretedRegistrations(
+                        ZoneId.of("Europe/Amsterdam"),
+                        false);
+
+        assertEquals("01:02:03.45", values.get(0).runningTime());
+        assertEquals("-", values.get(1).runningTime());
+    }
+
+    @Test
     void formatsCanonicalCentisecondUtcTime() {
         assertEquals(
                 "2026-10-01T12:00:00.12Z",
@@ -569,6 +599,7 @@ class TimingViewModelTest {
                 sequence,
                 registrationId,
                 time,
+                null,
                 valid);
     }
 
