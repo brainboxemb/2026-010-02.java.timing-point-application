@@ -383,10 +383,10 @@ final class CentralPane implements AutoCloseable {
         try {
             CentralControlActions.MutationResult result =
                     delete
-                            ? centralActions.deleteTeamAssignment(
+                            ? centralActions.deleteTeamAssignmentByNumber(
                                     prefix,
                                     registrationNumber)
-                            : centralActions.setTeamAssignment(
+                            : centralActions.setTeamAssignmentByNumber(
                                     prefix,
                                     registrationNumber,
                                     teamId);
@@ -408,7 +408,7 @@ final class CentralPane implements AutoCloseable {
             CentralControlActions.MutationResult result;
             if (delete) {
                 result =
-                        centralActions.deleteStageStartRange(
+                        centralActions.deleteStageStartRangeByNumber(
                                 stageId,
                                 raceStagePrefix.getValue(),
                                 raceRegistrationFrom.getText(),
@@ -420,7 +420,7 @@ final class CentralPane implements AutoCloseable {
                                         raceStageIntervalSeconds.getText().trim()),
                                 1000L);
                 result =
-                        centralActions.setStageStartRange(
+                        centralActions.setStageStartRangeByNumber(
                                 stageId,
                                 raceStagePrefix.getValue(),
                                 raceRegistrationFrom.getText(),
