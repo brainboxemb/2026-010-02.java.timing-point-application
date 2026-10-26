@@ -494,9 +494,18 @@ final class CentralSystemSimulatorTest {
                                 opened(1L, 2)),
                         RECEIVED);
 
-        assertEquals(1, afterOpen.size());
+        assertTrue(afterOpen.isEmpty());
+
+        List<UpstreamData> afterCurrentHead =
+                simulator.accept(
+                        upPacket(
+                                2L,
+                                DefaultUpstreamData.createSequenceNotification(1L)),
+                        RECEIVED.plusMillis(1L));
+
+        assertEquals(1, afterCurrentHead.size());
         UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) afterOpen.get(0).message();
+                (UpstreamData.RaceData) afterCurrentHead.get(0).message();
         assertEquals(2, raceData.locationId().value());
         assertEquals(1, raceData.stageStartTimeChanges().size());
     }
