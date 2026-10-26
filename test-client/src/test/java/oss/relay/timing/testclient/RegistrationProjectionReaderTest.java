@@ -46,7 +46,8 @@ class RegistrationProjectionReaderTest {
                                         + "\"count\":3,"
                                         + "\"uniqueCount\":3,"
                                         + "\"lastMutationSeq\":3,"
-                                        + "\"lastRevokeSeq\":0"
+                                        + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0"
                                         + "}");
                     } else {
                         assertEquals(
@@ -60,6 +61,7 @@ class RegistrationProjectionReaderTest {
                                         + "\"uniqueCount\":3,"
                                         + "\"lastMutationSeq\":3,"
                                         + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0,"
                                         + "\"nextAfter\":null,"
                                         + "\"registrations\":[{"
                                         + "\"seqNr\":3,"
@@ -118,7 +120,8 @@ class RegistrationProjectionReaderTest {
                                         + "\"count\":1,"
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":2,"
-                                        + "\"lastRevokeSeq\":0"
+                                        + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0"
                                         + "}");
                     } else {
                         assertEquals(
@@ -132,6 +135,7 @@ class RegistrationProjectionReaderTest {
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":2,"
                                         + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0,"
                                         + "\"nextAfter\":null,"
                                         + "\"registrations\":[{"
                                         + "\"seqNr\":2,"
@@ -177,7 +181,8 @@ class RegistrationProjectionReaderTest {
                                         + "\"count\":2,"
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":4,"
-                                        + "\"lastRevokeSeq\":4"
+                                        + "\"lastRevokeSeq\":4,"
+                                        + "\"stageStartRevision\":0"
                                         + "}");
                     } else {
                         assertEquals(
@@ -191,6 +196,7 @@ class RegistrationProjectionReaderTest {
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":4,"
                                         + "\"lastRevokeSeq\":4,"
+                                        + "\"stageStartRevision\":0,"
                                         + "\"nextAfter\":null,"
                                         + "\"registrations\":["
                                         + "{"
