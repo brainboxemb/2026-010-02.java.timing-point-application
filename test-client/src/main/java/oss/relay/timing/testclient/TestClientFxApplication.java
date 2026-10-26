@@ -808,6 +808,16 @@ public final class TestClientFxApplication extends Application {
         // Duplicating four status labels here is redundant with Systems.
         if (event instanceof ApiEventClient.StatusEvent statusEvent) {
             apiPane.applyStatusEvent(statusEvent);
+            if (system.eventClient().isUpstreamRoleConnected()) {
+                for (ApiClient.TimingNodeInfo node
+                        : statusEvent.status().nodes()) {
+                    centralClient.applyRuntimeStatus(
+                            node.id(),
+                            node.state(),
+                            node.locationId(),
+                            statusEvent.occurredAt());
+                }
+            }
         } else if (event instanceof ApiEventClient.TimingDataEvent dataEvent) {
             apiPane.applyTimingDataEvent(dataEvent);
         } else if (event instanceof ApiEventClient.UpstreamDataEvent upstreamEvent

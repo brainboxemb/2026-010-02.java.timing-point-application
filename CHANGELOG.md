@@ -1,5 +1,7 @@
 # Changelog
 
+- Use IF-03 STATUS_SNAPSHOT/STATUS_CHANGED as Central's authority for current TimingNode OPEN/CLOSED and LocationId state; TIMING_DATA NODE_OPEN/NODE_CLOSE remain LogBook history only, so an unmatched historical OPEN cannot restore runtime state or release RACE_DATA after an SI-01 restart.
+
 - Prevent premature RACE_DATA during reconnect/catch-up: Central now routes Team Mapping and StageStartTimes only when the node lifecycle is synchronized to the current SEQ source head and is OPEN at the matching LocationId, so a historical NODE_OPEN seen before a later NODE_CLOSE cannot release stored RaceData.
 
 - Refine SI-02 stage/race-data ergonomics: use a Stage selector with a selected-stage StartTimes table, accept numeric RegistrationId input behind explicit A-Z prefix selectors, and normalize compact `HHmmss[.fraction]` stage-start times such as `190000` to canonical `19:00:00` without changing IF-06/domain values.

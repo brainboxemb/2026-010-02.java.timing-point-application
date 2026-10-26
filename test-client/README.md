@@ -408,20 +408,31 @@ editor. The Engineering Client still does not expose arbitrary TagObservation in
 TagProcessor/filter mutation or StageStartTimes/NextUpTeams editors. The first Central RACE_DATA editor is now available separately as **C|RaceData**.
 
 The narrow explorer deliberately contains separate **System** and **Central** projections.
-System is the direct IF-03/API system view of SI-01. Central currently discovers NodeIds
-through typed `UPSTREAM_DATA` on the explicit `/api/v1/events?role=upstream` session.
-Its Nodes tab therefore shows a flat compact list such as
+System is the direct IF-03/API system view of SI-01. Central uses the complete IF-03
+`STATUS_SNAPSHOT` and later `STATUS_CHANGED` events on the explicit
+`/api/v1/events?role=upstream` session as the authority for current TimingNode
+OPEN/CLOSED and LocationId state. Typed `UPSTREAM_DATA` still supplies heartbeat,
+TimingData synchronization and downstream protocol state. Its Nodes tab therefore shows a
+flat compact list such as
 `A [05] · H - 30s · CNT 1157`; heartbeat, TimingData head, last acknowledged downstream
 packet number, any outstanding downstream packet number and the latest LogBook record
 remain available on the node tooltip. In the compact row, `[05]` means currently OPEN at LocationId 5, `[--]` means known CLOSED and `[??]` means the lifecycle/location is not known yet. `H -NNNs` is the locally observed heartbeat age, right-aligned to three digits with leading spaces (refreshed every 10 seconds and capped at 999s) and `CNT` is the received contiguous TimingData/LogBook head, right-aligned to at least three digits.
 
-**Central → Locations** is another compact Central projection, for example
-`5 · OPEN · A` or `6 · UNKNOWN`. Sequence and transition timestamps remain internal
-projection state and are not permanent explorer columns. A later NODE_OPEN for the same
-NodeId at another LocationId implicitly closes the previously active location.
+**Central → Locations** is another compact current-runtime projection, for example
+`5 · OPEN · A` or `6 · UNKNOWN`. It is derived from IF-03 current status rather than
+from LogBook lifecycle records. A later runtime OPEN for the same NodeId at another
+LocationId closes the previously active location in this projection.
+
+`NODE_OPEN` and `NODE_CLOSE` records received through TIMING_DATA remain durable
+LogBook history only. They never restore current runtime OPEN state. In particular, after
+SI-01 restarts, an old unmatched `NODE_OPEN` may still exist in the LogBook while the
+new runtime correctly reports CLOSED; Central follows that CLOSED status and does not
+release RACE_DATA until a new runtime OPEN occurs.
 
 **Central Controls → RaceData** is an operator form rather than an explorer and authors
-Central-owned current RaceData independently from a selected node. Registration input
+Central-owned current RaceData independently from a selected node. Authored data may be
+retained while nodes are CLOSED, but LocationId-scoped RACE_DATA is emitted only when the
+current IF-03 runtime status reports the target node OPEN at that LocationId. Registration input
 uses an explicit A-Z prefix selector plus numeric values: for example prefix `A` and
 number `8` becomes canonical RegistrationId `A0008`, and a range `8..100` becomes
 `A0008..A0100`. Stage-start time accepts the existing IF-06 TimingTimestamp forms and
