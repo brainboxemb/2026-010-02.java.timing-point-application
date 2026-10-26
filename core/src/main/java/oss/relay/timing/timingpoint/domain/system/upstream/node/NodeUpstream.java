@@ -330,7 +330,7 @@ public final class NodeUpstream extends LifecycleComponent {
 
     /** Handles a connection fact from this node's fixed upstream stream. */
     public void connectionAvailable() {
-        queueDownstreamReady();
+        queueDownstreamPosition();
         queueTimingDataSequenceNotification();
         queueHeartbeat();
         wakeQueuedInput();
@@ -396,10 +396,13 @@ public final class NodeUpstream extends LifecycleComponent {
                 "TIMING_DATA SEQ NTF");
     }
 
-    /** Announces readiness for a full current downstream state on a fresh delivery state. */
-    private void queueDownstreamReady() {
+    /**
+     * Announces the retained downstream receive position before other reconnect
+     * synchronization is queued.
+     */
+    private void queueDownstreamPosition() {
         taskRunner.executeOrWarn(
-                downstreamDelivery::requestFullStateIfUninitialized,
-                "downstream RECV 0");
+                downstreamDelivery::announceReceivePosition,
+                "downstream RECV position");
     }
 }
