@@ -22,6 +22,7 @@ final class HttpRequestReader {
     private static final int MAX_REQUEST_BODY_BYTES = 64 * 1024;
     private static final int MAX_LOGBOOK_LIMIT = 1000;
     private static final int MAX_REGISTRATION_LIMIT = 1000;
+    private static final int MAX_STAGE_START_LIMIT = 1000;
 
     private final JsonFactory jsonFactory = new JsonFactory();
 
@@ -575,6 +576,53 @@ final class HttpRequestReader {
                 observationQueueCapacity);
     }
 
+    StageStartQuery readStageStartQuery(String query) {
+        Integer offset = null;
+        Integer limit = null;
+
+        String[] pairs = query.split("&");
+        for (String pair : pairs) {
+            int equals = pair.indexOf('=');
+            if (equals <= 0 || equals == pair.length() - 1) {
+                throw invalidValue(
+                        "StageStart query parameters require a value");
+            }
+            String name = pair.substring(0, equals);
+            String value = pair.substring(equals + 1);
+            if ("offset".equals(name)) {
+                if (offset != null) {
+                    throw invalidValue(
+                            "Duplicate StageStart query field: offset");
+                }
+                long parsed = parseNonNegativeLong("offset", value);
+                if (parsed > Integer.MAX_VALUE) {
+                    throw invalidValue(
+                            "offset is too large");
+                }
+                offset = Integer.valueOf((int) parsed);
+            } else if ("limit".equals(name)) {
+                if (limit != null) {
+                    throw invalidValue(
+                            "Duplicate StageStart query field: limit");
+                }
+                long parsed = parsePositiveLong("limit", value);
+                if (parsed > MAX_STAGE_START_LIMIT) {
+                    throw invalidValue(
+                            "limit must be <= " + MAX_STAGE_START_LIMIT);
+                }
+                limit = Integer.valueOf((int) parsed);
+            } else {
+                throw invalidValue(
+                        "Unsupported StageStart query field: " + name);
+            }
+        }
+        if (offset == null || limit == null) {
+            throw invalidValue(
+                    "StageStart range requires both offset and limit");
+        }
+        return new StageStartQuery(offset.intValue(), limit.intValue());
+    }
+
     RegistrationQuery readRegistrationQuery(String query) {
         Long after = null;
         Integer limit = null;
@@ -786,6 +834,16 @@ final class HttpRequestReader {
                 String resource) {
             this.nodeId = nodeId;
             this.resource = resource;
+        }
+    }
+
+    static final class StageStartQuery {
+        final int offset;
+        final int limit;
+
+        StageStartQuery(int offset, int limit) {
+            this.offset = offset;
+            this.limit = limit;
         }
     }
 
