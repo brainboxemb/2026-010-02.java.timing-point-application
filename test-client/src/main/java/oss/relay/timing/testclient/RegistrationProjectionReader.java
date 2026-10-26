@@ -127,6 +127,10 @@ final class RegistrationProjectionReader {
                 != cached.lastRevokeSequence()) {
             return true;
         }
+        if (current.stageStartRevision()
+                != cached.stageStartRevision()) {
+            return true;
+        }
 
         return current.count() == cachedCount
                 && current.lastMutationSequence()
@@ -204,7 +208,9 @@ final class RegistrationProjectionReader {
                 && first.lastMutationSequence()
                         == second.lastMutationSequence()
                 && first.lastRevokeSequence()
-                        == second.lastRevokeSequence();
+                        == second.lastRevokeSequence()
+                && first.stageStartRevision()
+                        == second.stageStartRevision();
     }
 
     record Update(
