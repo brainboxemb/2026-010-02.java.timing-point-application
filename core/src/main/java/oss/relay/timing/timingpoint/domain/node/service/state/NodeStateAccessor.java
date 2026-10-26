@@ -52,6 +52,31 @@ public interface NodeStateAccessor {
             BiConsumer<RegistrationId, TeamId> assignmentVisitor,
             BiConsumer<RegistrationId, Long> stageStartVisitor);
 
+    /** Visits applied StageStartTimes and returns count/revision from the same ordered read. */
+    StageStartProjectionInfo visitStageStarts(
+            BiConsumer<RegistrationId, Long> visitor);
+
+    /** Metadata for current applied StageStartTimes. */
+    final class StageStartProjectionInfo {
+        private final int count;
+        private final long revision;
+
+        StageStartProjectionInfo(
+                int count,
+                long revision) {
+            this.count = count;
+            this.revision = revision;
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public long revision() {
+            return revision;
+        }
+    }
+
     /** Metadata captured from one caught-up active-WP projection. */
     final class RegistrationProjectionInfo {
         private final LocationId locationId;
@@ -59,6 +84,7 @@ public interface NodeStateAccessor {
         private final int uniqueCount;
         private final long lastMutationSequence;
         private final long lastRevokeSequence;
+        private final long stageStartRevision;
 
         /** Captures projection identity, size and mutation cursors from one ordered read. */
         RegistrationProjectionInfo(
@@ -66,13 +92,15 @@ public interface NodeStateAccessor {
                 int count,
                 int uniqueCount,
                 long lastMutationSequence,
-                long lastRevokeSequence) {
+                long lastRevokeSequence,
+                long stageStartRevision) {
 
             this.locationId = locationId;
             this.count = count;
             this.uniqueCount = uniqueCount;
             this.lastMutationSequence = lastMutationSequence;
             this.lastRevokeSequence = lastRevokeSequence;
+            this.stageStartRevision = stageStartRevision;
         }
 
         /** Identifies the OPEN location represented by this projection. */
@@ -103,6 +131,12 @@ public interface NodeStateAccessor {
         public long lastRevokeSequence() {
 
             return lastRevokeSequence;
+        }
+
+        /** Applied StageStartTimes revision affecting elapsed/rank presentation. */
+        public long stageStartRevision() {
+
+            return stageStartRevision;
         }
     }
 }
