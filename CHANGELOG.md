@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix Central restart recovery for normal DN_PACKET delivery: SI-01 now announces its retained downstream RECV position on every upstream connection, and a fresh Central simulator adopts that positive position (including the late-response case after an initial P1) so numbering continues at N+1 instead of restarting at P1.
+
 - Format Central Messages RACE_DATA detail like multi-record TIMING_DATA: present each team-assignment and stage-start change on its own line while retaining the exact compact IF-06 wire payload.
 
 - Add a separate right-side **Stages** viewer beside Node and Central, showing each StageId with expandable StartTimes and RegistrationId/start values from Central-owned state even before a node opens; keep the Central viewer title globally **Central** instead of misleadingly following the selected API node.
