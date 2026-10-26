@@ -148,7 +148,7 @@ public final class CentralClient implements AutoCloseable {
 
     private final class Actions implements CentralControlActions {
         @Override
-        public MutationResult setTeamAssignment(
+        public MutationResult setTeamAssignmentByNumber(
                 String registrationPrefix,
                 String registrationNumber,
                 String teamId) {
@@ -167,7 +167,7 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult deleteTeamAssignment(
+        public MutationResult deleteTeamAssignmentByNumber(
                 String registrationPrefix,
                 String registrationNumber) {
             String registrationId =
@@ -184,7 +184,7 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult setStageStartRange(
+        public MutationResult setStageStartRangeByNumber(
                 int stageId,
                 String registrationPrefix,
                 String firstRegistrationNumber,
@@ -225,7 +225,7 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult deleteStageStartRange(
+        public MutationResult deleteStageStartRangeByNumber(
                 int stageId,
                 String registrationPrefix,
                 String firstRegistrationNumber,
