@@ -388,8 +388,8 @@ final class CentralSystemSimulatorTest {
                 simulator.nodes().get(0).lifecycleState());
         assertNull(simulator.nodes().get(0).locationId());
         assertFalse(
-                "historical LogBook OPEN must not mark LocationId 2 current",
-                "OPEN".equals(location(simulator, 2).state()));
+                "OPEN".equals(location(simulator, 2).state()),
+                "historical LogBook OPEN must not mark LocationId 2 current");
     }
 
     @Test
