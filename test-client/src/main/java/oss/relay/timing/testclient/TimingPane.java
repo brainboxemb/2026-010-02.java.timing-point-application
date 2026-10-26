@@ -639,6 +639,7 @@ final class TimingPane {
         }
 
         bufferedEvents.clear();
+        clearStageStartTimes();
         model.viewState(TimingViewModel.ViewState.SYNCING);
         historyState.setText("SYNCING");
         refresh();
