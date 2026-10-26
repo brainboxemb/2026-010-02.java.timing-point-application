@@ -81,6 +81,19 @@ final class CentralSystemSimulator {
             Instant changedAt) {
     }
 
+    record StageStartView(
+            String registrationId,
+            String start) {
+    }
+
+    record StageView(
+            int stageId,
+            List<StageStartView> startTimes) {
+        StageView {
+            startTimes = List.copyOf(startTimes);
+        }
+    }
+
     /** Bounded model-side diagnostic history; TableView rendering is virtualized separately. */
     private static final int MAX_MESSAGE_HISTORY = 10_000;
 
@@ -446,6 +459,40 @@ final class CentralSystemSimulator {
                             state.nodeId,
                             state.sequence,
                             state.changedAt));
+        }
+        return List.copyOf(result);
+    }
+
+    List<StageView> stages() {
+        List<Integer> stageIds =
+                new ArrayList<>(configuredLocationIds);
+        for (Integer stageId : currentStageStarts.keySet()) {
+            if (!stageIds.contains(stageId)) {
+                stageIds.add(stageId);
+            }
+        }
+        stageIds.sort(Integer::compareTo);
+
+        List<StageView> result =
+                new ArrayList<>(stageIds.size());
+        for (Integer stageId : stageIds) {
+            Map<RegistrationId, TimingTimestamp> starts =
+                    currentStageStarts.getOrDefault(
+                            stageId,
+                            Collections.emptyMap());
+            List<StageStartView> values =
+                    new ArrayList<>(starts.size());
+            for (Map.Entry<RegistrationId, TimingTimestamp> entry
+                    : starts.entrySet()) {
+                values.add(
+                        new StageStartView(
+                                entry.getKey().value(),
+                                entry.getValue().toString()));
+            }
+            result.add(
+                    new StageView(
+                            stageId.intValue(),
+                            values));
         }
         return List.copyOf(result);
     }

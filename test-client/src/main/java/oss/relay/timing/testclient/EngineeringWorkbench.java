@@ -68,6 +68,7 @@ final class EngineeringWorkbench {
             Node apiSystems,
             Node centralNodes,
             Node centralLocations,
+            Node centralStages,
             Node centralMessages,
             Node centralLogBook,
             Node centralRaceData,
@@ -241,9 +242,19 @@ final class EngineeringWorkbench {
                 viewerLeaf,
                 new WorkbenchPanel(
                         "central-viewer",
-                        "Central",
+                        centralPerspectiveTitle(),
                         centralViewerContent));
-        viewerLeaf.addDockables(nodeViewer, centralViewer);
+        Dockable stagesViewer = dockable(
+                builder,
+                viewerLeaf,
+                new WorkbenchPanel(
+                        "stages-viewer",
+                        "Stages",
+                        centralStages));
+        viewerLeaf.addDockables(
+                nodeViewer,
+                centralViewer,
+                stagesViewer);
     }
 
     Node root() {
@@ -252,7 +263,11 @@ final class EngineeringWorkbench {
 
     void setPerspectiveNodeId(String nodeId) {
         nodeViewer.setTitle(perspectiveTitle("Node", nodeId));
-        centralViewer.setTitle(perspectiveTitle("Central", nodeId));
+        centralViewer.setTitle(centralPerspectiveTitle());
+    }
+
+    static String centralPerspectiveTitle() {
+        return "Central";
     }
 
     static String perspectiveTitle(String perspective, String nodeId) {

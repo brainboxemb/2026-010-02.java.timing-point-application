@@ -256,6 +256,7 @@ public final class TestClientFxApplication extends Application {
                 apiPane.systemsPane(),
                 centralClient.nodesPane(),
                 centralClient.locationsPane(),
+                centralClient.stagesPane(),
                 centralClient.messagesPane(),
                 centralClient.logBookPane(),
                 centralClient.raceDataPane(),
