@@ -10,6 +10,45 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class CentralPaneTest {
     @Test
+    void mutationFeedbackDistinguishesRetainedStateFromImmediateDelivery() {
+        assertEquals(
+                "Stage 2 start times: 100 updated; retained in Central state",
+                CentralPane.mutationFeedback(
+                        "Stage 2 start times",
+                        new CentralControlActions.MutationResult(100, 0)));
+        assertEquals(
+                "Team Mapping: 1 updated; delivery started with 2 DN_PACKETs",
+                CentralPane.mutationFeedback(
+                        "Team Mapping",
+                        new CentralControlActions.MutationResult(1, 2)));
+    }
+
+    @Test
+    void centralClientBuildsCanonicalRegistrationRanges() {
+        assertEquals(
+                java.util.List.of("A0008", "A0009", "A0010"),
+                CentralClient.registrationRange("A0008", "A0010"));
+    }
+
+    @Test
+    void centralClientAppliesIntervalWithoutInventingDateKnowledge() {
+        assertEquals(
+                "10:00:30",
+                CentralClient.plusMillis(
+                                oss.relay.timing.timingdata.TimingTimestamp.parse(
+                                        "10:00:00"),
+                                30_000L)
+                        .toString());
+        assertEquals(
+                "2026-10-26T10:00:30",
+                CentralClient.plusMillis(
+                                oss.relay.timing.timingdata.TimingTimestamp.parse(
+                                        "2026-10-26T10:00:00"),
+                                30_000L)
+                        .toString());
+    }
+
+    @Test
     void compactNodeTextFitsExplorerSemantics() {
         CentralSystemSimulator.NodeView node =
                 new CentralSystemSimulator.NodeView(

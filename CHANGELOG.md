@@ -1,5 +1,7 @@
 # Changelog
 
+- Make SI-02 Central RaceData authoring independent of a selected node: Team Mapping is Central-owned global state, Stage Start Times are authored per StageId with contiguous RegistrationId range SET/DEL and optional interval, and Stage N is routed through normal bounded IF-06 RACE_DATA to an OPEN node at LocationId N.
+
 - Improve the Node engineering views: Registrations now presents SI-01-maintained RunningTime and labels manual AUTO/MAN classification as Time source; LogBook keeps its fast latest-100 baseline but adds an explicit bounded-page Load all action.
 
 - Add a single `dev-client` Maven/NetBeans reactor entrypoint for SI-02 so shared contracts and the isolated Central module are built automatically before the runnable Engineering Client; Windows packaging and CI use the same reactor path.

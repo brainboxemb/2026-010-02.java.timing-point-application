@@ -212,6 +212,96 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void centralStageStartStateRoutesStageNOnlyToLocationN() {
+        CentralSystemSimulator simulator =
+                openSimulatorAtLocation(2);
+
+        List<UpstreamData> wrongStage =
+                simulator.updateStageStarts(
+                        1,
+                        List.of(
+                                DefaultUpstreamData.createStageStartSet(
+                                        "A0001",
+                                        TimingTimestamp.parse("10:00:00"))));
+
+        assertTrue(wrongStage.isEmpty());
+
+        List<UpstreamData> matchingStage =
+                simulator.updateStageStarts(
+                        2,
+                        List.of(
+                                DefaultUpstreamData.createStageStartSet(
+                                        "A0001",
+                                        TimingTimestamp.parse("10:05:00"))));
+
+        assertEquals(1, matchingStage.size());
+        UpstreamData.RaceData raceData =
+                (UpstreamData.RaceData) matchingStage.get(0).message();
+        assertEquals(2, raceData.locationId().value());
+        assertEquals(1, raceData.stageStartTimeChanges().size());
+        assertEquals(
+                "A0001",
+                raceData.stageStartTimeChanges()
+                        .get(0)
+                        .registrationId()
+                        .value());
+        assertEquals(
+                "10:05:00",
+                raceData.stageStartTimeChanges()
+                        .get(0)
+                        .start()
+                        .toString());
+    }
+
+    @Test
+    void centralStageStartCanBeAuthoredBeforeNodeOpens() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(2));
+        simulator.connected();
+
+        assertTrue(
+                simulator.updateStageStarts(
+                                2,
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("10:05:00"))))
+                        .isEmpty());
+
+        List<UpstreamData> afterOpen =
+                simulator.accept(
+                        timingDataPacket(
+                                1L,
+                                opened(1L, 2)),
+                        RECEIVED);
+
+        assertEquals(1, afterOpen.size());
+        UpstreamData.RaceData raceData =
+                (UpstreamData.RaceData) afterOpen.get(0).message();
+        assertEquals(2, raceData.locationId().value());
+        assertEquals(1, raceData.stageStartTimeChanges().size());
+    }
+
+    @Test
+    void globalTeamMappingIsDeliveredToAnOpenNode() {
+        CentralSystemSimulator simulator =
+                openSimulatorAtLocation(7);
+
+        List<UpstreamData> packets =
+                simulator.updateTeamAssignments(
+                        List.of(
+                                DefaultUpstreamData.createTeamAssignmentSet(
+                                        "A0001",
+                                        "T001")));
+
+        assertEquals(1, packets.size());
+        UpstreamData.RaceData raceData =
+                (UpstreamData.RaceData) packets.get(0).message();
+        assertEquals(7, raceData.locationId().value());
+        assertEquals(1, raceData.teamAssignmentChanges().size());
+    }
+
+    @Test
     void raceDataUsesOneImmutableOutstandingPacketAndBuildsNextDeltaAfterRecv() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(7);

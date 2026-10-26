@@ -28,17 +28,18 @@ final class CentralPane implements AutoCloseable {
     private final Label connectionState = new Label("CENTRAL UPSTREAM NOT CONNECTED");
     private final ListView<CentralSystemSimulator.NodeView> nodes = new ListView<>();
     private final ListView<CentralSystemSimulator.LocationView> locations = new ListView<>();
-    private final ComboBox<String> raceNode = new ComboBox<>();
     private final TextField raceRegistration = new TextField();
     private final TextField raceTeam = new TextField();
+    private final TextField raceStage = new TextField("1");
+    private final TextField raceRegistrationFrom = new TextField();
+    private final TextField raceRegistrationTo = new TextField();
     private final TextField raceStageStart = new TextField();
+    private final TextField raceStageIntervalSeconds = new TextField("0");
     private final Button raceSet = new Button("Set team");
     private final Button raceDelete = new Button("Delete team");
     private final Button stageStartSet = new Button("Set start");
     private final Button stageStartDelete = new Button("Delete start");
-    private final Label raceDnAck = new Label("0");
-    private final Label raceDnPending = new Label("—");
-    private final Label raceFeedback = new Label("Central upstream not connected");
+    private final Label raceFeedback = new Label("Central state ready");
 
     private final ComboBox<String> timingNode = new ComboBox<>();
     private final Label timingHead = new Label("0");
@@ -244,14 +245,13 @@ final class CentralPane implements AutoCloseable {
     }
 
     private void configureRaceData() {
-        raceNode.setPromptText("Node");
-        raceNode.setMaxWidth(Double.MAX_VALUE);
-        raceNode.valueProperty().addListener((ignored, oldValue, newValue) ->
-                refreshRaceDataState());
-
         raceRegistration.setPromptText("A0001");
+        raceRegistrationFrom.setPromptText("A0001");
+        raceRegistrationTo.setPromptText("A0100");
         raceTeam.setPromptText("TeamId");
+        raceStage.setPromptText("StageId");
         raceStageStart.setPromptText("HH:mm:ss[.fraction] or date/time");
+        raceStageIntervalSeconds.setPromptText("0");
 
         raceSet.setOnAction(event -> applyTeamAssignment(false));
         raceDelete.setOnAction(event -> applyTeamAssignment(true));
@@ -274,36 +274,46 @@ final class CentralPane implements AutoCloseable {
     }
 
     private VBox createRaceDataPane() {
-        GridPane form = new GridPane();
-        form.setHgap(8);
-        form.setVgap(8);
-        form.add(new Label("Node"), 0, 0);
-        form.add(raceNode, 1, 0);
-        form.add(new Label("RegistrationId"), 0, 1);
-        form.add(raceRegistration, 1, 1);
-        form.add(new Label("TeamId"), 0, 2);
-        form.add(raceTeam, 1, 2);
-        form.add(new Label("Stage start"), 0, 3);
-        form.add(raceStageStart, 1, 3);
-        GridPane.setHgrow(raceNode, Priority.ALWAYS);
+        GridPane teamForm = new GridPane();
+        teamForm.setHgap(8);
+        teamForm.setVgap(8);
+        teamForm.add(new Label("RegistrationId"), 0, 0);
+        teamForm.add(raceRegistration, 1, 0);
+        teamForm.add(new Label("TeamId"), 0, 1);
+        teamForm.add(raceTeam, 1, 1);
         GridPane.setHgrow(raceRegistration, Priority.ALWAYS);
         GridPane.setHgrow(raceTeam, Priority.ALWAYS);
+
+        GridPane stageForm = new GridPane();
+        stageForm.setHgap(8);
+        stageForm.setVgap(8);
+        stageForm.add(new Label("StageId"), 0, 0);
+        stageForm.add(raceStage, 1, 0);
+        stageForm.add(new Label("RegistrationId from"), 0, 1);
+        stageForm.add(raceRegistrationFrom, 1, 1);
+        stageForm.add(new Label("RegistrationId to"), 0, 2);
+        stageForm.add(raceRegistrationTo, 1, 2);
+        stageForm.add(new Label("Start time"), 0, 3);
+        stageForm.add(raceStageStart, 1, 3);
+        stageForm.add(new Label("Interval seconds"), 0, 4);
+        stageForm.add(raceStageIntervalSeconds, 1, 4);
+        GridPane.setHgrow(raceStage, Priority.ALWAYS);
+        GridPane.setHgrow(raceRegistrationFrom, Priority.ALWAYS);
+        GridPane.setHgrow(raceRegistrationTo, Priority.ALWAYS);
         GridPane.setHgrow(raceStageStart, Priority.ALWAYS);
+        GridPane.setHgrow(raceStageIntervalSeconds, Priority.ALWAYS);
 
         HBox teamActions = new HBox(8, raceSet, raceDelete);
         HBox stageActions = new HBox(8, stageStartSet, stageStartDelete);
-        HBox protocol = new HBox(
-                12,
-                new Label("DN ack"), raceDnAck,
-                new Label("DN pending"), raceDnPending);
-
         VBox pane = new VBox(
                 10,
                 new Label("Central RaceData"),
-                form,
+                new Label("Team Mapping"),
+                teamForm,
                 teamActions,
+                new Label("Stage Start Times"),
+                stageForm,
                 stageActions,
-                protocol,
                 raceFeedback);
         pane.setPadding(new Insets(8));
         return pane;
@@ -348,19 +358,18 @@ final class CentralPane implements AutoCloseable {
     }
 
     private void applyTeamAssignment(boolean delete) {
-        String nodeId = raceNode.getValue();
         String registrationId = raceRegistration.getText();
         String teamId = raceTeam.getText();
 
         try {
-            long sequence = delete
-                    ? centralActions.deleteTeamAssignment(nodeId, registrationId)
-                    : centralActions.setTeamAssignment(nodeId, registrationId, teamId);
+            CentralControlActions.MutationResult result =
+                    delete
+                            ? centralActions.deleteTeamAssignment(registrationId)
+                            : centralActions.setTeamAssignment(registrationId, teamId);
             raceFeedback.setText(
-                    sequence == 0L
-                            ? "RaceData state updated; waiting behind pending DN_PACKET"
-                            : "DN_PACKET #" + sequence
-                                    + (delete ? " DEL queued" : " SET queued"));
+                    mutationFeedback(
+                            "Team Mapping",
+                            result));
             refresh();
         } catch (RuntimeException ex) {
             showError(raceFeedback, ex);
@@ -368,23 +377,62 @@ final class CentralPane implements AutoCloseable {
     }
 
     private void applyStageStart(boolean delete) {
-        String nodeId = raceNode.getValue();
-        String registrationId = raceRegistration.getText();
-        String start = raceStageStart.getText();
-
         try {
-            long packetNr = delete
-                    ? centralActions.deleteStageStart(nodeId, registrationId)
-                    : centralActions.setStageStart(nodeId, registrationId, start);
+            int stageId =
+                    Integer.parseInt(
+                            raceStage.getText().trim());
+            CentralControlActions.MutationResult result;
+            if (delete) {
+                result =
+                        centralActions.deleteStageStartRange(
+                                stageId,
+                                raceRegistrationFrom.getText(),
+                                raceRegistrationTo.getText());
+            } else {
+                long intervalMillis =
+                        Math.multiplyExact(
+                                Long.parseLong(
+                                        raceStageIntervalSeconds.getText().trim()),
+                                1000L);
+                result =
+                        centralActions.setStageStartRange(
+                                stageId,
+                                raceRegistrationFrom.getText(),
+                                raceRegistrationTo.getText(),
+                                raceStageStart.getText(),
+                                intervalMillis);
+            }
             raceFeedback.setText(
-                    packetNr == 0L
-                            ? "Stage-start change queued behind pending DN_PACKET"
-                            : "DN_PACKET #" + packetNr
-                                    + (delete ? " start DEL queued" : " start SET queued"));
+                    mutationFeedback(
+                            "Stage " + stageId + " start times",
+                            result));
             refresh();
+        } catch (NumberFormatException ex) {
+            raceFeedback.setText(
+                    "StageId and interval seconds must be integers");
+        } catch (ArithmeticException ex) {
+            raceFeedback.setText("Interval seconds is too large");
         } catch (RuntimeException ex) {
             showError(raceFeedback, ex);
         }
+    }
+
+    static String mutationFeedback(
+            String subject,
+            CentralControlActions.MutationResult result) {
+        if (result.immediatePackets() == 0) {
+            return subject
+                    + ": "
+                    + result.affected()
+                    + " updated; retained in Central state";
+        }
+        return subject
+                + ": "
+                + result.affected()
+                + " updated; delivery started with "
+                + result.immediatePackets()
+                + " DN_PACKET"
+                + (result.immediatePackets() == 1 ? "" : "s");
     }
 
     private void querySourceHead() {
@@ -443,7 +491,6 @@ final class CentralPane implements AutoCloseable {
         List<String> nodeIds = nodeViews.stream()
                 .map(CentralSystemSimulator.NodeView::nodeId)
                 .toList();
-        refreshNodeSelector(raceNode, nodeIds);
         refreshNodeSelector(timingNode, nodeIds);
     }
 
@@ -463,34 +510,20 @@ final class CentralPane implements AutoCloseable {
     }
 
     private void refreshRaceDataState() {
-        String selected = raceNode.getValue();
-        CentralSystemSimulator.NodeView view = simulator.nodes().stream()
-                .filter(value -> value.nodeId().equals(selected))
-                .findFirst()
-                .orElse(null);
-
-        raceDnAck.setText(
-                view == null
-                        ? "0"
-                        : Long.toString(view.lastDnPacketAcknowledged()));
-        raceDnPending.setText(
-                view == null || view.outstandingDnPacketNr() == null
-                        ? "—"
-                        : Long.toString(view.outstandingDnPacketNr()));
-
-        boolean enabled = simulator.isConnected() && view != null;
-        raceNode.setDisable(!simulator.isConnected() || simulator.nodes().isEmpty());
-        raceRegistration.setDisable(!enabled);
-        raceTeam.setDisable(!enabled);
-        raceStageStart.setDisable(!enabled);
-        raceSet.setDisable(!enabled);
-        raceDelete.setDisable(!enabled);
-        stageStartSet.setDisable(!enabled);
-        stageStartDelete.setDisable(!enabled);
+        raceRegistration.setDisable(false);
+        raceTeam.setDisable(false);
+        raceStage.setDisable(false);
+        raceRegistrationFrom.setDisable(false);
+        raceRegistrationTo.setDisable(false);
+        raceStageStart.setDisable(false);
+        raceStageIntervalSeconds.setDisable(false);
+        raceSet.setDisable(false);
+        raceDelete.setDisable(false);
+        stageStartSet.setDisable(false);
+        stageStartDelete.setDisable(false);
         if (!simulator.isConnected()) {
-            raceFeedback.setText("Central upstream not connected");
-        } else if (view == null) {
-            raceFeedback.setText("No Central NodeId observed yet");
+            raceFeedback.setText(
+                    "Central authoring available offline; delivery waits for an upstream connection");
         }
     }
 

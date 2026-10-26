@@ -6,6 +6,8 @@ import oss.relay.timing.upstreamdata.UpstreamData;
 import oss.relay.timing.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -119,6 +121,14 @@ public final class CentralClient implements AutoCloseable {
         return packetNr;
     }
 
+    private int sendPacketsAndCount(List<UpstreamData> packets) {
+        for (UpstreamData packet : packets) {
+            send(packet);
+        }
+        refresh();
+        return packets.size();
+    }
+
     private void send(UpstreamData packet) {
         transport.send(packet);
         simulator.recordSent(
@@ -129,6 +139,98 @@ public final class CentralClient implements AutoCloseable {
     }
 
     private final class Actions implements CentralControlActions {
+        @Override
+        public MutationResult setTeamAssignment(
+                String registrationId,
+                String teamId) {
+            int packets =
+                    sendPacketsAndCount(
+                            simulator.updateTeamAssignments(
+                                    List.of(
+                                            DefaultUpstreamData.createTeamAssignmentSet(
+                                                    registrationId,
+                                                    teamId))));
+            return new MutationResult(1, packets);
+        }
+
+        @Override
+        public MutationResult deleteTeamAssignment(
+                String registrationId) {
+            int packets =
+                    sendPacketsAndCount(
+                            simulator.updateTeamAssignments(
+                                    List.of(
+                                            DefaultUpstreamData.createTeamAssignmentDelete(
+                                                    registrationId))));
+            return new MutationResult(1, packets);
+        }
+
+        @Override
+        public MutationResult setStageStartRange(
+                int stageId,
+                String firstRegistrationId,
+                String lastRegistrationId,
+                String start,
+                long intervalMillis) {
+            if (intervalMillis < 0L) {
+                throw new IllegalArgumentException(
+                        "Interval must not be negative");
+            }
+            List<String> registrations =
+                    registrationRange(
+                            firstRegistrationId,
+                            lastRegistrationId);
+            TimingTimestamp first =
+                    TimingTimestamp.parse(
+                            start == null ? null : start.trim());
+            List<UpstreamData.StageStartTimeChange> changes =
+                    new ArrayList<>(registrations.size());
+            for (int index = 0; index < registrations.size(); index++) {
+                changes.add(
+                        DefaultUpstreamData.createStageStartSet(
+                                registrations.get(index),
+                                plusMillis(
+                                        first,
+                                        Math.multiplyExact(
+                                                intervalMillis,
+                                                index))));
+            }
+            int packets =
+                    sendPacketsAndCount(
+                            simulator.updateStageStarts(
+                                    stageId,
+                                    changes));
+            return new MutationResult(
+                    registrations.size(),
+                    packets);
+        }
+
+        @Override
+        public MutationResult deleteStageStartRange(
+                int stageId,
+                String firstRegistrationId,
+                String lastRegistrationId) {
+            List<String> registrations =
+                    registrationRange(
+                            firstRegistrationId,
+                            lastRegistrationId);
+            List<UpstreamData.StageStartTimeChange> changes =
+                    new ArrayList<>(registrations.size());
+            for (String registrationId : registrations) {
+                changes.add(
+                        DefaultUpstreamData.createStageStartDelete(
+                                registrationId));
+            }
+            int packets =
+                    sendPacketsAndCount(
+                            simulator.updateStageStarts(
+                                    stageId,
+                                    changes));
+            return new MutationResult(
+                    registrations.size(),
+                    packets);
+        }
+
         @Override
         public long setTeamAssignment(
                 String nodeId,
@@ -203,6 +305,78 @@ public final class CentralClient implements AutoCloseable {
             return sendPackets(
                     simulator.requestSourceHead(
                             new NodeId(nodeId)));
+        }
+    }
+
+    static List<String> registrationRange(
+            String firstText,
+            String lastText) {
+        oss.relay.timing.timingdata.TimingDataTypes.RegistrationId first =
+                new oss.relay.timing.timingdata.TimingDataTypes.RegistrationId(
+                        firstText == null ? null : firstText.trim());
+        oss.relay.timing.timingdata.TimingDataTypes.RegistrationId last =
+                new oss.relay.timing.timingdata.TimingDataTypes.RegistrationId(
+                        lastText == null ? null : lastText.trim());
+        if (first.type() != last.type()) {
+            throw new IllegalArgumentException(
+                    "Registration range must use one RegistrationId type");
+        }
+        if (last.number() < first.number()) {
+            throw new IllegalArgumentException(
+                    "Registration range end must not precede start");
+        }
+
+        List<String> result =
+                new ArrayList<>(
+                        last.number() - first.number() + 1);
+        for (int number = first.number();
+                number <= last.number();
+                number++) {
+            result.add(
+                    new oss.relay.timing.timingdata.TimingDataTypes.RegistrationId(
+                            first.type(),
+                            number)
+                            .value());
+        }
+        return List.copyOf(result);
+    }
+
+    static TimingTimestamp plusMillis(
+            TimingTimestamp value,
+            long millis) {
+        if (millis < 0L) {
+            throw new IllegalArgumentException(
+                    "millis must not be negative");
+        }
+        if (millis == 0L) {
+            return value;
+        }
+        switch (value.knowledge()) {
+            case TIME_ONLY:
+                return TimingTimestamp.localTime(
+                        value.time().plusNanos(
+                                Math.multiplyExact(
+                                        millis,
+                                        1_000_000L)));
+            case LOCAL_DATE_TIME:
+                LocalDateTime local =
+                        LocalDateTime.of(
+                                value.date(),
+                                value.time())
+                                .plusNanos(
+                                        Math.multiplyExact(
+                                                millis,
+                                                1_000_000L));
+                return TimingTimestamp.localDateTime(
+                        local.toLocalDate(),
+                        local.toLocalTime());
+            case ABSOLUTE:
+                return new TimingTimestamp(
+                        value.instant().plusMillis(millis));
+            default:
+                throw new IllegalStateException(
+                        "Unsupported timestamp knowledge "
+                                + value.knowledge());
         }
     }
 }
