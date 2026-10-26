@@ -107,6 +107,22 @@ public final class CentralClient implements AutoCloseable {
         refresh();
     }
 
+    public void applyRuntimeStatus(
+            String nodeId,
+            String lifecycleState,
+            Integer locationId,
+            Instant observedAt) {
+        for (UpstreamData reply
+                : simulator.applyRuntimeStatus(
+                        nodeId,
+                        lifecycleState,
+                        locationId,
+                        observedAt)) {
+            send(reply);
+        }
+        refresh();
+    }
+
     public void refresh() {
         centralPane.refresh();
         stagesPane.refresh();
