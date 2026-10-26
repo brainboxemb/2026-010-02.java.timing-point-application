@@ -154,10 +154,18 @@ final class CentralSystemSimulator {
 
     void connected() {
         connected = true;
+        for (NodeState node : nodes.values()) {
+            node.raceDataRoutingReady = false;
+            node.raceDataSyncHead = null;
+        }
     }
 
     void disconnected() {
         connected = false;
+        for (NodeState node : nodes.values()) {
+            node.raceDataRoutingReady = false;
+            node.raceDataSyncHead = null;
+        }
     }
 
     boolean isConnected() {
@@ -189,9 +197,11 @@ final class CentralSystemSimulator {
                         nodeId.value(),
                         ignored -> new NodeState(nodeId.value()));
 
-        if (node.locationId == null || !"OPEN".equals(node.lifecycleState)) {
+        if (!node.raceDataRoutingReady
+                || node.locationId == null
+                || !"OPEN".equals(node.lifecycleState)) {
             throw new IllegalStateException(
-                    "RACE_DATA requires an OPEN LocationId for "
+                    "RACE_DATA requires a current OPEN LocationId for "
                             + nodeId.value());
         }
 
@@ -543,6 +553,10 @@ final class CentralSystemSimulator {
             return Collections.emptyList();
         }
 
+        node.raceDataSyncHead = Long.valueOf(sourceHead);
+        node.raceDataRoutingReady =
+                sourceHead == node.timingDataHead;
+
         if (sourceHead > node.timingDataHead
                 && node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
             queueAutomaticTimingDataRequest(
@@ -715,6 +729,12 @@ final class CentralSystemSimulator {
                     record,
                     receivedAt);
         }
+
+        if (node.raceDataSyncHead != null
+                && node.timingDataHead
+                        >= node.raceDataSyncHead.longValue()) {
+            node.raceDataRoutingReady = true;
+        }
     }
 
     private List<UpstreamData> sendRaceDataForOpenNodes() {
@@ -754,7 +774,8 @@ final class CentralSystemSimulator {
     /** Builds at most one bounded delta from the last confirmed RaceData baseline. */
     private UpstreamData.RaceData createNextRaceDataDelta(
             NodeState node) {
-        if (node.locationId == null
+        if (!node.raceDataRoutingReady
+                || node.locationId == null
                 || !"OPEN".equals(node.lifecycleState)) {
             return null;
         }
@@ -1131,6 +1152,8 @@ final class CentralSystemSimulator {
         private UpstreamData outstanding;
         private Long sourceHead;
         private boolean sourceHeadQueryPending;
+        private Long raceDataSyncHead;
+        private boolean raceDataRoutingReady;
         private String lifecycleState = "UNKNOWN";
         private Integer locationId;
         private TimingRecord lastRecord;
