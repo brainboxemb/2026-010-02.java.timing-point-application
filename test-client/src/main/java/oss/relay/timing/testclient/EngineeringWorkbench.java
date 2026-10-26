@@ -110,8 +110,7 @@ final class EngineeringWorkbench {
         Node centralExplorer =
                 createCentralExplorer(
                         centralNodes,
-                        centralLocations,
-                        centralStages);
+                        centralLocations);
         Node nodeViewerContent = createNodeViewer(
                 registrations,
                 logBook,
@@ -245,7 +244,17 @@ final class EngineeringWorkbench {
                         "central-viewer",
                         centralPerspectiveTitle(),
                         centralViewerContent));
-        viewerLeaf.addDockables(nodeViewer, centralViewer);
+        Dockable stagesViewer = dockable(
+                builder,
+                viewerLeaf,
+                new WorkbenchPanel(
+                        "stages-viewer",
+                        "Stages",
+                        centralStages));
+        viewerLeaf.addDockables(
+                nodeViewer,
+                centralViewer,
+                stagesViewer);
     }
 
     Node root() {
@@ -272,8 +281,7 @@ final class EngineeringWorkbench {
 
     private Node createCentralExplorer(
             Node centralNodes,
-            Node centralLocations,
-            Node centralStages) {
+            Node centralLocations) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
         DockContainerRootBranch explorerRoot =
@@ -296,12 +304,7 @@ final class EngineeringWorkbench {
                         new WorkbenchPanel(
                                 "central-locations",
                                 "Locations",
-                                centralLocations)),
-                dockable(builder, tabs,
-                        new WorkbenchPanel(
-                                "central-stages",
-                                "Stages",
-                                centralStages)));
+                                centralLocations)));
         return explorerRoot;
     }
 
