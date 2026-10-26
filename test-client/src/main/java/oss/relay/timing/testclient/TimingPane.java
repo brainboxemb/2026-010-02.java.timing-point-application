@@ -74,6 +74,9 @@ final class TimingPane {
     private boolean registrationSyncRunning;
     private boolean registrationSyncAgain;
     private boolean registrationSyncForceFullAgain;
+    private boolean stageStartSyncRunning;
+    private boolean stageStartSyncAgain;
+    private boolean stageStartSyncForceFullAgain;
     // FX-thread-owned generation invalidates obsolete baseline/node history
     // responses after reconnect, disconnect or a newer selection.
     private final ViewRequestEpoch historyRequests = new ViewRequestEpoch();
@@ -107,11 +110,16 @@ final class TimingPane {
     private final javafx.scene.Node timingNodePane;
     private final javafx.scene.Node registrationPane;
     private final javafx.scene.Node registrationsPane;
+    private final javafx.scene.Node stageStartTimesPane;
     private final javafx.scene.Node logBookPane;
 
     private final Label registrationProjectionState = new Label("-");
     private final TableView<TimingViewModel.InterpretedRegistration> registrations =
             new TableView<>();
+    private final Label stageStartState = new Label("-");
+    private final TableView<ApiClient.StageStartRow> stageStartTimes =
+            new TableView<>();
+    private ApiClient.StageStartInfo stageStartInfo;
 
     private final TableView<ApiClient.TimingDataInfo> logBook = new TableView<>();
     private boolean logBookLoadAllRunning;
@@ -293,6 +301,16 @@ final class TimingPane {
         VBox.setVgrow(registrations, Priority.ALWAYS);
         registrationsPane = interpretedBox;
 
+        configureStageStartView();
+        stageStartState.getStyleClass().add("sync-state");
+        VBox stageStartsBox =
+                new VBox(
+                        4,
+                        stageStartState,
+                        stageStartTimes);
+        VBox.setVgrow(stageStartTimes, Priority.ALWAYS);
+        stageStartTimesPane = stageStartsBox;
+
         configureLogBook();
         VBox historyBox = new VBox(logBook);
         VBox.setVgrow(logBook, Priority.ALWAYS);
@@ -380,6 +398,10 @@ final class TimingPane {
         return registrationsPane;
     }
 
+    javafx.scene.Node stageStartTimesPane() {
+        return stageStartTimesPane;
+    }
+
     boolean showAllRegistrations() {
         return showAllRegistrations;
     }
@@ -405,6 +427,7 @@ final class TimingPane {
         simulationPane.stopBatch();
         scriptsPane.stopScript();
         bufferedEvents.clear();
+        clearStageStartTimes();
         model.viewState(stale
                 ? TimingViewModel.ViewState.STALE
                 : TimingViewModel.ViewState.DISCONNECTED);
@@ -419,6 +442,7 @@ final class TimingPane {
         if (model.applyStatus(status)) {
             refresh();
             requestRegistrationProjectionSync();
+            requestStageStartSync(false);
         }
     }
 
@@ -591,6 +615,7 @@ final class TimingPane {
                     feedback.accept("OK");
                     refresh();
                     requestRegistrationProjectionSync();
+                    requestStageStartSync(false);
                 }));
     }
 
@@ -658,6 +683,7 @@ final class TimingPane {
                     }
                     refresh();
                     requestRegistrationProjectionSync();
+                    requestStageStartSync(false);
                 }));
     }
 
@@ -737,6 +763,114 @@ final class TimingPane {
 
     void refreshRegistrationProjectionFromServer() {
         requestRegistrationProjectionSync(true);
+        requestStageStartSync(true);
+    }
+
+    private void requestStageStartSync(boolean forceFull) {
+
+        if (!eventsConnected
+                || model.viewState() != TimingViewModel.ViewState.LIVE) {
+            return;
+        }
+
+        String selected = model.selectedNodeId();
+        if (selected == null) {
+            clearStageStartTimes();
+            return;
+        }
+
+        if (stageStartSyncRunning) {
+            stageStartSyncAgain = true;
+            stageStartSyncForceFullAgain |= forceFull;
+            return;
+        }
+
+        stageStartSyncRunning = true;
+        stageStartSyncAgain = false;
+        stageStartSyncForceFullAgain = false;
+
+        final long requestGeneration = historyRequests.current();
+        final ApiClient.StageStartInfo cached = stageStartInfo;
+
+        CompletableFuture
+                .supplyAsync(
+                        () -> {
+                            try {
+                                return forceFull
+                                        ? StageStartTimesReader.readFull(
+                                                clientSupplier.get(),
+                                                selected)
+                                        : StageStartTimesReader.read(
+                                                clientSupplier.get(),
+                                                selected,
+                                                cached);
+                            } catch (Exception ex) {
+                                throw new CompletionException(ex);
+                            }
+                        },
+                        requests)
+                .whenComplete(
+                        (result, error) ->
+                                Platform.runLater(
+                                        () -> completeStageStartSync(
+                                                requestGeneration,
+                                                selected,
+                                                result,
+                                                error)));
+    }
+
+    private void completeStageStartSync(
+            long requestGeneration,
+            String selected,
+            StageStartTimesReader.Update result,
+            Throwable error) {
+
+        stageStartSyncRunning = false;
+        boolean runAgain = stageStartSyncAgain;
+        boolean forceFullAgain = stageStartSyncForceFullAgain;
+        stageStartSyncAgain = false;
+        stageStartSyncForceFullAgain = false;
+
+        boolean currentRequest =
+                eventsConnected
+                        && historyRequests.isCurrent(requestGeneration)
+                        && model.viewState() == TimingViewModel.ViewState.LIVE
+                        && selected.equals(model.selectedNodeId());
+
+        if (currentRequest) {
+            if (error != null) {
+                clientLog.warn(
+                        "StageStartTimes sync failed: "
+                                + rootMessage(error));
+            } else {
+                stageStartInfo = result.info();
+                if (result.replace()) {
+                    stageStartTimes.setItems(
+                            FXCollections.observableArrayList(
+                                    result.rows()));
+                }
+                refreshStageStartState();
+            }
+        }
+
+        if (runAgain && currentRequest) {
+            requestStageStartSync(forceFullAgain);
+        }
+    }
+
+    private void clearStageStartTimes() {
+        stageStartInfo = null;
+        stageStartTimes.getItems().clear();
+        refreshStageStartState();
+    }
+
+    private void refreshStageStartState() {
+        stageStartState.setText(
+                stageStartInfo == null
+                        ? "-"
+                        : stageStartInfo.count()
+                                + " rows · revision "
+                                + stageStartInfo.revision());
     }
 
     private void requestRegistrationProjectionSync(boolean forceFull) {
@@ -1330,6 +1464,7 @@ final class TimingPane {
         autoReg.setDisable(!live || operationBusy || !controls.autoReg());
         directTimeMode.setDisable(!live || operationBusy || !controls.autoReg());
         registrations.setDisable(!live || operationBusy);
+        stageStartTimes.setDisable(!live || operationBusy);
 
         syncViewButton.setDisable(
                 !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
@@ -1537,6 +1672,34 @@ final class TimingPane {
                 new ReadOnlyStringWrapper(cell.getValue() == null
                         ? "" : value.apply(cell.getValue())));
         return column;
+    }
+
+    private void configureStageStartView() {
+        TableColumn<ApiClient.StageStartRow, String> registration =
+                new TableColumn<>("RegistrationId");
+        registration.setCellValueFactory(cell ->
+                new ReadOnlyStringWrapper(
+                        cell.getValue() == null
+                                ? ""
+                                : cell.getValue().registrationId()));
+
+        TableColumn<ApiClient.StageStartRow, String> start =
+                new TableColumn<>("StartTime");
+        start.setCellValueFactory(cell ->
+                new ReadOnlyStringWrapper(
+                        cell.getValue() == null
+                                ? ""
+                                : cell.getValue().start()));
+
+        registration.setPrefWidth(150);
+        start.setPrefWidth(220);
+        stageStartTimes.getColumns().setAll(
+                registration,
+                start);
+        stageStartTimes.setColumnResizePolicy(
+                TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        stageStartTimes.setPlaceholder(
+                new Label("No applied start times"));
     }
 
     private void configureLogBook() {
