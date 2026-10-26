@@ -154,18 +154,76 @@ final class CentralSystemSimulator {
 
     void connected() {
         connected = true;
-        for (NodeState node : nodes.values()) {
-            node.raceDataRoutingReady = false;
-            node.raceDataSyncHead = null;
-        }
+        clearRuntimeStatusProjection();
     }
 
     void disconnected() {
         connected = false;
-        for (NodeState node : nodes.values()) {
-            node.raceDataRoutingReady = false;
-            node.raceDataSyncHead = null;
+    }
+
+    List<UpstreamData> applyRuntimeStatus(
+            String nodeId,
+            String lifecycleState,
+            Integer locationId,
+            Instant observedAt) {
+        if (nodeId == null || nodeId.isBlank()) {
+            throw new IllegalArgumentException("nodeId must not be blank");
         }
+        if (!"OPEN".equals(lifecycleState)
+                && !"CLOSED".equals(lifecycleState)) {
+            throw new IllegalArgumentException(
+                    "lifecycleState must be OPEN or CLOSED");
+        }
+        if (observedAt == null) {
+            throw new IllegalArgumentException(
+                    "observedAt must not be null");
+        }
+        if ("OPEN".equals(lifecycleState)
+                && (locationId == null || locationId.intValue() <= 0)) {
+            throw new IllegalArgumentException(
+                    "OPEN runtime status requires LocationId");
+        }
+
+        NodeState node =
+                nodes.computeIfAbsent(
+                        nodeId,
+                        NodeState::new);
+        Integer previousLocationId = node.locationId;
+
+        if (previousLocationId != null
+                && (!"OPEN".equals(lifecycleState)
+                        || !previousLocationId.equals(locationId))) {
+            LocationState previous =
+                    locations.computeIfAbsent(
+                            previousLocationId,
+                            LocationState::new);
+            if (nodeId.equals(previous.nodeId)) {
+                previous.state = "CLOSED";
+                previous.nodeId = nodeId;
+                previous.sequence = node.timingDataHead;
+                previous.changedAt = observedAt;
+            }
+        }
+
+        node.runtimeStatusKnown = true;
+        node.lifecycleState = lifecycleState;
+        node.locationId =
+                "OPEN".equals(lifecycleState)
+                        ? locationId
+                        : null;
+
+        if ("OPEN".equals(lifecycleState)) {
+            LocationState current =
+                    locations.computeIfAbsent(
+                            locationId,
+                            LocationState::new);
+            current.state = "OPEN";
+            current.nodeId = nodeId;
+            current.sequence = node.timingDataHead;
+            current.changedAt = observedAt;
+        }
+
+        return sendNextNormalPacketIfPossible(node);
     }
 
     boolean isConnected() {
@@ -197,7 +255,7 @@ final class CentralSystemSimulator {
                         nodeId.value(),
                         ignored -> new NodeState(nodeId.value()));
 
-        if (!node.raceDataRoutingReady
+        if (!node.runtimeStatusKnown
                 || node.locationId == null
                 || !"OPEN".equals(node.lifecycleState)) {
             throw new IllegalStateException(
@@ -553,10 +611,6 @@ final class CentralSystemSimulator {
             return Collections.emptyList();
         }
 
-        node.raceDataSyncHead = Long.valueOf(sourceHead);
-        node.raceDataRoutingReady =
-                sourceHead == node.timingDataHead;
-
         if (sourceHead > node.timingDataHead
                 && node.timingDataHead < TimingRecord.MAX_SEQUENCE_NUMBER) {
             queueAutomaticTimingDataRequest(
@@ -724,17 +778,8 @@ final class CentralSystemSimulator {
             node.timingDataHead = sequence;
             node.lastRecord = record;
             timingRecords.add(record);
-            applyLifecycle(
-                    node,
-                    record,
-                    receivedAt);
         }
 
-        if (node.raceDataSyncHead != null
-                && node.timingDataHead
-                        >= node.raceDataSyncHead.longValue()) {
-            node.raceDataRoutingReady = true;
-        }
     }
 
     private List<UpstreamData> sendRaceDataForOpenNodes() {
@@ -774,7 +819,7 @@ final class CentralSystemSimulator {
     /** Builds at most one bounded delta from the last confirmed RaceData baseline. */
     private UpstreamData.RaceData createNextRaceDataDelta(
             NodeState node) {
-        if (!node.raceDataRoutingReady
+        if (!node.runtimeStatusKnown
                 || node.locationId == null
                 || !"OPEN".equals(node.lifecycleState)) {
             return null;
@@ -1008,73 +1053,6 @@ final class CentralSystemSimulator {
         return result;
     }
 
-    private void applyLifecycle(
-            NodeState node,
-            TimingRecord record,
-            Instant receivedAt) {
-        if (record.kind() == TimingRecord.Kind.NODE_OPEN) {
-            closePreviousLocationOnMove(
-                    node,
-                    record.locationId(),
-                    record.sequenceNumber(),
-                    receivedAt);
-
-            node.lifecycleState = "OPEN";
-            node.locationId = Integer.valueOf(record.locationId());
-
-            LocationState location =
-                    locations.computeIfAbsent(
-                            record.locationId(),
-                            LocationState::new);
-            location.state = "OPEN";
-            location.nodeId = node.nodeId;
-            location.sequence = record.sequenceNumber();
-            location.changedAt = receivedAt;
-        } else if (record.kind() == TimingRecord.Kind.NODE_CLOSE) {
-            node.lifecycleState = "CLOSED";
-            if (node.locationId != null
-                    && node.locationId.intValue()
-                            == record.locationId()) {
-                node.locationId = null;
-            }
-
-            LocationState location =
-                    locations.computeIfAbsent(
-                            record.locationId(),
-                            LocationState::new);
-            location.state = "CLOSED";
-            location.nodeId = node.nodeId;
-            location.sequence = record.sequenceNumber();
-            location.changedAt = receivedAt;
-        }
-    }
-
-    private void closePreviousLocationOnMove(
-            NodeState node,
-            int nextLocationId,
-            long sequence,
-            Instant changedAt) {
-        Integer previousLocationId = node.locationId;
-        if (previousLocationId == null
-                || previousLocationId.intValue() == nextLocationId) {
-            return;
-        }
-
-        LocationState previous =
-                locations.computeIfAbsent(
-                        previousLocationId.intValue(),
-                        LocationState::new);
-        if (previous.nodeId != null
-                && !previous.nodeId.equals(node.nodeId)) {
-            return;
-        }
-
-        previous.state = "CLOSED";
-        previous.nodeId = node.nodeId;
-        previous.sequence = sequence;
-        previous.changedAt = changedAt;
-    }
-
     private void recordMessage(
             MessageDirection direction,
             UpstreamData data,
@@ -1127,6 +1105,20 @@ final class CentralSystemSimulator {
         }
     }
 
+    private void clearRuntimeStatusProjection() {
+        for (NodeState node : nodes.values()) {
+            node.runtimeStatusKnown = false;
+            node.lifecycleState = "UNKNOWN";
+            node.locationId = null;
+        }
+        for (LocationState location : locations.values()) {
+            location.state = "UNKNOWN";
+            location.nodeId = null;
+            location.sequence = 0L;
+            location.changedAt = null;
+        }
+    }
+
     private void requireConnected() {
         if (!connected) {
             throw new IllegalStateException(
@@ -1152,8 +1144,7 @@ final class CentralSystemSimulator {
         private UpstreamData outstanding;
         private Long sourceHead;
         private boolean sourceHeadQueryPending;
-        private Long raceDataSyncHead;
-        private boolean raceDataRoutingReady;
+        private boolean runtimeStatusKnown;
         private String lifecycleState = "UNKNOWN";
         private Integer locationId;
         private TimingRecord lastRecord;
