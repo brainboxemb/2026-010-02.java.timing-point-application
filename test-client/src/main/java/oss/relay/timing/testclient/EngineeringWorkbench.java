@@ -68,6 +68,7 @@ final class EngineeringWorkbench {
             Node apiSystems,
             Node centralNodes,
             Node centralLocations,
+            Node centralStages,
             Node centralMessages,
             Node centralLogBook,
             Node centralRaceData,
@@ -109,7 +110,8 @@ final class EngineeringWorkbench {
         Node centralExplorer =
                 createCentralExplorer(
                         centralNodes,
-                        centralLocations);
+                        centralLocations,
+                        centralStages);
         Node nodeViewerContent = createNodeViewer(
                 registrations,
                 logBook,
@@ -241,7 +243,7 @@ final class EngineeringWorkbench {
                 viewerLeaf,
                 new WorkbenchPanel(
                         "central-viewer",
-                        "Central",
+                        centralPerspectiveTitle(),
                         centralViewerContent));
         viewerLeaf.addDockables(nodeViewer, centralViewer);
     }
@@ -252,7 +254,11 @@ final class EngineeringWorkbench {
 
     void setPerspectiveNodeId(String nodeId) {
         nodeViewer.setTitle(perspectiveTitle("Node", nodeId));
-        centralViewer.setTitle(perspectiveTitle("Central", nodeId));
+        centralViewer.setTitle(centralPerspectiveTitle());
+    }
+
+    static String centralPerspectiveTitle() {
+        return "Central";
     }
 
     static String perspectiveTitle(String perspective, String nodeId) {
@@ -266,7 +272,8 @@ final class EngineeringWorkbench {
 
     private Node createCentralExplorer(
             Node centralNodes,
-            Node centralLocations) {
+            Node centralLocations,
+            Node centralStages) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
         DockContainerRootBranch explorerRoot =
@@ -289,7 +296,12 @@ final class EngineeringWorkbench {
                         new WorkbenchPanel(
                                 "central-locations",
                                 "Locations",
-                                centralLocations)));
+                                centralLocations)),
+                dockable(builder, tabs,
+                        new WorkbenchPanel(
+                                "central-stages",
+                                "Stages",
+                                centralStages)));
         return explorerRoot;
     }
 
