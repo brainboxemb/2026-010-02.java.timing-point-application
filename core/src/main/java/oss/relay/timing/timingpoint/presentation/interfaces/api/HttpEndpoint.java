@@ -216,6 +216,11 @@ public final class HttpEndpoint implements AutoCloseable {
             handleRegistrations(exchange, timingNode);
             return;
         }
+        if ("/stage-start-times".equals(route.resource)) {
+            requireMethod(exchange, "GET");
+            handleStageStartTimes(exchange, timingNode);
+            return;
+        }
         if ("/configuration/tag-processing".equals(
                 route.resource)) {
             requireMethod(exchange, "POST");
@@ -656,6 +661,52 @@ public final class HttpEndpoint implements AutoCloseable {
                 MessageWriter.registrationPage(
                         info,
                         nextAfter,
+                        rows));
+    }
+
+    private void handleStageStartTimes(
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
+            throws IOException {
+
+        String query = exchange.getRequestURI().getRawQuery();
+        if (query == null || query.isEmpty()) {
+            sendJson(
+                    exchange,
+                    200,
+                    MessageWriter.stageStartInfo(
+                            timingNode.stageStartProjectionInfo()));
+            return;
+        }
+
+        HttpRequestReader.StageStartQuery request =
+                requestReader.readStageStartQuery(query);
+        StringBuilder rows = new StringBuilder();
+        int[] returned = new int[] {0};
+
+        TimingNodeProxy.StageStartProjectionInfo info =
+                timingNode.visitStageStarts(
+                        request.offset,
+                        request.limit,
+                        entry -> {
+                            MessageWriter.appendStageStart(
+                                    rows,
+                                    entry);
+                            returned[0]++;
+                        });
+
+        int candidate = request.offset + returned[0];
+        Integer nextOffset =
+                candidate < info.count()
+                        ? Integer.valueOf(candidate)
+                        : null;
+
+        sendJson(
+                exchange,
+                200,
+                MessageWriter.stageStartPage(
+                        info,
+                        nextOffset,
                         rows));
     }
 
