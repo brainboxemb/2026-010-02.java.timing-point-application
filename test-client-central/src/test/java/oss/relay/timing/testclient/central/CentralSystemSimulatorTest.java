@@ -212,6 +212,46 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void stagesExposeConfiguredAndAuthoredCentralState() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(2, 1));
+
+        assertEquals(
+                List.of(1, 2),
+                simulator.stages().stream()
+                        .map(CentralSystemSimulator.StageView::stageId)
+                        .toList());
+        assertTrue(
+                simulator.stages().get(0)
+                        .startTimes().isEmpty());
+
+        simulator.updateStageStarts(
+                4,
+                List.of(
+                        DefaultUpstreamData.createStageStartSet(
+                                "A0002",
+                                TimingTimestamp.parse("10:30:00")),
+                        DefaultUpstreamData.createStageStartSet(
+                                "A0003",
+                                TimingTimestamp.parse("10:30:15"))));
+
+        assertEquals(
+                List.of(1, 2, 4),
+                simulator.stages().stream()
+                        .map(CentralSystemSimulator.StageView::stageId)
+                        .toList());
+        CentralSystemSimulator.StageView stage4 =
+                simulator.stages().get(2);
+        assertEquals(2, stage4.startTimes().size());
+        assertEquals(
+                "A0002",
+                stage4.startTimes().get(0).registrationId());
+        assertEquals(
+                "10:30:15",
+                stage4.startTimes().get(1).start());
+    }
+
+    @Test
     void centralStageStartStateRoutesStageNOnlyToLocationN() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(2);
