@@ -160,12 +160,14 @@ public class ApiClientTest {
             } else if (path.endsWith("/registrations") && query == null) {
                 respond(exchange, 200,
                         "{\"locId\":24,\"count\":2,\"uniqueCount\":2,"
-                                + "\"lastMutationSeq\":3,\"lastRevokeSeq\":0}");
+                                + "\"lastMutationSeq\":3,\"lastRevokeSeq\":0,"
+                                + "\"stageStartRevision\":7}");
             } else if (path.endsWith("/registrations")
                     && "after=0&limit=100".equals(query)) {
                 respond(exchange, 200,
                         "{\"locId\":24,\"count\":2,\"uniqueCount\":2,"
                                 + "\"lastMutationSeq\":3,\"lastRevokeSeq\":0,"
+                                + "\"stageStartRevision\":7,"
                                 + "\"nextAfter\":null,\"registrations\":["
                                 + "{\"seqNr\":2,\"regId\":\"A0001\","
                                 + "\"time\":\"2026-10-01T12:00:00Z\","
@@ -173,6 +175,17 @@ public class ApiClientTest {
                                 + "{\"seqNr\":3,\"regId\":\"A0002\","
                                 + "\"time\":\"2026-10-01T12:00:01Z\","
                                 + "\"elapsedMillis\":null,\"valid\":false}"
+                                + "]}");
+            } else if (path.endsWith("/stage-start-times") && query == null) {
+                respond(exchange, 200,
+                        "{\"count\":2,\"revision\":7}");
+            } else if (path.endsWith("/stage-start-times")
+                    && "offset=0&limit=100".equals(query)) {
+                respond(exchange, 200,
+                        "{\"count\":2,\"revision\":7,\"nextOffset\":null,"
+                                + "\"startTimes\":["
+                                + "{\"regId\":\"A0001\",\"start\":\"19:00:00\"},"
+                                + "{\"regId\":\"A0002\",\"start\":\"19:00:30\"}"
                                 + "]}");
             } else if (path.endsWith("/logbook") && query == null) {
                 respond(exchange, 200, "{\"count\":2,\"first\":1,\"last\":2}");
@@ -226,6 +239,7 @@ public class ApiClientTest {
         assertEquals(2, projectionInfo.uniqueCount());
         assertEquals(3L, projectionInfo.lastMutationSequence());
         assertEquals(0L, projectionInfo.lastRevokeSequence());
+        assertEquals(7L, projectionInfo.stageStartRevision());
 
         var projectionPage =
                 client.getRegistrationProjectionPage(
@@ -240,6 +254,16 @@ public class ApiClientTest {
         assertNull(projectionPage.rows().get(1).elapsedMillis());
         assertFalse(projectionPage.rows().get(1).valid());
         assertNull(projectionPage.nextAfter());
+
+        var stageInfo = client.getStageStartInfo("TN-01");
+        assertEquals(2, stageInfo.count());
+        assertEquals(7L, stageInfo.revision());
+
+        var stagePage = client.getStageStartPage("TN-01", 0, 100);
+        assertEquals(2, stagePage.rows().size());
+        assertEquals("A0001", stagePage.rows().get(0).registrationId());
+        assertEquals("19:00:00", stagePage.rows().get(0).start());
+        assertNull(stagePage.nextOffset());
 
         var info = client.getLogBookInfo("TN-01");
         assertEquals(2L, info.count());
