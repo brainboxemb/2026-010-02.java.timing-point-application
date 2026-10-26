@@ -259,6 +259,7 @@ class RegistrationProjectionReaderTest {
                 uniqueCount,
                 lastMutation,
                 lastRevoke,
+                0L,
                 "{}");
     }
 
