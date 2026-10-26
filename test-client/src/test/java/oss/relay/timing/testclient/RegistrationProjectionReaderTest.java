@@ -50,7 +50,7 @@ class RegistrationProjectionReaderTest {
                                         + "}");
                     } else {
                         assertEquals(
-                                "after=2&limit=1000",
+                                "after=2&limit=128",
                                 query);
                         respond(
                                 exchange,
@@ -122,7 +122,7 @@ class RegistrationProjectionReaderTest {
                                         + "}");
                     } else {
                         assertEquals(
-                                "after=0&limit=1000",
+                                "after=0&limit=128",
                                 query);
                         respond(
                                 exchange,
@@ -181,7 +181,7 @@ class RegistrationProjectionReaderTest {
                                         + "}");
                     } else {
                         assertEquals(
-                                "after=0&limit=1000",
+                                "after=0&limit=128",
                                 query);
                         respond(
                                 exchange,

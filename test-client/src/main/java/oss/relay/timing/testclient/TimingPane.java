@@ -526,7 +526,7 @@ final class TimingPane {
                             long from = cachedLatest.longValue() + 1L;
                             while (info.last() != null && from <= info.last().longValue()) {
                                 int limit = (int) Math.min(
-                                        1000L,
+                                        ApiClient.DEFAULT_PAGE_SIZE,
                                         info.last().longValue() - from + 1L);
                                 ApiClient.LogBookPage page =
                                         api.getLogBookFrom(target, from, limit);

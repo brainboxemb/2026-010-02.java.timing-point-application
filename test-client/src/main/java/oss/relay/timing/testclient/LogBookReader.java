@@ -6,8 +6,6 @@ import java.util.List;
 
 /** Reads one complete append-only LogBook snapshot through bounded IF-03 pages. */
 final class LogBookReader {
-    private static final int PAGE_SIZE = 1000;
-
     private LogBookReader() {
     }
 
@@ -37,7 +35,7 @@ final class LogBookReader {
 
         while (from <= targetLast) {
             int limit = (int) Math.min(
-                    PAGE_SIZE,
+                    ApiClient.DEFAULT_PAGE_SIZE,
                     targetLast - from + 1L);
             ApiClient.LogBookPage page =
                     api.getLogBookFrom(
