@@ -28,9 +28,22 @@ public class RaceDataStateTest {
                         Long.valueOf(12_34_56_78L)),
                 Collections.<RegistrationId>emptyList());
 
+        assertEquals(1L, state.stageStartRevision());
         assertEquals(
                 Long.valueOf(12_34_56_78L),
                 state.stageStartFor(registrationId));
+
+        state.applyChanges(
+                Collections.<RegistrationId, TeamId>emptyMap(),
+                Collections.<RegistrationId>emptyList(),
+                Collections.singletonMap(
+                        registrationId,
+                        Long.valueOf(12_34_56_78L)),
+                Collections.<RegistrationId>emptyList());
+        assertEquals(
+                "idempotent SET must not advance the applied-state revision",
+                1L,
+                state.stageStartRevision());
 
         state.applyChanges(
                 Collections.<RegistrationId, TeamId>emptyMap(),
@@ -39,6 +52,7 @@ public class RaceDataStateTest {
                 Collections.singletonList(registrationId));
 
         assertNull(state.stageStartFor(registrationId));
+        assertEquals(2L, state.stageStartRevision());
     }
 
     @Test
