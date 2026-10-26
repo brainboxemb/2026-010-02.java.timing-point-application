@@ -409,7 +409,7 @@ public class HttpEndpointTest {
                     null);
             assertEquals(200, projection.status);
             assertTrue(projection.body.contains(
-                    "\"seqNr\":2,\"regId\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\",\"elapsedMillis\":null,\"valid\":false"));
+                    "\"seqNr\":2,\"regId\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\",\"elapsedMillis\":10000,\"valid\":false"));
             assertTrue(projection.body.contains(
                     "\"seqNr\":3,\"regId\":\"A0002\",\"time\":\"2026-10-01T12:00:01Z\",\"elapsedMillis\":null,\"valid\":true"));
         } finally {
