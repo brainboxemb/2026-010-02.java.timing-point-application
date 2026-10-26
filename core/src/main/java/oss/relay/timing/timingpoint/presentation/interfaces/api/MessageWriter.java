@@ -122,7 +122,8 @@ public final class MessageWriter {
                 + "\"count\":" + info.count() + ","
                 + "\"uniqueCount\":" + info.uniqueCount() + ","
                 + "\"lastMutationSeq\":" + info.lastMutationSequence() + ","
-                + "\"lastRevokeSeq\":" + info.lastRevokeSequence()
+                + "\"lastRevokeSeq\":" + info.lastRevokeSequence() + ","
+                + "\"stageStartRevision\":" + info.stageStartRevision()
                 + "}";
     }
 
@@ -136,6 +137,7 @@ public final class MessageWriter {
                 + "\"uniqueCount\":" + info.uniqueCount() + ","
                 + "\"lastMutationSeq\":" + info.lastMutationSequence() + ","
                 + "\"lastRevokeSeq\":" + info.lastRevokeSequence() + ","
+                + "\"stageStartRevision\":" + info.stageStartRevision() + ","
                 + "\"nextAfter\":"
                 + (nextAfter == null
                         ? "null"
@@ -168,6 +170,43 @@ public final class MessageWriter {
                 .append(',')
                 .append("\"valid\":")
                 .append(entry.valid())
+                .append('}');
+    }
+
+    public static String stageStartInfo(
+            TimingNodeProxy.StageStartProjectionInfo info) {
+        return "{"
+                + "\"count\":" + info.count() + ","
+                + "\"revision\":" + info.revision()
+                + "}";
+    }
+
+    public static String stageStartPage(
+            TimingNodeProxy.StageStartProjectionInfo info,
+            Integer nextOffset,
+            CharSequence rows) {
+        return "{"
+                + "\"count\":" + info.count() + ","
+                + "\"revision\":" + info.revision() + ","
+                + "\"nextOffset\":"
+                + (nextOffset == null ? "null" : Integer.toString(nextOffset.intValue()))
+                + ","
+                + "\"startTimes\":[" + rows + "]"
+                + "}";
+    }
+
+    static void appendStageStart(
+            StringBuilder rows,
+            TimingNodeProxy.StageStartEntry entry) {
+        if (rows.length() > 0) {
+            rows.append(',');
+        }
+        rows.append('{')
+                .append("\"regId\":")
+                .append(quote(entry.registrationId().value()))
+                .append(',')
+                .append("\"start\":")
+                .append(quote(entry.start().toString()))
                 .append('}');
     }
 

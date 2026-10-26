@@ -281,7 +281,11 @@ because stage definitions are Central-owned race state rather than node state. T
 right-side viewer leaf can later grow with additional node viewers without moving the
 shared controls.
 
-The Node viewer contains Registrations, LogBook, Raw Data, Events and HTTP. The Central viewer contains separate **Messages** and
+The Node viewer contains **Registrations**, read-only **StartTimes**, LogBook, Raw Data,
+Events and HTTP. StartTimes is read directly from SI-01 applied RaceData through bounded
+IF-03 pages; it does not mirror the Central editor. A StageStart revision is shared with
+the Registrations projection so RunningTime is refreshed after an applied start-time
+SET/DEL. The Central viewer contains separate **Messages** and
 **LogBook** tabs: Messages inspects IF-06 message/batch boundaries, while Central LogBook
 reconstructs one record-oriented history from accepted TIMING_DATA. Input/editor panes
 do not travel with a detached viewer.
@@ -405,7 +409,9 @@ nodes the same API workbench addresses the selected node.
 
 The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/filter
 editor. The Engineering Client still does not expose arbitrary TagObservation injection,
-TagProcessor/filter mutation or StageStartTimes/NextUpTeams editors. The first Central RACE_DATA editor is now available separately as **C|RaceData**.
+TagProcessor/filter mutation or node-side StageStartTimes/NextUpTeams editors. It does
+provide a read-only Node **StartTimes** view of the values actually applied in SI-01. The
+Central RACE_DATA editor remains separately available as **C|RaceData**.
 
 The narrow explorer deliberately contains separate **System** and **Central** projections.
 System is the direct IF-03/API system view of SI-01. Central uses the complete IF-03

@@ -587,6 +587,7 @@ class TimingViewModelTest {
                 uniqueCount,
                 lastMutation,
                 lastRevoke,
+                0L,
                 "{}");
     }
 

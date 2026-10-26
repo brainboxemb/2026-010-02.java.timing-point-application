@@ -46,7 +46,8 @@ class RegistrationProjectionReaderTest {
                                         + "\"count\":3,"
                                         + "\"uniqueCount\":3,"
                                         + "\"lastMutationSeq\":3,"
-                                        + "\"lastRevokeSeq\":0"
+                                        + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0"
                                         + "}");
                     } else {
                         assertEquals(
@@ -60,6 +61,7 @@ class RegistrationProjectionReaderTest {
                                         + "\"uniqueCount\":3,"
                                         + "\"lastMutationSeq\":3,"
                                         + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0,"
                                         + "\"nextAfter\":null,"
                                         + "\"registrations\":[{"
                                         + "\"seqNr\":3,"
@@ -118,7 +120,8 @@ class RegistrationProjectionReaderTest {
                                         + "\"count\":1,"
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":2,"
-                                        + "\"lastRevokeSeq\":0"
+                                        + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0"
                                         + "}");
                     } else {
                         assertEquals(
@@ -132,6 +135,7 @@ class RegistrationProjectionReaderTest {
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":2,"
                                         + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":0,"
                                         + "\"nextAfter\":null,"
                                         + "\"registrations\":[{"
                                         + "\"seqNr\":2,"
@@ -177,7 +181,8 @@ class RegistrationProjectionReaderTest {
                                         + "\"count\":2,"
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":4,"
-                                        + "\"lastRevokeSeq\":4"
+                                        + "\"lastRevokeSeq\":4,"
+                                        + "\"stageStartRevision\":0"
                                         + "}");
                     } else {
                         assertEquals(
@@ -191,6 +196,7 @@ class RegistrationProjectionReaderTest {
                                         + "\"uniqueCount\":1,"
                                         + "\"lastMutationSeq\":4,"
                                         + "\"lastRevokeSeq\":4,"
+                                        + "\"stageStartRevision\":0,"
                                         + "\"nextAfter\":null,"
                                         + "\"registrations\":["
                                         + "{"
@@ -239,6 +245,75 @@ class RegistrationProjectionReaderTest {
                         .valid());
     }
 
+    @Test
+    void stageStartRevisionForcesFullProjectionRead() throws Exception {
+        server = HttpServer.create(
+                new InetSocketAddress("127.0.0.1", 0),
+                0);
+        server.createContext(
+                "/api/v1/node/A/registrations",
+                exchange -> {
+                    String query = exchange.getRequestURI().getQuery();
+                    if (query == null) {
+                        respond(
+                                exchange,
+                                "{"
+                                        + "\"locId\":24,"
+                                        + "\"count\":1,"
+                                        + "\"uniqueCount\":1,"
+                                        + "\"lastMutationSeq\":2,"
+                                        + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":2"
+                                        + "}");
+                    } else {
+                        assertEquals("after=0&limit=128", query);
+                        respond(
+                                exchange,
+                                "{"
+                                        + "\"locId\":24,"
+                                        + "\"count\":1,"
+                                        + "\"uniqueCount\":1,"
+                                        + "\"lastMutationSeq\":2,"
+                                        + "\"lastRevokeSeq\":0,"
+                                        + "\"stageStartRevision\":2,"
+                                        + "\"nextAfter\":null,"
+                                        + "\"registrations\":[{"
+                                        + "\"seqNr\":2,"
+                                        + "\"regId\":\"A0001\","
+                                        + "\"time\":\"2026-10-01T12:00:01Z\","
+                                        + "\"elapsedMillis\":1000,"
+                                        + "\"valid\":true"
+                                        + "}]"
+                                        + "}");
+                    }
+                });
+        server.start();
+
+        ApiClient.RegistrationProjectionInfo cached =
+                new ApiClient.RegistrationProjectionInfo(
+                        24,
+                        1,
+                        1,
+                        2L,
+                        0L,
+                        1L,
+                        "{}");
+
+        RegistrationProjectionReader.Update update =
+                RegistrationProjectionReader.read(
+                        client(),
+                        "A",
+                        cached,
+                        1,
+                        2L);
+
+        assertTrue(update.replace());
+        assertEquals(2L, update.info().stageStartRevision());
+        assertEquals(
+                Long.valueOf(1000L),
+                update.rows().get(0).elapsedMillis());
+    }
+
     private ApiClient client() {
         return new ApiClient(
                 URI.create(
@@ -259,6 +334,7 @@ class RegistrationProjectionReaderTest {
                 uniqueCount,
                 lastMutation,
                 lastRevoke,
+                0L,
                 "{}");
     }
 

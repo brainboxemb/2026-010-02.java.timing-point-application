@@ -110,6 +110,48 @@ public final class TimingNodeProxy {
         }
     }
 
+    /** Metadata for current applied StageStartTimes. */
+    public static final class StageStartProjectionInfo {
+        private final int count;
+        private final long revision;
+
+        private StageStartProjectionInfo(
+                int count,
+                long revision) {
+            this.count = count;
+            this.revision = revision;
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public long revision() {
+            return revision;
+        }
+    }
+
+    /** One current applied StageStartTime row. */
+    public static final class StageStartEntry {
+        private final RegistrationId registrationId;
+        private final TimingTimestamp start;
+
+        private StageStartEntry(
+                RegistrationId registrationId,
+                TimingTimestamp start) {
+            this.registrationId = registrationId;
+            this.start = start;
+        }
+
+        public RegistrationId registrationId() {
+            return registrationId;
+        }
+
+        public TimingTimestamp start() {
+            return start;
+        }
+    }
+
     /** Immutable metadata for the active NodeState registration projection. */
     public static final class RegistrationProjectionInfo {
         private final LocationId locationId;
@@ -117,18 +159,21 @@ public final class TimingNodeProxy {
         private final int uniqueCount;
         private final long lastMutationSequence;
         private final long lastRevokeSequence;
+        private final long stageStartRevision;
 
         private RegistrationProjectionInfo(
                 LocationId locationId,
                 int count,
                 int uniqueCount,
                 long lastMutationSequence,
-                long lastRevokeSequence) {
+                long lastRevokeSequence,
+                long stageStartRevision) {
             this.locationId = locationId;
             this.count = count;
             this.uniqueCount = uniqueCount;
             this.lastMutationSequence = lastMutationSequence;
             this.lastRevokeSequence = lastRevokeSequence;
+            this.stageStartRevision = stageStartRevision;
         }
 
         public LocationId locationId() {
@@ -149,6 +194,10 @@ public final class TimingNodeProxy {
 
         public long lastRevokeSequence() {
             return lastRevokeSequence;
+        }
+
+        public long stageStartRevision() {
+            return stageStartRevision;
         }
     }
 
@@ -304,6 +353,50 @@ public final class TimingNodeProxy {
         return new RaceDataSnapshot(mappings, stageStarts);
     }
 
+    /** Returns one stable snapshot of applied StageStartTimes in RegistrationId order. */
+    public StageStartProjectionInfo visitStageStarts(
+            int offset,
+            int limit,
+            Consumer<StageStartEntry> visitor) {
+
+        failIfInvalidArgument(offset >= 0, "offset must not be negative");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
+        List<StageStartEntry> rows = new ArrayList<StageStartEntry>();
+        NodeStateAccessor.StageStartProjectionInfo info =
+                nodeState.visitStageStarts(
+                        (registrationId, stageStart) ->
+                                rows.add(
+                                        new StageStartEntry(
+                                                registrationId,
+                                                StageTiming.timestamp(
+                                                        stageStart.longValue()))));
+        Collections.sort(
+                rows,
+                Comparator.comparing(value -> value.registrationId().value()));
+
+        int from = Math.min(offset, rows.size());
+        int to = Math.min(from + limit, rows.size());
+        for (int index = from; index < to; index++) {
+            visitor.accept(rows.get(index));
+        }
+        return new StageStartProjectionInfo(
+                info.count(),
+                info.revision());
+    }
+
+    /** Returns current applied StageStartTimes metadata without emitting rows. */
+    public StageStartProjectionInfo stageStartProjectionInfo() {
+
+        NodeStateAccessor.StageStartProjectionInfo info =
+                nodeState.visitStageStarts(
+                        (registrationId, stageStart) -> { });
+        return new StageStartProjectionInfo(
+                info.count(),
+                info.revision());
+    }
+
     /** Returns one stable metadata snapshot of the active registration projection. */
     public RegistrationProjectionInfo registrationProjectionInfo() {
 
@@ -368,7 +461,8 @@ public final class TimingNodeProxy {
                 info.count(),
                 info.uniqueCount(),
                 info.lastMutationSequence(),
-                info.lastRevokeSequence());
+                info.lastRevokeSequence(),
+                info.stageStartRevision());
     }
 
     /** Visits chronological registration rows after one original ADD sequence. */

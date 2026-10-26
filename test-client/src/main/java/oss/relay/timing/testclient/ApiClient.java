@@ -315,6 +315,67 @@ public final class ApiClient {
                 rawJson);
     }
 
+    public StageStartInfo getStageStartInfo(String nodeId)
+            throws IOException, InterruptedException {
+
+        String rawJson =
+                request(
+                        "GET",
+                        nodePath(nodeId, "/stage-start-times"),
+                        null);
+        JsonNode root = JSON.readTree(rawJson);
+        return new StageStartInfo(
+                requiredInt(root, "count"),
+                requiredLong(root, "revision"),
+                rawJson);
+    }
+
+    public StageStartPage getStageStartPage(
+            String nodeId,
+            int offset,
+            int limit)
+            throws IOException, InterruptedException {
+
+        if (offset < 0) {
+            throw new IllegalArgumentException(
+                    "offset must be >= 0");
+        }
+        requireLimit(limit);
+
+        String rawJson =
+                request(
+                        "GET",
+                        nodePath(nodeId, "/stage-start-times")
+                                + "?offset="
+                                + offset
+                                + "&limit="
+                                + limit,
+                        null);
+        JsonNode root = JSON.readTree(rawJson);
+        JsonNode values = required(root, "startTimes");
+        if (!values.isArray()) {
+            throw new IllegalArgumentException(
+                    "IF-03 field is not an array: startTimes");
+        }
+
+        List<StageStartRow> rows = new ArrayList<>();
+        for (JsonNode value : values) {
+            rows.add(
+                    new StageStartRow(
+                            requiredText(value, "regId"),
+                            requiredText(value, "start")));
+        }
+
+        return new StageStartPage(
+                new StageStartInfo(
+                        requiredInt(root, "count"),
+                        requiredLong(root, "revision"),
+                        rawJson),
+                optionalInt(root, "nextOffset"),
+                List.copyOf(rows),
+                rawJson);
+    }
+
     public LogBookInfo getLogBookInfo(String nodeId)
             throws IOException, InterruptedException {
         String rawJson = request("GET", nodePath(nodeId, "/logbook"), null);
@@ -412,6 +473,7 @@ public final class ApiClient {
                 requiredInt(root, "uniqueCount"),
                 requiredLong(root, "lastMutationSeq"),
                 requiredLong(root, "lastRevokeSeq"),
+                requiredLong(root, "stageStartRevision"),
                 rawJson);
     }
 
@@ -717,6 +779,25 @@ public final class ApiClient {
             int uniqueCount,
             long lastMutationSequence,
             long lastRevokeSequence,
+            long stageStartRevision,
+            String rawJson) {
+    }
+
+    public record StageStartInfo(
+            int count,
+            long revision,
+            String rawJson) {
+    }
+
+    public record StageStartRow(
+            String registrationId,
+            String start) {
+    }
+
+    public record StageStartPage(
+            StageStartInfo info,
+            Integer nextOffset,
+            List<StageStartRow> rows,
             String rawJson) {
     }
 

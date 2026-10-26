@@ -323,6 +323,15 @@ public class HttpEndpointTest {
                             "{\"id\":\"A0002\",\"time\":\"2026-10-01T12:00:01Z\"}")
                             .status);
 
+            fixture.handler()
+                    .timingNode(new NodeId("A"))
+                    .overrideStageStart(
+                            new RegistrationId("A0001"),
+                            TimingTimestamp.parse(
+                                            "2026-10-01T11:59:50Z")
+                                    .instant()
+                                    .toEpochMilli());
+
             Response info = request(
                     server.boundPort(),
                     "GET",
@@ -334,6 +343,29 @@ public class HttpEndpointTest {
             assertTrue(info.body.contains("\"uniqueCount\":2"));
             assertTrue(info.body.contains("\"lastMutationSeq\":3"));
             assertTrue(info.body.contains("\"lastRevokeSeq\":0"));
+            assertTrue(info.body.contains("\"stageStartRevision\":1"));
+
+            Response stageInfo = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/stage-start-times",
+                    null);
+            assertEquals(200, stageInfo.status);
+            assertEquals(
+                    "{\"count\":1,\"revision\":1}",
+                    stageInfo.body);
+
+            Response stagePage = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/stage-start-times?offset=0&limit=128",
+                    null);
+            assertEquals(200, stagePage.status);
+            assertTrue(stagePage.body.contains("\"count\":1"));
+            assertTrue(stagePage.body.contains("\"revision\":1"));
+            assertTrue(stagePage.body.contains("\"nextOffset\":null"));
+            assertTrue(stagePage.body.contains("\"regId\":\"A0001\""));
+            assertTrue(stagePage.body.contains("\"start\":\"2026-10-01T11:59:50Z\""));
 
             Response first = request(
                     server.boundPort(),
@@ -377,7 +409,7 @@ public class HttpEndpointTest {
                     null);
             assertEquals(200, projection.status);
             assertTrue(projection.body.contains(
-                    "\"seqNr\":2,\"regId\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\",\"elapsedMillis\":null,\"valid\":false"));
+                    "\"seqNr\":2,\"regId\":\"A0001\",\"time\":\"2026-10-01T12:00:00Z\",\"elapsedMillis\":10000,\"valid\":false"));
             assertTrue(projection.body.contains(
                     "\"seqNr\":3,\"regId\":\"A0002\",\"time\":\"2026-10-01T12:00:01Z\",\"elapsedMillis\":null,\"valid\":true"));
         } finally {

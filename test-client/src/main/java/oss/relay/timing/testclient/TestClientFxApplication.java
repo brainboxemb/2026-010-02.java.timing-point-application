@@ -270,6 +270,7 @@ public final class TestClientFxApplication extends Application {
                 terminalPanel,
                 clientLogPanel,
                 apiPane.registrationsPane(),
+                apiPane.stageStartTimesPane(),
                 apiPane.logBookPane(),
                 apiPane.rawDataPane(),
                 eventsPanel,
