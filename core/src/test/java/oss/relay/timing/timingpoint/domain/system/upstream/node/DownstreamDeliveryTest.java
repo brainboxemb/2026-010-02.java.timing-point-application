@@ -72,22 +72,22 @@ public class DownstreamDeliveryTest {
     }
 
     @Test
-    public void freshRuntimeCanRequestFullDownstreamState() {
+    public void connectionAnnouncementReportsCurrentDownstreamPosition() {
         TestUpstreamStream stream = new TestUpstreamStream();
         DownstreamDelivery delivery =
                 new DownstreamDelivery(
                         stream::isAvailable,
                         stream::send);
 
-        delivery.requestFullStateIfUninitialized();
+        delivery.announceReceivePosition();
         assertReceive(stream.takeSent(), 0L);
 
         assertTrue(delivery.begin(sequencePacket(1L)));
         delivery.complete(sequencePacket(1L));
-        stream.takeSent();
+        assertReceive(stream.takeSent(), 1L);
 
-        delivery.requestFullStateIfUninitialized();
-        assertEquals(0, stream.sentCount());
+        delivery.announceReceivePosition();
+        assertReceive(stream.takeSent(), 1L);
     }
 
     @Test
