@@ -1,5 +1,7 @@
 # Changelog
 
+- Format Central Messages RACE_DATA detail like multi-record TIMING_DATA: present each team-assignment and stage-start change on its own line while retaining the exact compact IF-06 wire payload.
+
 - Add a separate right-side **Stages** viewer beside Node and Central, showing each StageId with expandable StartTimes and RegistrationId/start values from Central-owned state even before a node opens; keep the Central viewer title globally **Central** instead of misleadingly following the selected API node.
 
 - Use 128 records as the Engineering Client's standard bounded IF-03 page size for LogBook completion/gap reads and registration-projection synchronization; keep the fast latest-100 LogBook baseline, one-record command follow-ups, and IF-03's existing explicit maximum unchanged.

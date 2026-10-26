@@ -342,6 +342,54 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
+    void raceDataDetailFormatsEachChangeOnItsOwnLine() {
+        UpstreamData packet =
+                DefaultUpstreamData.createDnPacket(
+                        NODE_A,
+                        20L,
+                        DefaultUpstreamData.createRaceData(
+                                new LocationId(1),
+                                java.util.List.of(
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0001",
+                                                "T001"),
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0002",
+                                                "T002")),
+                                java.util.List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                oss.relay.timing.timingdata.TimingTimestamp.parse(
+                                                        "10:00:00")),
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0002",
+                                                oss.relay.timing.timingdata.TimingTimestamp.parse(
+                                                        "10:00:30")))));
+        String raw = CentralUpstreamJson.encode(packet);
+
+        String displayed =
+                CentralMessagesPane.detailPayload(
+                        packet,
+                        raw);
+
+        assertTrue(
+                displayed.contains(
+                        "\"teamAssignments\":[\n  {"));
+        assertTrue(
+                displayed.contains(
+                        "},\n  {\"op\":\"SET\",\"regId\":\"A0002\""));
+        assertTrue(
+                displayed.contains(
+                        "\"stageStartTimes\":[\n  {"));
+        assertTrue(
+                displayed.contains(
+                        "},\n  {\"op\":\"SET\",\"regId\":\"A0002\""));
+        assertEquals(
+                raw,
+                displayed.replace("\n  ", "").replace("\n", ""));
+    }
+
+    @Test
     void raceDataPositionUsesPacketNrNotSourceSequence() {
         UpstreamData packet =
                 DefaultUpstreamData.createDnPacket(

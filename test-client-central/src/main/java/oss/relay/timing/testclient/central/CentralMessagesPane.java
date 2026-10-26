@@ -423,19 +423,32 @@ final class CentralMessagesPane {
         if (rawPayloadJson == null) {
             throw new IllegalArgumentException("rawPayloadJson must not be null");
         }
-        if (data.family() != UpstreamData.Family.TIMING_DATA
-                || ((UpstreamData.TimingDataTransfer) data.message())
-                        .records().size() <= 1) {
-            return rawPayloadJson;
+        if (data.family() == UpstreamData.Family.TIMING_DATA) {
+            UpstreamData.TimingDataTransfer transfer =
+                    (UpstreamData.TimingDataTransfer) data.message();
+            return transfer.records().size() <= 1
+                    ? rawPayloadJson
+                    : formatCompactArray(rawPayloadJson, "data");
         }
-        return formatTopLevelDataArray(rawPayloadJson);
+        if (data.family() == UpstreamData.Family.RACE_DATA) {
+            String formatted =
+                    formatCompactArray(
+                            rawPayloadJson,
+                            "teamAssignments");
+            return formatCompactArray(
+                    formatted,
+                    "stageStartTimes");
+        }
+        return rawPayloadJson;
     }
 
     /**
-     * Adds line breaks around top-level data-array items without parsing or re-encoding JSON.
+     * Adds line breaks around items in one named JSON array without parsing or re-encoding it.
      */
-    private static String formatTopLevelDataArray(String rawJson) {
-        String marker = "\"data\":[";
+    private static String formatCompactArray(
+            String rawJson,
+            String fieldName) {
+        String marker = "\"" + fieldName + "\":[";
         int markerIndex = rawJson.indexOf(marker);
         if (markerIndex < 0) {
             return rawJson;
