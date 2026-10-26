@@ -51,6 +51,74 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void freshCentralAdoptsRunningNodeDownstreamPositionBeforeReplayRequest() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(7));
+        simulator.connected();
+
+        assertTrue(
+                simulator.accept(
+                                receivePacket(183L, 23L),
+                                RECEIVED)
+                        .isEmpty());
+
+        List<UpstreamData> replies =
+                simulator.accept(
+                        upPacket(
+                                184L,
+                                DefaultUpstreamData.createSequenceNotification(1184L)),
+                        RECEIVED.plusMillis(1L));
+
+        assertEquals(1, replies.size());
+        UpstreamData request = replies.get(0);
+        assertEquals(24L, request.packetNr());
+        assertEquals(
+                UpstreamData.Family.TIMING_DATA_REQ,
+                request.family());
+        assertEquals(
+                1L,
+                ((UpstreamData.TimingDataRequest) request.message())
+                        .fromSequence());
+
+        CentralSystemSimulator.NodeView view =
+                simulator.nodes().get(0);
+        assertEquals(23L, view.lastDnPacketAcknowledged());
+        assertEquals(Long.valueOf(24L), view.outstandingDnPacketNr());
+    }
+
+    @Test
+    void lateRunningNodePositionRenumbersFreshCentralOutstandingPacket() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(7));
+        simulator.connected();
+
+        UpstreamData firstRequest =
+                simulator.accept(
+                                upPacket(
+                                        183L,
+                                        DefaultUpstreamData.createSequenceNotification(1184L)),
+                                RECEIVED)
+                        .get(0);
+        assertEquals(1L, firstRequest.packetNr());
+
+        List<UpstreamData> renumbered =
+                simulator.accept(
+                        receivePacket(184L, 23L),
+                        RECEIVED.plusMillis(1L));
+
+        assertEquals(1, renumbered.size());
+        UpstreamData request = renumbered.get(0);
+        assertEquals(24L, request.packetNr());
+        assertEquals(
+                UpstreamData.Family.TIMING_DATA_REQ,
+                request.family());
+        assertEquals(
+                1L,
+                ((UpstreamData.TimingDataRequest) request.message())
+                        .fromSequence());
+    }
+
+    @Test
     void sequenceRequestAnswersCentralProcessedPosition() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));

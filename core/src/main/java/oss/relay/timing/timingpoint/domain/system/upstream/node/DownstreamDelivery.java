@@ -108,13 +108,14 @@ final class DownstreamDelivery {
     }
 
     /**
-     * Requests a full current-state resend while this runtime has not processed any
-     * normal downstream packet yet.
+     * Announces the current downstream receive position for a new transport session.
+     *
+     * <p>Position 0 means this runtime has not processed a normal DN_PACKET and therefore
+     * requests a full current-state resend. A positive position lets a restarted Central
+     * continue packet numbering without resetting TimingNode-owned protocol state.</p>
      */
-    synchronized void requestFullStateIfUninitialized() {
-        if (lastProcessedPacketNr == 0L) {
-            sendReceivePosition();
-        }
+    synchronized void announceReceivePosition() {
+        sendReceivePosition();
     }
 
     /** Compares the retained duplicate boundary without keeping a packet history. */

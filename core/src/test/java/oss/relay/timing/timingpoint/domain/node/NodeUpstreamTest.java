@@ -493,8 +493,10 @@ public class NodeUpstreamTest {
 
             stream.disconnect();
             stream.connect();
+            UpstreamData reconnectPosition = stream.takeSent();
             UpstreamData reconnectSequence = stream.takeSent();
             UpstreamData reconnectPing = stream.takeSent();
+            assertReceive(reconnectPosition, 1L);
             assertSame(UpstreamData.Family.SEQ, reconnectSequence.family());
             assertSame(UpstreamData.Family.PING, reconnectPing.family());
             assertEquals(0, stream.sentCount());

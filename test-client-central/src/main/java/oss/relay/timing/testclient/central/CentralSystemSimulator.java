@@ -607,6 +607,12 @@ final class CentralSystemSimulator {
             if (receivedPacketNr == node.lastDnPacketAcknowledged) {
                 return Collections.emptyList();
             }
+            if (node.lastDnPacketAcknowledged == 0L) {
+                adoptDownstreamPosition(
+                        node,
+                        receivedPacketNr);
+                return sendNextNormalPacketIfPossible(node);
+            }
             throw new IllegalStateException(
                     "RECV "
                             + receivedPacketNr
@@ -619,6 +625,17 @@ final class CentralSystemSimulator {
             return List.of(node.outstanding);
         }
         if (receivedPacketNr > outstandingNr) {
+            if (node.lastDnPacketAcknowledged == 0L
+                    && outstandingNr == 1L) {
+                UpstreamData.Message retry =
+                        node.outstanding.message();
+                node.outstanding = null;
+                node.pendingMessages.addFirst(retry);
+                adoptDownstreamPosition(
+                        node,
+                        receivedPacketNr);
+                return sendNextNormalPacketIfPossible(node);
+            }
             throw new IllegalStateException(
                     "RECV "
                             + receivedPacketNr
@@ -632,6 +649,25 @@ final class CentralSystemSimulator {
         node.lastDnPacketAcknowledged = receivedPacketNr;
         node.outstanding = null;
         return sendNextNormalPacketIfPossible(node);
+    }
+
+    /**
+     * Adopts SI-01's retained downstream receive position after a fresh Central start.
+     */
+    private static void adoptDownstreamPosition(
+            NodeState node,
+            long receivedPacketNr) {
+        if (receivedPacketNr <= 0L) {
+            throw new IllegalArgumentException(
+                    "Downstream receive position must be positive");
+        }
+        if (receivedPacketNr == Long.MAX_VALUE) {
+            throw new IllegalStateException(
+                    "DN_PACKET id space exhausted for "
+                            + node.nodeId);
+        }
+        node.lastDnPacketAcknowledged = receivedPacketNr;
+        node.nextDnPacketNr = receivedPacketNr + 1L;
     }
 
     /**
