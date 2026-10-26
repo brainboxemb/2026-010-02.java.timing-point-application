@@ -107,6 +107,17 @@
 .engineering-form { -fx-padding: 8px; }
 .engineering-explorer-pane { -fx-padding: 4px; }
 .engineering-data-pane { -fx-padding: 4px; }
+.engineering-data-split {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+.engineering-data-split > .split-pane-divider {
+    -fx-background-color: -si02-border;
+    -fx-padding: 2px 0 2px 0;
+}
+.engineering-data-split > .split-pane-divider:hover {
+    -fx-background-color: -si02-accent;
+}
 .engineering-tool-pane { -fx-padding: 3px; }
 .engineering-log-pane { -fx-padding: 2px; }
 

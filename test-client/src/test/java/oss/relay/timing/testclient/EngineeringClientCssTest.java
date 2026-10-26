@@ -44,4 +44,23 @@ class EngineeringClientCssTest {
                         + "-bento-accent transparent;"),
                 "Only the active leaf should add the accent underline");
     }
+
+    @Test
+    void centralMessageInspectorHasVisibleResizableDivider()
+            throws Exception {
+        String css;
+        try (InputStream input = getClass()
+                .getResourceAsStream("/engineering-client.css")) {
+            assertNotNull(input, "Missing Engineering Client stylesheet");
+            css = new String(input.readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n");
+        }
+
+        assertTrue(
+                css.contains(".engineering-data-split > .split-pane-divider {")
+                        && css.contains("-fx-padding: 2px 0 2px 0;")
+                        && css.contains(
+                                ".engineering-data-split > .split-pane-divider:hover {"),
+                "Central message table/detail divider must remain visible and draggable");
+    }
 }

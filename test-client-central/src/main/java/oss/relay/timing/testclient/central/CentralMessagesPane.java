@@ -5,10 +5,12 @@ import oss.relay.timing.upstreamdata.UpstreamData;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -67,6 +69,7 @@ final class CentralMessagesPane {
     private TableColumn<MessageRow, String> messageTimeColumn;
     private TableColumn<MessageRow, String> receivedTimeColumn;
     private final TextArea rawMessage = new TextArea();
+    private final SplitPane messageInspector = new SplitPane();
     private final VBox pane;
 
     private boolean followEnd = true;
@@ -108,7 +111,16 @@ final class CentralMessagesPane {
         rawMessage.setWrapText(false);
         rawMessage.setPromptText("Select a Central message to inspect its exact IF-06 JSON");
         rawMessage.setPrefRowCount(5);
+        rawMessage.setMinHeight(60);
         rawMessage.getStyleClass().add("engineering-raw-data");
+
+        table.setMinHeight(80);
+        messageInspector.setOrientation(Orientation.VERTICAL);
+        messageInspector.getItems().setAll(table, rawMessage);
+        messageInspector.setDividerPositions(0.68);
+        messageInspector.getStyleClass().add("engineering-data-split");
+        SplitPane.setResizableWithParent(table, true);
+        SplitPane.setResizableWithParent(rawMessage, true);
 
         table.getSelectionModel().selectedItemProperty().addListener(
                 (ignored, previous, selected) -> selectionChanged(selected));
@@ -130,9 +142,9 @@ final class CentralMessagesPane {
         filters.setAlignment(Pos.CENTER_LEFT);
         filters.getStyleClass().add("engineering-traffic-filters");
 
-        pane = new VBox(4, filters, table, rawMessage);
+        pane = new VBox(4, filters, messageInspector);
         pane.getStyleClass().add("engineering-data-pane");
-        VBox.setVgrow(table, Priority.ALWAYS);
+        VBox.setVgrow(messageInspector, Priority.ALWAYS);
 
         refresh();
     }
