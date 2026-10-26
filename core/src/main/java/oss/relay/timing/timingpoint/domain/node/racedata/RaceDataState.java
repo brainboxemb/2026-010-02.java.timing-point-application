@@ -28,6 +28,7 @@ public final class RaceDataState {
     private final EventData eventData;
     private final TeamAssignments teamAssignments = new TeamAssignments();
     private final StageStartTimes stageStartTimes = new StageStartTimes();
+    private long stageStartRevision;
 
     /** Creates node-local mutable race data over immutable EventData reference data. */
     public RaceDataState(EventData eventData) {
@@ -42,7 +43,9 @@ public final class RaceDataState {
             long stageStart) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        stageStartTimes.set(registrationId, stageStart);
+        if (stageStartTimes.set(registrationId, stageStart)) {
+            stageStartRevision++;
+        }
     }
 
     /** Returns the current compact UTC stage start, or null when none is known. */
@@ -69,6 +72,12 @@ public final class RaceDataState {
 
         failIfInvalidArgument(visitor != null, "visitor must not be null");
         return stageStartTimes.visit(visitor);
+    }
+
+    /** Monotonic revision of applied RegistrationId-scoped StageStartTimes state. */
+    public long stageStartRevision() {
+
+        return stageStartRevision;
     }
 
     /** Resolves TeamId from fixed EventData first, then live upstream assignment state. */
@@ -101,11 +110,15 @@ public final class RaceDataState {
         TeamAssignments updatedAssignments = teamAssignments.copy();
         StageStartTimes updatedStarts = stageStartTimes.copy();
         applyTeamAssignmentChanges(updatedAssignments, assignmentsToSet, assignmentsToDelete);
-        applyStageStartChanges(updatedStarts, stageStartsToSet, stageStartsToDelete);
+        boolean stageStartsChanged =
+                applyStageStartChanges(updatedStarts, stageStartsToSet, stageStartsToDelete);
         updatedAssignments.validate();
 
         teamAssignments.replaceWith(updatedAssignments);
         stageStartTimes.replaceWith(updatedStarts);
+        if (stageStartsChanged) {
+            stageStartRevision++;
+        }
     }
 
     /** Applies team-assignment changes to the uncommitted transactional copy. */
@@ -132,22 +145,24 @@ public final class RaceDataState {
     }
 
     /** Applies already-normalized stage-start changes to the uncommitted transactional copy. */
-    private static void applyStageStartChanges(
+    private static boolean applyStageStartChanges(
             StageStartTimes updatedStarts,
             Map<RegistrationId, Long> stageStartsToSet,
             List<RegistrationId> stageStartsToDelete) {
 
+        boolean changed = false;
         for (Map.Entry<RegistrationId, Long> change : stageStartsToSet.entrySet()) {
             RegistrationId registrationId = change.getKey();
             Long stageStart = change.getValue();
             failIfInvalidArgument(registrationId != null, "registrationId must not be null");
             failIfInvalidArgument(stageStart != null, "stage start must not be null");
-            updatedStarts.set(registrationId, stageStart.longValue());
+            changed |= updatedStarts.set(registrationId, stageStart.longValue());
         }
 
         for (RegistrationId registrationId : stageStartsToDelete) {
             failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-            updatedStarts.remove(registrationId);
+            changed |= updatedStarts.remove(registrationId);
         }
+        return changed;
     }
 }
