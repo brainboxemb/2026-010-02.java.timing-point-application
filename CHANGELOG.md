@@ -1,5 +1,7 @@
 # Changelog
 
+- Make the Central Messages table/detail boundary a vertical resizable SplitPane with a visible hoverable divider so raw IF-06 message detail can be given more or less space interactively.
+
 - Make SI-02 Central RaceData authoring independent of a selected node: Team Mapping is Central-owned global state, Stage Start Times are authored per StageId with contiguous RegistrationId range SET/DEL and optional interval, and Stage N is routed through normal bounded IF-06 RACE_DATA to an OPEN node at LocationId N.
 
 - Improve the Node engineering views: Registrations now presents SI-01-maintained RunningTime and labels manual AUTO/MAN classification as Time source; LogBook keeps its fast latest-100 baseline but adds an explicit bounded-page Load all action.
