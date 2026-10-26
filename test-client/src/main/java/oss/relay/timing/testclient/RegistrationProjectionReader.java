@@ -78,7 +78,9 @@ final class RegistrationProjectionReader {
             if (page.info().locationId()
                             != latest.locationId()
                     || page.info().lastRevokeSequence()
-                            != cachedInfo.lastRevokeSequence()) {
+                            != cachedInfo.lastRevokeSequence()
+                    || page.info().stageStartRevision()
+                            != cachedInfo.stageStartRevision()) {
                 return full(api, nodeId);
             }
 
