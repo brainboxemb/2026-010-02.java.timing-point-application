@@ -39,9 +39,7 @@ final class CentralPane implements AutoCloseable {
     private final Button raceDelete = new Button("Delete team");
     private final Button stageStartSet = new Button("Set start");
     private final Button stageStartDelete = new Button("Delete start");
-    private final Label raceDnAck = new Label("0");
-    private final Label raceDnPending = new Label("—");
-    private final Label raceFeedback = new Label("Central upstream not connected");
+    private final Label raceFeedback = new Label("Central state ready");
 
     private final ComboBox<String> timingNode = new ComboBox<>();
     private final Label timingHead = new Label("0");
@@ -307,11 +305,6 @@ final class CentralPane implements AutoCloseable {
 
         HBox teamActions = new HBox(8, raceSet, raceDelete);
         HBox stageActions = new HBox(8, stageStartSet, stageStartDelete);
-        HBox protocol = new HBox(
-                12,
-                new Label("DN ack"), raceDnAck,
-                new Label("DN pending"), raceDnPending);
-
         VBox pane = new VBox(
                 10,
                 new Label("Central RaceData"),
@@ -321,7 +314,6 @@ final class CentralPane implements AutoCloseable {
                 new Label("Stage Start Times"),
                 stageForm,
                 stageActions,
-                protocol,
                 raceFeedback);
         pane.setPadding(new Insets(8));
         return pane;
@@ -389,23 +381,27 @@ final class CentralPane implements AutoCloseable {
             int stageId =
                     Integer.parseInt(
                             raceStage.getText().trim());
-            long intervalMillis =
-                    Math.multiplyExact(
-                            Long.parseLong(
-                                    raceStageIntervalSeconds.getText().trim()),
-                            1000L);
-            CentralControlActions.MutationResult result =
-                    delete
-                            ? centralActions.deleteStageStartRange(
-                                    stageId,
-                                    raceRegistrationFrom.getText(),
-                                    raceRegistrationTo.getText())
-                            : centralActions.setStageStartRange(
-                                    stageId,
-                                    raceRegistrationFrom.getText(),
-                                    raceRegistrationTo.getText(),
-                                    raceStageStart.getText(),
-                                    intervalMillis);
+            CentralControlActions.MutationResult result;
+            if (delete) {
+                result =
+                        centralActions.deleteStageStartRange(
+                                stageId,
+                                raceRegistrationFrom.getText(),
+                                raceRegistrationTo.getText());
+            } else {
+                long intervalMillis =
+                        Math.multiplyExact(
+                                Long.parseLong(
+                                        raceStageIntervalSeconds.getText().trim()),
+                                1000L);
+                result =
+                        centralActions.setStageStartRange(
+                                stageId,
+                                raceRegistrationFrom.getText(),
+                                raceRegistrationTo.getText(),
+                                raceStageStart.getText(),
+                                intervalMillis);
+            }
             raceFeedback.setText(
                     mutationFeedback(
                             "Stage " + stageId + " start times",
@@ -433,11 +429,10 @@ final class CentralPane implements AutoCloseable {
         return subject
                 + ": "
                 + result.affected()
-                + " updated; "
+                + " updated; delivery started with "
                 + result.immediatePackets()
                 + " DN_PACKET"
-                + (result.immediatePackets() == 1 ? "" : "s")
-                + " sent/queued";
+                + (result.immediatePackets() == 1 ? "" : "s");
     }
 
     private void querySourceHead() {
@@ -515,23 +510,6 @@ final class CentralPane implements AutoCloseable {
     }
 
     private void refreshRaceDataState() {
-        List<CentralSystemSimulator.NodeView> views = simulator.nodes();
-        long acknowledged =
-                views.stream()
-                        .mapToLong(
-                                CentralSystemSimulator.NodeView::lastDnPacketAcknowledged)
-                        .max()
-                        .orElse(0L);
-        long pending =
-                views.stream()
-                        .filter(value -> value.outstandingDnPacketNr() != null)
-                        .mapToLong(value -> value.outstandingDnPacketNr().longValue())
-                        .max()
-                        .orElse(0L);
-
-        raceDnAck.setText(Long.toString(acknowledged));
-        raceDnPending.setText(pending == 0L ? "—" : Long.toString(pending));
-
         raceRegistration.setDisable(false);
         raceTeam.setDisable(false);
         raceStage.setDisable(false);
