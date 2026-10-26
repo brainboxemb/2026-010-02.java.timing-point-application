@@ -17,7 +17,7 @@ final class CentralPaneTest {
                         "Stage 2 start times",
                         new CentralControlActions.MutationResult(100, 0)));
         assertEquals(
-                "Team Mapping: 1 updated; 2 DN_PACKETs sent/queued",
+                "Team Mapping: 1 updated; delivery started with 2 DN_PACKETs",
                 CentralPane.mutationFeedback(
                         "Team Mapping",
                         new CentralControlActions.MutationResult(1, 2)));
