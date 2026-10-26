@@ -90,6 +90,9 @@ final class CentralSystemSimulator {
     private final Map<Integer, LocationState> locations = new LinkedHashMap<>();
     private final Deque<MessageView> messages = new ArrayDeque<>(MAX_MESSAGE_HISTORY);
     private final List<TimingRecord> timingRecords = new ArrayList<>();
+    private final Map<RegistrationId, TeamId> currentTeams = new LinkedHashMap<>();
+    private final Map<Integer, Map<RegistrationId, TimingTimestamp>> currentStageStarts =
+            new LinkedHashMap<>();
 
     private boolean connected;
     private long nextMessageOrdinal = 1L;
@@ -180,10 +183,52 @@ final class CentralSystemSimulator {
         }
 
         applyCurrentRaceData(
-                node,
+                Integer.valueOf(node.locationId.intValue()),
                 teamAssignmentChanges,
                 stageStartTimeChanges);
-        return sendNextNormalPacketIfPossible(node);
+        return sendRaceDataForOpenNodes();
+    }
+
+    /**
+     * Applies Central-owned Team Mapping independently from any selected TimingNode.
+     *
+     * <p>The current assignment is routed to every OPEN node through that node's
+     * normal LocationId-scoped RACE_DATA/RECV lane.</p>
+     */
+    List<UpstreamData> updateTeamAssignments(
+            List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges) {
+        if (teamAssignmentChanges == null) {
+            throw new IllegalArgumentException(
+                    "teamAssignmentChanges must not be null");
+        }
+        applyCurrentRaceData(
+                null,
+                teamAssignmentChanges,
+                List.of());
+        return sendRaceDataForOpenNodes();
+    }
+
+    /**
+     * Applies Central-owned StageStartTimes for Stage N.
+     *
+     * <p>Stage N finishes at LocationId N. StageId is Central authoring/routing
+     * context and is not added to IF-06.</p>
+     */
+    List<UpstreamData> updateStageStarts(
+            int stageId,
+            List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
+        if (stageId <= 0) {
+            throw new IllegalArgumentException("StageId must be positive");
+        }
+        if (stageStartTimeChanges == null) {
+            throw new IllegalArgumentException(
+                    "stageStartTimeChanges must not be null");
+        }
+        applyCurrentRaceData(
+                Integer.valueOf(stageId),
+                List.of(),
+                stageStartTimeChanges);
+        return sendRaceDataForOpenNodes();
     }
 
     /** Queues one explicit TIMING_DATA_REQ through normal downstream stop-and-wait delivery. */
@@ -317,7 +362,7 @@ final class CentralSystemSimulator {
                         node,
                         (UpstreamData.TimingDataTransfer) data.message(),
                         receivedAt);
-                return Collections.emptyList();
+                return sendNextNormalPacketIfPossible(node);
 
             default:
                 throw new UnsupportedOperationException(
@@ -557,6 +602,7 @@ final class CentralSystemSimulator {
         node.sourceHeadQueryPending = false;
         node.acknowledgedTeams.clear();
         node.acknowledgedStageStarts.clear();
+        node.acknowledgedStageLocationId = null;
     }
 
     private void handleTimingData(
@@ -586,6 +632,17 @@ final class CentralSystemSimulator {
                     record,
                     receivedAt);
         }
+    }
+
+    private List<UpstreamData> sendRaceDataForOpenNodes() {
+        if (!connected) {
+            return Collections.emptyList();
+        }
+        List<UpstreamData> result = new ArrayList<>();
+        for (NodeState node : nodes.values()) {
+            result.addAll(sendNextNormalPacketIfPossible(node));
+        }
+        return List.copyOf(result);
     }
 
     private List<UpstreamData> sendNextNormalPacketIfPossible(
@@ -619,6 +676,18 @@ final class CentralSystemSimulator {
             return null;
         }
 
+        if (!Objects.equals(
+                node.acknowledgedStageLocationId,
+                node.locationId)) {
+            node.acknowledgedStageStarts.clear();
+            node.acknowledgedStageLocationId = node.locationId;
+        }
+
+        Map<RegistrationId, TimingTimestamp> stageStarts =
+                currentStageStarts.getOrDefault(
+                        node.locationId,
+                        Collections.emptyMap());
+
         List<UpstreamData.TeamAssignmentChange> teamChanges =
                 new ArrayList<>();
         List<UpstreamData.StageStartTimeChange> startChanges =
@@ -626,7 +695,7 @@ final class CentralSystemSimulator {
 
         for (Map.Entry<RegistrationId, TeamId> entry
                 : node.acknowledgedTeams.entrySet()) {
-            if (!node.currentTeams.containsKey(entry.getKey())) {
+            if (!currentTeams.containsKey(entry.getKey())) {
                 teamChanges.add(
                         new UpstreamData.TeamAssignmentChange(
                                 UpstreamData.ChangeOperation.DEL,
@@ -643,7 +712,7 @@ final class CentralSystemSimulator {
         }
 
         for (Map.Entry<RegistrationId, TeamId> entry
-                : node.currentTeams.entrySet()) {
+                : currentTeams.entrySet()) {
             if (!Objects.equals(
                     entry.getValue(),
                     node.acknowledgedTeams.get(entry.getKey()))) {
@@ -664,7 +733,7 @@ final class CentralSystemSimulator {
 
         for (Map.Entry<RegistrationId, TimingTimestamp> entry
                 : node.acknowledgedStageStarts.entrySet()) {
-            if (!node.currentStageStarts.containsKey(entry.getKey())) {
+            if (!stageStarts.containsKey(entry.getKey())) {
                 startChanges.add(
                         new UpstreamData.StageStartTimeChange(
                                 UpstreamData.ChangeOperation.DEL,
@@ -681,7 +750,7 @@ final class CentralSystemSimulator {
         }
 
         for (Map.Entry<RegistrationId, TimingTimestamp> entry
-                : node.currentStageStarts.entrySet()) {
+                : stageStarts.entrySet()) {
             if (!Objects.equals(
                     entry.getValue(),
                     node.acknowledgedStageStarts.get(entry.getKey()))) {
@@ -725,8 +794,8 @@ final class CentralSystemSimulator {
         return teamChanges.size() + startChanges.size();
     }
 
-    private static void applyCurrentRaceData(
-            NodeState node,
+    private void applyCurrentRaceData(
+            Integer stageId,
             List<UpstreamData.TeamAssignmentChange> teamChanges,
             List<UpstreamData.StageStartTimeChange> startChanges) {
         for (UpstreamData.TeamAssignmentChange change : teamChanges) {
@@ -736,12 +805,12 @@ final class CentralSystemSimulator {
             }
             switch (change.operation()) {
                 case SET:
-                    node.currentTeams.put(
+                    currentTeams.put(
                             change.registrationId(),
                             change.teamId());
                     break;
                 case DEL:
-                    node.currentTeams.remove(change.registrationId());
+                    currentTeams.remove(change.registrationId());
                     break;
                 default:
                     throw new IllegalArgumentException(
@@ -750,6 +819,17 @@ final class CentralSystemSimulator {
             }
         }
 
+        if (!startChanges.isEmpty() && stageId == null) {
+            throw new IllegalArgumentException(
+                    "StageStartTimes require StageId/LocationId context");
+        }
+        Map<RegistrationId, TimingTimestamp> starts =
+                stageId == null
+                        ? Collections.emptyMap()
+                        : currentStageStarts.computeIfAbsent(
+                                stageId,
+                                ignored -> new LinkedHashMap<>());
+
         for (UpstreamData.StageStartTimeChange change : startChanges) {
             if (change == null) {
                 throw new IllegalArgumentException(
@@ -757,12 +837,12 @@ final class CentralSystemSimulator {
             }
             switch (change.operation()) {
                 case SET:
-                    node.currentStageStarts.put(
+                    starts.put(
                             change.registrationId(),
                             change.start());
                     break;
                 case DEL:
-                    node.currentStageStarts.remove(
+                    starts.remove(
                             change.registrationId());
                     break;
                 default:
@@ -782,6 +862,8 @@ final class CentralSystemSimulator {
 
         UpstreamData.RaceData raceData =
                 (UpstreamData.RaceData) packet.message();
+        node.acknowledgedStageLocationId =
+                Integer.valueOf(raceData.locationId().value());
         for (UpstreamData.TeamAssignmentChange change
                 : raceData.teamAssignmentChanges()) {
             if (change.operation() == UpstreamData.ChangeOperation.SET) {
@@ -951,14 +1033,11 @@ final class CentralSystemSimulator {
     private static final class NodeState {
         private final String nodeId;
 
-        private final Map<RegistrationId, TeamId> currentTeams =
-                new LinkedHashMap<>();
-        private final Map<RegistrationId, TimingTimestamp> currentStageStarts =
-                new LinkedHashMap<>();
         private final Map<RegistrationId, TeamId> acknowledgedTeams =
                 new LinkedHashMap<>();
         private final Map<RegistrationId, TimingTimestamp> acknowledgedStageStarts =
                 new LinkedHashMap<>();
+        private Integer acknowledgedStageLocationId;
         private final Deque<UpstreamData.Message> pendingMessages =
                 new ArrayDeque<>();
 
