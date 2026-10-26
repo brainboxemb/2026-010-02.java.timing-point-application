@@ -82,6 +82,7 @@ final class EngineeringWorkbench {
             Node terminal,
             Node clientLog,
             Node registrations,
+            Node stageStartTimes,
             Node logBook,
             Node rawData,
             Node events,
@@ -113,6 +114,7 @@ final class EngineeringWorkbench {
                         centralLocations);
         Node nodeViewerContent = createNodeViewer(
                 registrations,
+                stageStartTimes,
                 logBook,
                 rawData,
                 events,
@@ -384,6 +386,7 @@ final class EngineeringWorkbench {
 
     private Node createNodeViewer(
             Node registrations,
+            Node stageStartTimes,
             Node logBook,
             Node rawData,
             Node events,
@@ -417,12 +420,17 @@ final class EngineeringWorkbench {
         content.setPruneWhenEmpty(false);
         content.setDividerPositions(0.46, 0.76);
 
-        registrationsLeaf.addDockable(
+        registrationsLeaf.addDockables(
                 dockable(builder, registrationsLeaf,
                         new WorkbenchPanel(
                                 "registrations",
                                 "Registrations [–]",
-                                registrations)));
+                                registrations)),
+                dockable(builder, registrationsLeaf,
+                        new WorkbenchPanel(
+                                "stage-start-times",
+                                "StartTimes",
+                                stageStartTimes)));
         logBookLeaf.addDockable(
                 dockable(builder, logBookLeaf,
                         new WorkbenchPanel(
