@@ -1,6 +1,6 @@
 # Changelog
 
-- Add a Central **Stages** explorer beside Nodes and Locations, showing each StageId with expandable StartTimes and RegistrationId/start values from Central-owned state even before a node opens; keep the right-side viewer title globally **Central** instead of misleadingly following the selected API node.
+- Add a separate right-side **Stages** viewer beside Node and Central, showing each StageId with expandable StartTimes and RegistrationId/start values from Central-owned state even before a node opens; keep the Central viewer title globally **Central** instead of misleadingly following the selected API node.
 
 - Use 128 records as the Engineering Client's standard bounded IF-03 page size for LogBook completion/gap reads and registration-projection synchronization; keep the fast latest-100 LogBook baseline, one-record command follow-ups, and IF-03's existing explicit maximum unchanged.
 
