@@ -248,8 +248,8 @@ The main window separates **engineering controls** from **viewers**:
 ```text
 left: navigation / controls / diagnostics       right: detachable viewers
 -----------------------------------------       -------------------------------
-System                                         [ Node A ] [ Central A ]
-Central: Nodes / Locations                      viewer content only
+System                                         [ Node A ] [ Central ]
+Central: Nodes / Locations / Stages             viewer content only
 Node Controls / Central Controls
 -----------------------------------------
 Device Log
@@ -259,8 +259,9 @@ Terminal
 Client Log
 ```
 
-The upper-left explorer keeps the direct API system view and Central node/location
-projections visible close to the controls. **Node Controls** contains TimingNode, API,
+The upper-left explorer keeps the direct API system view and Central node/location/stage
+projections visible close to the controls. The **Stages** tab is a Central-owned tree:
+each StageId exposes **StartTimes**, including values authored before any node opens. **Node Controls** contains TimingNode, API,
 Registration, Simulation and Scripts. **Central Controls** separates **RaceData** from
 **TimingData**: RaceData owns team/stage-start changes; TimingData shows Central's
 contiguous received sequence and lets an operator request TimingData from an explicit
@@ -270,11 +271,11 @@ of received TimingData.
 Device Log, Terminal and Client Log are restored to their original vertically stacked
 left-side docks, so all three can remain visible and be resized independently.
 
-The right side is reserved for viewer workspaces. **Node A** and **Central A** are
-ordinary BentoFX dock tabs whose titles follow the API-selected NodeId. Before a node is
-known they read simply **Node** and **Central**. This right-side viewer leaf is intended
-to grow later with additional tabs such as Node B / Central B without moving the shared
-controls.
+The right side is reserved for viewer workspaces. The **Node A** title follows the
+API-selected NodeId. **Central** deliberately remains a global title because its Messages
+and LogBook tabs already provide their own node filtering/selection and are not scoped to
+the API-selected node. This right-side viewer leaf can later grow with additional node
+viewers without moving the shared controls.
 
 The Node viewer contains Registrations, LogBook, Raw Data, Events and HTTP. The Central viewer contains separate **Messages** and
 **LogBook** tabs: Messages inspects IF-06 message/batch boundaries, while Central LogBook
