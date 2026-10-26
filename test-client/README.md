@@ -301,7 +301,9 @@ Rows show method, path/query, local start time and status; selecting a row shows
 request body and response body. This makes Node LogBook baseline/synchronisation visible,
 including `GET /api/v1/node/{nodeId}/logbook`,
 `?from=...&limit=...` and `?last=...` calls that precede/repair live
-`TIMING_DATA_COMMITTED` event processing.
+`TIMING_DATA_COMMITTED` event processing. The Engineering Client uses 128 records as its
+normal bounded page size for paged IF-03 reads; the initial LogBook view deliberately remains
+the latest 100 records and single-record command follow-ups remain single-record requests.
 
 **Messages** is the Central semantic IF-06 inspector. It shows typed messages received
 from and sent to nodes, including `SEQ`, `TIMING_DATA_REQ`, `RECV`, `PING`,

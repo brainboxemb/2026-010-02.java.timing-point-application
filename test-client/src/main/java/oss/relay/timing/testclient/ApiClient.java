@@ -23,6 +23,9 @@ import java.util.function.Consumer;
  * <p>This project deliberately has no dependency on SI-01 implementation classes.</p>
  */
 public final class ApiClient {
+    /** Normal Engineering Client page size for bounded IF-03 list reads. */
+    static final int DEFAULT_PAGE_SIZE = 128;
+
     private static final int TIMING_DATA_VERSION = 1;
     private static final ObjectMapper JSON = new ObjectMapper();
 

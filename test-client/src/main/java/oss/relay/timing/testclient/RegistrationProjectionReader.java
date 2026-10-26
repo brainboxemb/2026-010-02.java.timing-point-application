@@ -12,7 +12,6 @@ import java.util.List;
  * complete bounded reread because an earlier retained row may have changed.</p>
  */
 final class RegistrationProjectionReader {
-    private static final int PAGE_SIZE = 1000;
     private static final int MAX_FULL_READ_ATTEMPTS = 3;
 
     private RegistrationProjectionReader() {
@@ -74,7 +73,7 @@ final class RegistrationProjectionReader {
                     api.getRegistrationProjectionPage(
                             nodeId,
                             after,
-                            PAGE_SIZE);
+                            ApiClient.DEFAULT_PAGE_SIZE);
 
             if (page.info().locationId()
                             != latest.locationId()
@@ -162,7 +161,7 @@ final class RegistrationProjectionReader {
                         api.getRegistrationProjectionPage(
                                 nodeId,
                                 after,
-                                PAGE_SIZE);
+                                ApiClient.DEFAULT_PAGE_SIZE);
 
                 if (!sameVersion(start, page.info())) {
                     stable = false;

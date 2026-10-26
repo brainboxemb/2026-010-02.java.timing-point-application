@@ -1,5 +1,7 @@
 # Changelog
 
+- Use 128 records as the Engineering Client's standard bounded IF-03 page size for LogBook completion/gap reads and registration-projection synchronization; keep the fast latest-100 LogBook baseline, one-record command follow-ups, and IF-03's existing explicit maximum unchanged.
+
 - Make the Central Messages table/detail boundary a vertical resizable SplitPane with a visible hoverable divider so raw IF-06 message detail can be given more or less space interactively.
 
 - Make SI-02 Central RaceData authoring independent of a selected node: Team Mapping is Central-owned global state, Stage Start Times are authored per StageId with contiguous RegistrationId range SET/DEL and optional interval, and Stage N is routed through normal bounded IF-06 RACE_DATA to an OPEN node at LocationId N.
