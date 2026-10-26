@@ -180,6 +180,10 @@ final class ApiPane {
         return timingPane.registrationsPane();
     }
 
+    javafx.scene.Node stageStartTimesPane() {
+        return timingPane.stageStartTimesPane();
+    }
+
     javafx.scene.Node logBookPane() {
         return timingPane.logBookPane();
     }
