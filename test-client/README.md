@@ -260,9 +260,10 @@ Client Log
 ```
 
 The upper-left explorer keeps the direct API system view and Central node/location
-projections visible close to the controls. The separate right-side **Stages** viewer is
-a Central-owned tree: each StageId exposes **StartTimes**, including values authored
-before any node opens. **Node Controls** contains TimingNode, API,
+projections visible close to the controls. The separate right-side **Stages** viewer uses
+a **Stage** selector, matching the Central viewer's node-selection pattern, and shows the
+selected StageId's **StartTimes** as RegistrationId/start-time rows. Authored values remain
+visible even before any node opens. **Node Controls** contains TimingNode, API,
 Registration, Simulation and Scripts. **Central Controls** separates **RaceData** from
 **TimingData**: RaceData owns team/stage-start changes; TimingData shows Central's
 contiguous received sequence and lets an operator request TimingData from an explicit
@@ -419,11 +420,12 @@ remain available on the node tooltip. In the compact row, `[05]` means currently
 projection state and are not permanent explorer columns. A later NODE_OPEN for the same
 NodeId at another LocationId implicitly closes the previously active location.
 
-**Central Controls → RaceData** is an operator form rather than an explorer. It selects
-an observed Central NodeId and applies RegistrationId-to-TeamId and RegistrationId-to-
-StageStartTime SET/DEL changes to Central-owned current RaceData. Stage start accepts the
-same IF-06 timestamp forms as the shared TimingTimestamp parser: time-only, local
-date/time or absolute UTC. The separate **TimingData** control tab shows Central's own
+**Central Controls → RaceData** is an operator form rather than an explorer and authors
+Central-owned current RaceData independently from a selected node. Registration input
+uses an explicit A-Z prefix selector plus numeric values: for example prefix `A` and
+number `8` becomes canonical RegistrationId `A0008`, and a range `8..100` becomes
+`A0008..A0100`. Stage-start time accepts the existing IF-06 TimingTimestamp forms and
+also compact operator time `HHmmss`, so `190000` is normalized to `19:00:00`. The separate **TimingData** control tab shows Central's own
 contiguous received position, can explicitly query the current SI-01 LogBook/source head
 with IF-06 `SEQ REQ` / `SEQ ANS`, and can issue a TIMING_DATA_REQ from an
 operator-entered sequence so retained-data synchronization can be exercised without
@@ -434,8 +436,9 @@ immutable and later actions wait behind it. The pane shows the last acknowledged
 downstream packet and any pending packet. It is rejected unless
 the explicit Central `role=upstream` session is active.
 
-Stage-start input deliberately uses the shared TimingTimestamp parser so time-only,
-local date/time and absolute UTC forms follow the same accepted rules as IF-06. The API
+Stage-start input normalizes only the operator convenience form `HHmmss[.fraction]`
+before using the shared TimingTimestamp parser, so time-only, local date/time and absolute
+UTC forms keep the same accepted IF-06 semantics. The API
 and upstream models do not share state, so a mismatch remains visible during testing. A fresh SI-01 runtime reports
 `RECV 0` to request a rebuild of current downstream state and publishes a TIMING_DATA
 `SEQ NTF`; Central then issues `TIMING_DATA_REQ` from its own next contiguous LogBook
