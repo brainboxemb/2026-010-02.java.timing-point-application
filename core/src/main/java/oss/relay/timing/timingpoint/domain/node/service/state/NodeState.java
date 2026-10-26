@@ -201,7 +201,8 @@ public final class NodeState implements NodeStateAccessor, NodeStateTestControl 
                 activeRegistrations.size(),
                 registeredTeams.uniqueTeamCount(),
                 activeRegistrations.lastMutationSequence(),
-                activeRegistrations.lastRevokeSequence());
+                activeRegistrations.lastRevokeSequence(),
+                raceData.stageStartRevision());
     }
 
     /** Waits for active-WP catch-up before returning the maintained unique-team count. */
@@ -241,6 +242,18 @@ public final class NodeState implements NodeStateAccessor, NodeStateTestControl 
 
         failIfInvalidArgument(visitor != null, "visitor must not be null");
         return readActive(() -> registeredTeams.visit(visitor));
+    }
+
+    /** Reads current StageStartTimes and metadata in one ordered Task Lane turn. */
+    @Override
+    public StageStartProjectionInfo visitStageStarts(
+            BiConsumer<RegistrationId, Long> visitor) {
+
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+        return readOrdered(
+                () -> new StageStartProjectionInfo(
+                        raceData.visitStageStarts(visitor),
+                        raceData.stageStartRevision()));
     }
 
     /** Reads live RaceData in one Task Lane turn without depending on LogBook projection catch-up. */
