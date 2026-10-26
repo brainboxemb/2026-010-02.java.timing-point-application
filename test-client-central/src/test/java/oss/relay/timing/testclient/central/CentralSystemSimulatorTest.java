@@ -320,10 +320,17 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void historicalOpenDuringCatchUpDoesNotReleaseStageStarts() {
+    void historicalOpenDoesNotOverrideCurrentRuntimeClosedState() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(2));
         simulator.connected();
+        assertTrue(
+                simulator.applyRuntimeStatus(
+                                "A",
+                                "CLOSED",
+                                null,
+                                RECEIVED)
+                        .isEmpty());
 
         assertTrue(
                 simulator.updateStageStarts(
@@ -379,10 +386,14 @@ final class CentralSystemSimulatorTest {
         assertEquals(
                 "CLOSED",
                 simulator.nodes().get(0).lifecycleState());
+        assertNull(simulator.nodes().get(0).locationId());
+        assertFalse(
+                "historical LogBook OPEN must not mark LocationId 2 current",
+                "OPEN".equals(location(simulator, 2).state()));
     }
 
     @Test
-    void currentOpenAfterCatchUpReleasesStoredStageStarts() {
+    void currentRuntimeOpenReleasesStoredStageStarts() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(2));
         simulator.connected();
@@ -394,25 +405,12 @@ final class CentralSystemSimulatorTest {
                                 "A0001",
                                 TimingTimestamp.parse("19:00:00"))));
 
-        UpstreamData request =
-                simulator.accept(
-                                upPacket(
-                                        1L,
-                                        DefaultUpstreamData.createSequenceNotification(1L)),
-                                RECEIVED)
-                        .get(0);
-        simulator.accept(
-                receivePacket(
-                        2L,
-                        request.packetNr()),
-                RECEIVED.plusMillis(1L));
-
         List<UpstreamData> replies =
-                simulator.accept(
-                        timingDataPacket(
-                                3L,
-                                opened(1L, 2)),
-                        RECEIVED.plusMillis(2L));
+                simulator.applyRuntimeStatus(
+                        "A",
+                        "OPEN",
+                        Integer.valueOf(2),
+                        RECEIVED);
 
         assertEquals(1, replies.size());
         assertEquals(
@@ -487,25 +485,25 @@ final class CentralSystemSimulatorTest {
                                                 TimingTimestamp.parse("10:05:00"))))
                         .isEmpty());
 
-        List<UpstreamData> afterOpen =
+        List<UpstreamData> afterHistoricalOpen =
                 simulator.accept(
                         timingDataPacket(
                                 1L,
                                 opened(1L, 2)),
                         RECEIVED);
 
-        assertTrue(afterOpen.isEmpty());
+        assertTrue(afterHistoricalOpen.isEmpty());
 
-        List<UpstreamData> afterCurrentHead =
-                simulator.accept(
-                        upPacket(
-                                2L,
-                                DefaultUpstreamData.createSequenceNotification(1L)),
+        List<UpstreamData> afterRuntimeOpen =
+                simulator.applyRuntimeStatus(
+                        "A",
+                        "OPEN",
+                        Integer.valueOf(2),
                         RECEIVED.plusMillis(1L));
 
-        assertEquals(1, afterCurrentHead.size());
+        assertEquals(1, afterRuntimeOpen.size());
         UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) afterCurrentHead.get(0).message();
+                (UpstreamData.RaceData) afterRuntimeOpen.get(0).message();
         assertEquals(2, raceData.locationId().value());
         assertEquals(1, raceData.stageStartTimeChanges().size());
     }
@@ -984,19 +982,25 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void newOpenImplicitlyClosesPreviousLocationForSameNode() {
+    void runtimeOpenMoveClosesPreviousLocationForSameNode() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(1, 2, 3));
         simulator.connected();
 
-        simulator.accept(
-                timingDataPacket(1L, opened(1L, 1)),
+        simulator.applyRuntimeStatus(
+                "A",
+                "OPEN",
+                Integer.valueOf(1),
                 RECEIVED);
-        simulator.accept(
-                timingDataPacket(2L, opened(2L, 2)),
+        simulator.applyRuntimeStatus(
+                "A",
+                "OPEN",
+                Integer.valueOf(2),
                 RECEIVED.plusSeconds(1));
-        simulator.accept(
-                timingDataPacket(3L, opened(3L, 3)),
+        simulator.applyRuntimeStatus(
+                "A",
+                "OPEN",
+                Integer.valueOf(3),
                 RECEIVED.plusSeconds(2));
 
         assertEquals(
@@ -1049,6 +1053,11 @@ final class CentralSystemSimulatorTest {
                         2L,
                         DefaultUpstreamData.createSequenceNotification(1L)),
                 RECEIVED.plusMillis(1L));
+        simulator.applyRuntimeStatus(
+                "A",
+                "OPEN",
+                Integer.valueOf(locationId),
+                RECEIVED.plusMillis(2L));
         return simulator;
     }
 
