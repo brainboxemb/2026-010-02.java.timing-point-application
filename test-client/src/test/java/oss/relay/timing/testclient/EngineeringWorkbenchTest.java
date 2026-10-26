@@ -7,13 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 final class EngineeringWorkbenchTest {
     @Test
-    void perspectiveTitlesFollowSelectedNode() {
+    void nodePerspectiveTitleFollowsSelectedNodeButCentralStaysGlobal() {
         assertEquals("Node", EngineeringWorkbench.perspectiveTitle("Node", null));
-        assertEquals("Central", EngineeringWorkbench.perspectiveTitle("Central", " "));
         assertEquals("Node A", EngineeringWorkbench.perspectiveTitle("Node", "A"));
         assertEquals(
-                "Central TN-02",
-                EngineeringWorkbench.perspectiveTitle("Central", " TN-02 "));
+                "Node TN-02",
+                EngineeringWorkbench.perspectiveTitle("Node", " TN-02 "));
+        assertEquals(
+                "Central",
+                EngineeringWorkbench.centralPerspectiveTitle());
     }
 
     @Test
