@@ -1,75 +1,26 @@
 package oss.relay.timing.testclient.central;
 
-import javafx.scene.control.TreeItem;
-import javafx.scene.control.TreeView;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.collections.FXCollections;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Function;
 
 /** Central-owned Stage/StageStartTimes inspector. */
 final class CentralStagesPane {
-    enum Kind {
-        ROOT,
-        STAGE,
-        START_TIMES,
-        START_TIME
-    }
-
-    record Row(
-            Kind kind,
-            int stageId,
-            String registrationId,
-            String start,
-            int count) {
-
-        static Row root() {
-            return new Row(Kind.ROOT, 0, null, null, 0);
-        }
-
-        static Row stage(int stageId) {
-            return new Row(Kind.STAGE, stageId, null, null, 0);
-        }
-
-        static Row startTimes(int stageId, int count) {
-            return new Row(Kind.START_TIMES, stageId, null, null, count);
-        }
-
-        static Row startTime(
-                int stageId,
-                String registrationId,
-                String start) {
-            return new Row(
-                    Kind.START_TIME,
-                    stageId,
-                    registrationId,
-                    start,
-                    0);
-        }
-
-        @Override
-        public String toString() {
-            return switch (kind) {
-                case ROOT -> "Stages";
-                case STAGE -> "Stage " + stageId;
-                case START_TIMES -> "StartTimes (" + count + ")";
-                case START_TIME -> registrationId + " · " + start;
-            };
-        }
-    }
-
     private final CentralSystemSimulator simulator;
-    private final TreeItem<Row> root =
-            new TreeItem<>(Row.root());
-    private final TreeView<Row> tree =
-            new TreeView<>(root);
-    private final VBox pane =
-            new VBox(tree);
-
-    private List<CentralSystemSimulator.StageView> snapshot =
-            List.of();
+    private final ComboBox<Integer> stageSelector = new ComboBox<>();
+    private final TableView<CentralSystemSimulator.StageStartView> startTimes =
+            new TableView<>();
+    private final VBox pane;
 
     CentralStagesPane(CentralSystemSimulator simulator) {
         if (simulator == null) {
@@ -78,10 +29,21 @@ final class CentralStagesPane {
         }
         this.simulator = simulator;
 
-        tree.setShowRoot(false);
-        tree.getStyleClass().add("engineering-stage-tree");
-        pane.getStyleClass().add("engineering-explorer-pane");
-        VBox.setVgrow(tree, Priority.ALWAYS);
+        stageSelector.setPromptText("Stage");
+        stageSelector.setPrefWidth(105);
+        stageSelector.setOnAction(event -> refreshRows());
+
+        configureTable();
+
+        HBox filters = new HBox(
+                8,
+                new Label("Stage"),
+                stageSelector);
+        filters.getStyleClass().add("engineering-traffic-filters");
+
+        pane = new VBox(4, filters, startTimes);
+        pane.getStyleClass().add("engineering-data-pane");
+        VBox.setVgrow(startTimes, Priority.ALWAYS);
 
         refresh();
     }
@@ -91,61 +53,93 @@ final class CentralStagesPane {
     }
 
     void refresh() {
-        List<CentralSystemSimulator.StageView> next =
+        Integer selected = stageSelector.getValue();
+        List<CentralSystemSimulator.StageView> stages =
                 simulator.stages();
-        if (next.equals(snapshot)) {
-            return;
+        List<Integer> ids = stageIds(stages);
+
+        stageSelector.getItems().setAll(ids);
+        if (selected != null && ids.contains(selected)) {
+            stageSelector.setValue(selected);
+        } else if (!ids.isEmpty()) {
+            stageSelector.setValue(ids.get(0));
+        } else {
+            stageSelector.setValue(null);
         }
 
-        Set<Integer> expandedStartTimes =
-                expandedStartTimeStages();
-
-        root.getChildren().clear();
-        for (CentralSystemSimulator.StageView stage : next) {
-            TreeItem<Row> stageItem =
-                    new TreeItem<>(
-                            Row.stage(stage.stageId()));
-            stageItem.setExpanded(true);
-
-            TreeItem<Row> startsItem =
-                    new TreeItem<>(
-                            Row.startTimes(
-                                    stage.stageId(),
-                                    stage.startTimes().size()));
-            startsItem.setExpanded(
-                    expandedStartTimes.contains(
-                            Integer.valueOf(stage.stageId())));
-
-            for (CentralSystemSimulator.StageStartView start
-                    : stage.startTimes()) {
-                startsItem.getChildren().add(
-                        new TreeItem<>(
-                                Row.startTime(
-                                        stage.stageId(),
-                                        start.registrationId(),
-                                        start.start())));
-            }
-
-            stageItem.getChildren().add(startsItem);
-            root.getChildren().add(stageItem);
-        }
-
-        snapshot = next;
+        refreshRows();
     }
 
-    private Set<Integer> expandedStartTimeStages() {
-        Set<Integer> result = new HashSet<>();
-        for (TreeItem<Row> stage : root.getChildren()) {
-            if (stage.getChildren().isEmpty()) {
-                continue;
-            }
-            TreeItem<Row> starts = stage.getChildren().get(0);
-            if (starts.isExpanded()) {
-                result.add(
-                        Integer.valueOf(
-                                stage.getValue().stageId()));
+    private void refreshRows() {
+        startTimes.setItems(
+                FXCollections.observableArrayList(
+                        startTimesForStage(
+                                simulator.stages(),
+                                stageSelector.getValue())));
+    }
+
+    private void configureTable() {
+        TableColumn<CentralSystemSimulator.StageStartView, String> registration =
+                column(
+                        "RegistrationId",
+                        CentralSystemSimulator.StageStartView::registrationId);
+        TableColumn<CentralSystemSimulator.StageStartView, String> start =
+                column(
+                        "StartTime",
+                        CentralSystemSimulator.StageStartView::start);
+
+        registration.setPrefWidth(150);
+        start.setPrefWidth(220);
+
+        startTimes.getColumns().setAll(registration, start);
+        startTimes.setColumnResizePolicy(
+                TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        startTimes.setPlaceholder(
+                new Label("No start times for selected stage"));
+    }
+
+    static List<Integer> stageIds(
+            List<CentralSystemSimulator.StageView> stages) {
+        if (stages == null) {
+            throw new IllegalArgumentException(
+                    "stages must not be null");
+        }
+        List<Integer> result =
+                new ArrayList<>(stages.size());
+        for (CentralSystemSimulator.StageView stage : stages) {
+            result.add(Integer.valueOf(stage.stageId()));
+        }
+        return List.copyOf(result);
+    }
+
+    static List<CentralSystemSimulator.StageStartView> startTimesForStage(
+            List<CentralSystemSimulator.StageView> stages,
+            Integer stageId) {
+        if (stages == null) {
+            throw new IllegalArgumentException(
+                    "stages must not be null");
+        }
+        if (stageId == null) {
+            return List.of();
+        }
+        for (CentralSystemSimulator.StageView stage : stages) {
+            if (stage.stageId() == stageId.intValue()) {
+                return stage.startTimes();
             }
         }
-        return result;
+        return List.of();
+    }
+
+    private static <T> TableColumn<T, String> column(
+            String title,
+            Function<T, String> value) {
+        TableColumn<T, String> column =
+                new TableColumn<>(title);
+        column.setCellValueFactory(cell ->
+                new ReadOnlyStringWrapper(
+                        cell.getValue() == null
+                                ? ""
+                                : value.apply(cell.getValue())));
+        return column;
     }
 }

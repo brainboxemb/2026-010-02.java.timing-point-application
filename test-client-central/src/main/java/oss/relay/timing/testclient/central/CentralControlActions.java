@@ -7,24 +7,28 @@ interface CentralControlActions extends CentralActions {
             int immediatePackets) {
     }
 
-    MutationResult setTeamAssignment(
-            String registrationId,
+    MutationResult setTeamAssignmentByNumber(
+            String registrationPrefix,
+            String registrationNumber,
             String teamId);
 
-    MutationResult deleteTeamAssignment(
-            String registrationId);
+    MutationResult deleteTeamAssignmentByNumber(
+            String registrationPrefix,
+            String registrationNumber);
 
-    MutationResult setStageStartRange(
+    MutationResult setStageStartRangeByNumber(
             int stageId,
-            String firstRegistrationId,
-            String lastRegistrationId,
+            String registrationPrefix,
+            String firstRegistrationNumber,
+            String lastRegistrationNumber,
             String start,
             long intervalMillis);
 
-    MutationResult deleteStageStartRange(
+    MutationResult deleteStageStartRangeByNumber(
             int stageId,
-            String firstRegistrationId,
-            String lastRegistrationId);
+            String registrationPrefix,
+            String firstRegistrationNumber,
+            String lastRegistrationNumber);
 
     long requestSourceHead(String nodeId);
 }

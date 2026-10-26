@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class CentralPaneTest {
@@ -24,10 +25,39 @@ final class CentralPaneTest {
     }
 
     @Test
-    void centralClientBuildsCanonicalRegistrationRanges() {
+    void centralClientBuildsCanonicalRegistrationIdsFromNumericOperatorInput() {
+        assertEquals(
+                "A0008",
+                CentralClient.registrationId("A", "8"));
+        assertEquals(
+                "Z0042",
+                CentralClient.registrationId("z", "42"));
         assertEquals(
                 java.util.List.of("A0008", "A0009", "A0010"),
-                CentralClient.registrationRange("A0008", "A0010"));
+                CentralClient.registrationRange("A", "8", "10"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CentralClient.registrationId("A", "A0008"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CentralClient.registrationRange("A", "10", "8"));
+    }
+
+    @Test
+    void centralClientAcceptsCompactOperatorTime() {
+        assertEquals(
+                "19:00:00",
+                CentralClient.parseOperatorTimestamp("190000").toString());
+        assertEquals(
+                "19:00:00.125",
+                CentralClient.parseOperatorTimestamp("190000.125").toString());
+        assertEquals(
+                "19:00:00",
+                CentralClient.parseOperatorTimestamp("19:00:00").toString());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CentralClient.parseOperatorTimestamp("250000"));
     }
 
     @Test

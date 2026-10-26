@@ -1,5 +1,7 @@
 # Changelog
 
+- Refine SI-02 stage/race-data ergonomics: use a Stage selector with a selected-stage StartTimes table, accept numeric RegistrationId input behind explicit A-Z prefix selectors, and normalize compact `HHmmss[.fraction]` stage-start times such as `190000` to canonical `19:00:00` without changing IF-06/domain values.
+
 - Fix Central restart recovery for normal DN_PACKET delivery: SI-01 now announces its retained downstream RECV position on every upstream connection, and a fresh Central simulator adopts that positive position (including the late-response case after an initial P1) so numbering continues at N+1 instead of restarting at P1.
 
 - Format Central Messages RACE_DATA detail like multi-record TIMING_DATA: present each team-assignment and stage-start change on its own line while retaining the exact compact IF-06 wire payload.

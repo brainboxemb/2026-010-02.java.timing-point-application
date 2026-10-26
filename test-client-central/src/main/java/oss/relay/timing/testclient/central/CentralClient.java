@@ -1,6 +1,7 @@
 package oss.relay.timing.testclient.central;
 
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
+import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingTimestamp;
 import oss.relay.timing.upstreamdata.UpstreamData;
 import oss.relay.timing.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -147,9 +148,14 @@ public final class CentralClient implements AutoCloseable {
 
     private final class Actions implements CentralControlActions {
         @Override
-        public MutationResult setTeamAssignment(
-                String registrationId,
+        public MutationResult setTeamAssignmentByNumber(
+                String registrationPrefix,
+                String registrationNumber,
                 String teamId) {
+            String registrationId =
+                    registrationId(
+                            registrationPrefix,
+                            registrationNumber);
             int packets =
                     sendPacketsAndCount(
                             simulator.updateTeamAssignments(
@@ -161,8 +167,13 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult deleteTeamAssignment(
-                String registrationId) {
+        public MutationResult deleteTeamAssignmentByNumber(
+                String registrationPrefix,
+                String registrationNumber) {
+            String registrationId =
+                    registrationId(
+                            registrationPrefix,
+                            registrationNumber);
             int packets =
                     sendPacketsAndCount(
                             simulator.updateTeamAssignments(
@@ -173,10 +184,11 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult setStageStartRange(
+        public MutationResult setStageStartRangeByNumber(
                 int stageId,
-                String firstRegistrationId,
-                String lastRegistrationId,
+                String registrationPrefix,
+                String firstRegistrationNumber,
+                String lastRegistrationNumber,
                 String start,
                 long intervalMillis) {
             if (intervalMillis < 0L) {
@@ -185,11 +197,11 @@ public final class CentralClient implements AutoCloseable {
             }
             List<String> registrations =
                     registrationRange(
-                            firstRegistrationId,
-                            lastRegistrationId);
+                            registrationPrefix,
+                            firstRegistrationNumber,
+                            lastRegistrationNumber);
             TimingTimestamp first =
-                    TimingTimestamp.parse(
-                            start == null ? null : start.trim());
+                    parseOperatorTimestamp(start);
             List<UpstreamData.StageStartTimeChange> changes =
                     new ArrayList<>(registrations.size());
             for (int index = 0; index < registrations.size(); index++) {
@@ -213,14 +225,16 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult deleteStageStartRange(
+        public MutationResult deleteStageStartRangeByNumber(
                 int stageId,
-                String firstRegistrationId,
-                String lastRegistrationId) {
+                String registrationPrefix,
+                String firstRegistrationNumber,
+                String lastRegistrationNumber) {
             List<String> registrations =
                     registrationRange(
-                            firstRegistrationId,
-                            lastRegistrationId);
+                            registrationPrefix,
+                            firstRegistrationNumber,
+                            lastRegistrationNumber);
             List<UpstreamData.StageStartTimeChange> changes =
                     new ArrayList<>(registrations.size());
             for (String registrationId : registrations) {
@@ -315,19 +329,42 @@ public final class CentralClient implements AutoCloseable {
         }
     }
 
+    static String registrationId(
+            String prefixText,
+            String numberText) {
+        String prefix =
+                prefixText == null
+                        ? ""
+                        : prefixText.trim().toUpperCase(java.util.Locale.ROOT);
+        if (prefix.length() != 1
+                || prefix.charAt(0) < 'A'
+                || prefix.charAt(0) > 'Z') {
+            throw new IllegalArgumentException(
+                    "Registration prefix must be A-Z");
+        }
+        int number = registrationNumber(numberText);
+        return new RegistrationId(
+                prefix.charAt(0),
+                number)
+                .value();
+    }
+
     static List<String> registrationRange(
+            String prefixText,
             String firstText,
             String lastText) {
-        oss.relay.timing.timingdata.TimingDataTypes.RegistrationId first =
-                new oss.relay.timing.timingdata.TimingDataTypes.RegistrationId(
-                        firstText == null ? null : firstText.trim());
-        oss.relay.timing.timingdata.TimingDataTypes.RegistrationId last =
-                new oss.relay.timing.timingdata.TimingDataTypes.RegistrationId(
-                        lastText == null ? null : lastText.trim());
-        if (first.type() != last.type()) {
-            throw new IllegalArgumentException(
-                    "Registration range must use one RegistrationId type");
-        }
+        String firstId =
+                registrationId(
+                        prefixText,
+                        firstText);
+        String lastId =
+                registrationId(
+                        prefixText,
+                        lastText);
+        RegistrationId first =
+                new RegistrationId(firstId);
+        RegistrationId last =
+                new RegistrationId(lastId);
         if (last.number() < first.number()) {
             throw new IllegalArgumentException(
                     "Registration range end must not precede start");
@@ -340,12 +377,44 @@ public final class CentralClient implements AutoCloseable {
                 number <= last.number();
                 number++) {
             result.add(
-                    new oss.relay.timing.timingdata.TimingDataTypes.RegistrationId(
+                    new RegistrationId(
                             first.type(),
                             number)
                             .value());
         }
         return List.copyOf(result);
+    }
+
+    static TimingTimestamp parseOperatorTimestamp(
+            String text) {
+        String value =
+                text == null
+                        ? null
+                        : text.trim();
+        if (value != null
+                && value.matches(
+                        "\\d{6}(?:\\.\\d{1,9})?")) {
+            value =
+                    value.substring(0, 2)
+                            + ":"
+                            + value.substring(2, 4)
+                            + ":"
+                            + value.substring(4);
+        }
+        return TimingTimestamp.parse(value);
+    }
+
+    private static int registrationNumber(
+            String text) {
+        String value =
+                text == null
+                        ? ""
+                        : text.trim();
+        if (!value.matches("\\d{1,4}")) {
+            throw new IllegalArgumentException(
+                    "Registration number must be 0..9999");
+        }
+        return Integer.parseInt(value);
     }
 
     static TimingTimestamp plusMillis(
