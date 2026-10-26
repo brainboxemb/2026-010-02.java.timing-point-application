@@ -320,6 +320,117 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void historicalOpenDuringCatchUpDoesNotReleaseStageStarts() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(2));
+        simulator.connected();
+
+        assertTrue(
+                simulator.updateStageStarts(
+                                2,
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("19:00:00"))))
+                        .isEmpty());
+
+        UpstreamData request =
+                simulator.accept(
+                                upPacket(
+                                        1L,
+                                        DefaultUpstreamData.createSequenceNotification(2L)),
+                                RECEIVED)
+                        .get(0);
+        assertEquals(
+                UpstreamData.Family.TIMING_DATA_REQ,
+                request.family());
+
+        assertTrue(
+                simulator.accept(
+                                receivePacket(
+                                        2L,
+                                        request.packetNr()),
+                                RECEIVED.plusMillis(1L))
+                        .isEmpty());
+
+        assertTrue(
+                simulator.accept(
+                                timingDataPacket(
+                                        3L,
+                                        opened(1L, 2)),
+                                RECEIVED.plusMillis(2L))
+                        .isEmpty());
+
+        TimingRecord close =
+                TimingRecord.createNodeClosed(
+                        'A',
+                        2L,
+                        2,
+                        RECEIVED.plusMillis(3L).toEpochMilli(),
+                        RECEIVED.plusMillis(3L).toEpochMilli());
+        assertTrue(
+                simulator.accept(
+                                timingDataPacket(
+                                        4L,
+                                        close),
+                                RECEIVED.plusMillis(3L))
+                        .isEmpty());
+
+        assertEquals(
+                "CLOSED",
+                simulator.nodes().get(0).lifecycleState());
+    }
+
+    @Test
+    void currentOpenAfterCatchUpReleasesStoredStageStarts() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(2));
+        simulator.connected();
+
+        simulator.updateStageStarts(
+                2,
+                List.of(
+                        DefaultUpstreamData.createStageStartSet(
+                                "A0001",
+                                TimingTimestamp.parse("19:00:00"))));
+
+        UpstreamData request =
+                simulator.accept(
+                                upPacket(
+                                        1L,
+                                        DefaultUpstreamData.createSequenceNotification(1L)),
+                                RECEIVED)
+                        .get(0);
+        simulator.accept(
+                receivePacket(
+                        2L,
+                        request.packetNr()),
+                RECEIVED.plusMillis(1L));
+
+        List<UpstreamData> replies =
+                simulator.accept(
+                        timingDataPacket(
+                                3L,
+                                opened(1L, 2)),
+                        RECEIVED.plusMillis(2L));
+
+        assertEquals(1, replies.size());
+        assertEquals(
+                UpstreamData.Family.RACE_DATA,
+                replies.get(0).family());
+        UpstreamData.RaceData raceData =
+                (UpstreamData.RaceData) replies.get(0).message();
+        assertEquals(2, raceData.locationId().value());
+        assertEquals(1, raceData.stageStartTimeChanges().size());
+        assertEquals(
+                "A0001",
+                raceData.stageStartTimeChanges()
+                        .get(0)
+                        .registrationId()
+                        .value());
+    }
+
+    @Test
     void centralStageStartStateRoutesStageNOnlyToLocationN() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(2);
@@ -924,6 +1035,11 @@ final class CentralSystemSimulatorTest {
                         1L,
                         opened(1L, locationId)),
                 RECEIVED);
+        simulator.accept(
+                upPacket(
+                        2L,
+                        DefaultUpstreamData.createSequenceNotification(1L)),
+                RECEIVED.plusMillis(1L));
         return simulator;
     }
 
