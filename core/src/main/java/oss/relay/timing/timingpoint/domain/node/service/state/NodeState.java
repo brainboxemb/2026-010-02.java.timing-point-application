@@ -64,19 +64,24 @@ public final class NodeState implements NodeStateAccessor, NodeStateTestControl 
                         failureHandler);
     }
 
-    /** Applies one already validated live assignment SET and refreshes team membership. */
+    /** Applies one already validated live assignment SET to retained state. */
     public void teamAssignmentSet(
             RegistrationId registrationId,
             TeamId teamId) {
 
         raceData.assignTeam(registrationId, teamId);
-        dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
     }
 
-    /** Applies one live assignment DEL and refreshes team membership. */
+    /** Applies one live assignment DEL to retained state. */
     public void teamAssignmentDeleted(RegistrationId registrationId) {
 
         raceData.removeTeam(registrationId);
+    }
+
+    /** Refreshes derived team membership from the final retained assignment state. */
+    public void teamAssignmentChanged(RegistrationId registrationId) {
+
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
     }
 
