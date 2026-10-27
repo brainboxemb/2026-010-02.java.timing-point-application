@@ -818,23 +818,21 @@ final class CentralSystemSimulatorTest {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(1, 2));
         simulator.updateStageStarts(
-                2,
                 List.of(
                         DefaultUpstreamData.createStageStartSet(
                                 "A0001",
                                 TimingTimestamp.parse("10:00:00"))));
 
-        assertFalse(simulator.stages().isEmpty());
+        assertFalse(simulator.stageStarts().isEmpty());
 
         simulator.resetTargetState();
         assertFalse(
-                simulator.stages().isEmpty(),
+                simulator.stageStarts().isEmpty(),
                 "target reset retains Central-owned source state");
 
         simulator.resetAllState();
         assertTrue(
-                simulator.stages().stream()
-                        .allMatch(stage -> stage.startTimes().isEmpty()),
+                simulator.stageStarts().isEmpty(),
                 "full reset clears all authored StageStartTimes");
         assertTrue(simulator.timingRecords().isEmpty());
         assertFalse(simulator.isConnected());
@@ -891,52 +889,64 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void stageStartUpdateUsesCurrentRaceDataPacket() {
+    void stageStartUpdateUsesStageStartsPacket() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(7);
 
         List<UpstreamData> packets =
-                simulator.updateRaceData(
-                        NODE_A,
-                        List.of(),
+                simulator.updateStageStarts(
                         List.of(
                                 DefaultUpstreamData.createStageStartSet(
                                         "A0001",
                                         TimingTimestamp.parse("10:30:00.25"))));
 
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) packets.get(0).message();
-        assertEquals(1, raceData.stageStartTimeChanges().size());
+        UpstreamData.StageStarts stageStarts =
+                (UpstreamData.StageStarts) packets.get(0).message();
+        assertEquals(1, stageStarts.changes().size());
         assertEquals(
                 TimingTimestamp.parse("10:30:00.25"),
-                raceData.stageStartTimeChanges().get(0).start());
+                stageStarts.changes().get(0).start());
     }
 
     @Test
-    void raceDataUpdatesRequireConnectedCentralAndOpenLocation() {
+    void currentStateCanBeAuthoredOfflineAndWaitsForOpenNode() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));
 
-        assertThrows(
-                IllegalStateException.class,
-                () -> simulator.updateRaceData(
-                        NODE_A,
-                        List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        "A0001",
-                                        "T001")),
-                        List.of()));
+        assertTrue(
+                simulator.updateTeamAssignments(
+                                List.of(
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0001",
+                                                "T001")))
+                        .isEmpty());
+        assertTrue(
+                simulator.updateStageStarts(
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("10:30:00"))))
+                        .isEmpty());
 
         simulator.connected();
-        assertThrows(
-                IllegalStateException.class,
-                () -> simulator.updateRaceData(
-                        NODE_A,
-                        List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        "A0001",
-                                        "T001")),
-                        List.of()));
+        assertTrue(
+                simulator.applyRuntimeStatus(
+                                "A",
+                                "CLOSED",
+                                null,
+                                RECEIVED)
+                        .isEmpty());
+
+        List<UpstreamData> afterOpen =
+                simulator.applyRuntimeStatus(
+                        "A",
+                        "OPEN",
+                        Integer.valueOf(7),
+                        RECEIVED.plusSeconds(1));
+        assertEquals(1, afterOpen.size());
+        assertSame(
+                UpstreamData.Family.TEAM_ASSIGNMENTS,
+                afterOpen.get(0).family());
     }
 
     @Test
@@ -1002,13 +1012,11 @@ final class CentralSystemSimulatorTest {
     void targetResetClearsLearnedStateButKeepsConfiguredLocations() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(7);
-        simulator.updateRaceData(
-                NODE_A,
+        simulator.updateTeamAssignments(
                 List.of(
                         DefaultUpstreamData.createTeamAssignmentSet(
                                 "A0001",
-                                "T001")),
-                List.of());
+                                "T001")));
 
         simulator.resetTargetState();
 
