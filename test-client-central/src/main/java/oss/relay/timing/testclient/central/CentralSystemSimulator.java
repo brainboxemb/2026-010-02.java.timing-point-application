@@ -141,7 +141,7 @@ final class CentralSystemSimulator {
         restoreConfiguredLocations();
     }
 
-    /** Clears facts learned from the previous target while retaining simulator configuration. */
+    /** Clears facts learned from the previous target while retaining Central-owned source state. */
     void resetTargetState() {
         connected = false;
         nodes.clear();
@@ -150,6 +150,13 @@ final class CentralSystemSimulator {
         timingRecords.clear();
         nextMessageOrdinal = 1L;
         restoreConfiguredLocations();
+    }
+
+    /** Full SI-02 simulator reset for deterministic engineering scenarios. */
+    void resetAllState() {
+        resetTargetState();
+        currentTeams.clear();
+        currentStageStarts.clear();
     }
 
     void connected() {
