@@ -257,8 +257,15 @@ public final class NodeUpstream extends LifecycleComponent {
         }
 
         switch (packet.family()) {
-            case RACE_DATA:
-                return new RaceDataTask(
+            case TEAM_ASSIGNMENTS:
+                return new TeamAssignmentsTask(
+                        this::isAvailable,
+                        downstreamDelivery,
+                        nodeService,
+                        packet);
+
+            case STAGE_STARTS:
+                return new StageStartsTask(
                         this::isAvailable,
                         downstreamDelivery,
                         nodeService,
