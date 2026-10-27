@@ -12,8 +12,7 @@ import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalid
  * Package-private RegistrationId-to-stage-start state owned by RaceDataState.
  *
  * <p>Values use compact UTC longs: time-only HHmmsscc remains below 100000000, while dated
- * values use yyyyMMddHHmmsscc. Copies participate in the same all-or-nothing RACE_DATA update
- * as team assignments.</p>
+ * values use yyyyMMddHHmmsscc. RaceDataState validates a transaction before mutation.</p>
  */
 final class StageStartTimes {
     private final Map<RegistrationId, Long> starts;
@@ -24,18 +23,7 @@ final class StageStartTimes {
         this.starts = new LinkedHashMap<RegistrationId, Long>();
     }
 
-    /** Creates an independent mutable copy from existing compact UTC start values. */
-    private StageStartTimes(Map<RegistrationId, Long> starts) {
-
-        this.starts = new LinkedHashMap<RegistrationId, Long>(starts);
-    }
-
-    /** Returns an independent mutable copy for transactional validation. */
-    StageStartTimes copy() {
-
-        return new StageStartTimes(starts);
-    }
-
+    /** Sets one already-normalized compact UTC stage start. */
     /** Sets one already-normalized compact UTC stage start. */
     boolean set(RegistrationId registrationId, long stageStart) {
 
@@ -67,11 +55,6 @@ final class StageStartTimes {
         return starts.remove(registrationId) != null;
     }
 
-    /** Replaces live state with a transactional stage-start copy. */
-    void replaceWith(StageStartTimes updatedStartTimes) {
 
-        failIfInvalidArgument(updatedStartTimes != null, "updatedStartTimes must not be null");
-        starts.clear();
-        starts.putAll(updatedStartTimes.starts);
-    }
+}
 }

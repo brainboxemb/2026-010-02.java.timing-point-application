@@ -7,13 +7,13 @@ import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQueries;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQuery;
+import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
 import oss.relay.timing.timingpoint.platform.execution.tasks.AbstractTask;
 import oss.relay.timing.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import oss.relay.timing.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
@@ -129,17 +129,12 @@ final class DataTask extends AbstractTask {
         }
     }
 
-    /** Applies one normalized RaceData stage-start change set to the active display projection. */
-    void stageStartChangesApplied(
-            Map<RegistrationId, Long> startsToSet,
-            List<RegistrationId> startsToDelete) {
+    /** Applies one validated bounded RaceData transaction to the active display projection. */
+    void raceDataApplied(RaceDataUpdate changes) {
 
-        failIfInvalidArgument(startsToSet != null, "startsToSet must not be null");
-        failIfInvalidArgument(startsToDelete != null, "startsToDelete must not be null");
+        failIfInvalidArgument(changes != null, "changes must not be null");
         if (isCurrentProjection()) {
-            state.activeRegistrations().applyStageStartChanges(
-                    startsToSet,
-                    startsToDelete);
+            state.activeRegistrations().applyStageStartChanges(changes);
         }
     }
 

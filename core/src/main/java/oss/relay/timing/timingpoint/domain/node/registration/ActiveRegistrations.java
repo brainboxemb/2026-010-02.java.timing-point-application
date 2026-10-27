@@ -3,11 +3,11 @@ package oss.relay.timing.timingpoint.domain.node.registration;
 import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
+import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfIllegalState;
@@ -122,34 +122,24 @@ public final class ActiveRegistrations {
     }
 
     /**
-     * Applies normalized RegistrationId-scoped stage-start changes to retained display rows.
+     * Applies one bounded normalized stage-start transaction to retained display rows.
      *
-     * <p>Rows not yet replayed during reconstruction will receive the current RaceData value when
-     * their ADD is applied. Ranking is recalculated once for the complete change set when live.</p>
+     * <p>Ranking is recalculated at most once after every changed row has been updated.</p>
      */
-    public void applyStageStartChanges(
-            Map<RegistrationId, Long> startsToSet,
-            List<RegistrationId> startsToDelete) {
+    public void applyStageStartChanges(RaceDataUpdate changes) {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
-        failIfInvalidArgument(startsToSet != null, "startsToSet must not be null");
-        failIfInvalidArgument(startsToDelete != null, "startsToDelete must not be null");
+        failIfInvalidArgument(changes != null, "changes must not be null");
 
         boolean changed = false;
-        for (Map.Entry<RegistrationId, Long> entry : startsToSet.entrySet()) {
-            RegistrationId registrationId = entry.getKey();
-            Long stageStart = entry.getValue();
-            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-            failIfInvalidArgument(stageStart != null, "stage start must not be null");
+        for (int index = 0; index < changes.stageStartSetCount(); index++) {
             changed |= replaceStageStart(
-                    registrationId.packedValue(),
-                    stageStart.longValue());
+                    changes.stageStartSetRegistrationId(index).packedValue(),
+                    changes.stageStartSetValue(index));
         }
-
-        for (RegistrationId registrationId : startsToDelete) {
-            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        for (int index = 0; index < changes.stageStartDeleteCount(); index++) {
             changed |= replaceStageStart(
-                    registrationId.packedValue(),
+                    changes.stageStartDeleteRegistrationId(index).packedValue(),
                     NO_STAGE_START);
         }
 

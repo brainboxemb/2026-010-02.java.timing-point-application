@@ -9,6 +9,7 @@ import oss.relay.timing.timingdata.TimingTimestamp;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookStatus;
 import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataState;
+import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
 import oss.relay.timing.timingpoint.domain.node.registration.StageTiming;
 import oss.relay.timing.timingpoint.domain.node.service.state.NodeState;
@@ -24,10 +25,6 @@ import oss.relay.timing.upstreamdata.UpstreamData;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -59,6 +56,8 @@ public final class NodeService extends LifecycleComponent {
     private final SerialTaskRunner taskRunner;
     private final TimeSource timeSource;
     private final NodeState state;
+    private final RaceDataUpdate raceDataUpdate =
+            new RaceDataUpdate(UpstreamData.MAX_RACE_DATA_CHANGES);
     private final MainTask mainTask = new MainTask();
 
     /** Creates the service over one LogBook and the node Task Lane. */
@@ -128,24 +127,21 @@ public final class NodeService extends LifecycleComponent {
                 });
     }
 
-    /** Converts one protocol change set to domain values before mutating retained race state. */
+    /** Converts one bounded protocol change set into the reusable normalized working transaction. */
     private void applyNormalizedRaceData(UpstreamData.RaceData changes) {
 
         Instant offsetReference = timeSource.now();
         failIfInvalidArgument(offsetReference != null, "timeSource.now must not return null");
 
-        Map<RegistrationId, TeamId> assignmentsToSet =
-                new LinkedHashMap<RegistrationId, TeamId>();
-        List<RegistrationId> assignmentsToDelete =
-                new ArrayList<RegistrationId>();
+        raceDataUpdate.clear();
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
             failIfInvalidArgument(change != null, "team assignment change must not be null");
             switch (change.operation()) {
                 case SET:
-                    assignmentsToSet.put(change.registrationId(), change.teamId());
+                    raceDataUpdate.setTeamAssignment(change.registrationId(), change.teamId());
                     break;
                 case DEL:
-                    assignmentsToDelete.add(change.registrationId());
+                    raceDataUpdate.deleteTeamAssignment(change.registrationId());
                     break;
                 default:
                     throw new IllegalArgumentException(
@@ -153,15 +149,11 @@ public final class NodeService extends LifecycleComponent {
             }
         }
 
-        Map<RegistrationId, Long> stageStartsToSet =
-                new LinkedHashMap<RegistrationId, Long>();
-        List<RegistrationId> stageStartsToDelete =
-                new ArrayList<RegistrationId>();
         for (UpstreamData.StageStartTimeChange change : changes.stageStartTimeChanges()) {
             failIfInvalidArgument(change != null, "stage start change must not be null");
             switch (change.operation()) {
                 case SET:
-                    stageStartsToSet.put(
+                    raceDataUpdate.setStageStart(
                             change.registrationId(),
                             StageTiming.compactUtc(
                                     change.start(),
@@ -169,7 +161,7 @@ public final class NodeService extends LifecycleComponent {
                                     offsetReference));
                     break;
                 case DEL:
-                    stageStartsToDelete.add(change.registrationId());
+                    raceDataUpdate.deleteStageStart(change.registrationId());
                     break;
                 default:
                     throw new IllegalArgumentException(
@@ -177,15 +169,7 @@ public final class NodeService extends LifecycleComponent {
             }
         }
 
-        state.applyRaceDataChanges(
-                assignmentsToSet,
-                assignmentsToDelete,
-                stageStartsToSet,
-                stageStartsToDelete);
-
-        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
-            state.teamAssignmentChanged(change.registrationId());
-        }
+        state.applyRaceDataChanges(raceDataUpdate);
     }
 
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */
