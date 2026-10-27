@@ -4,7 +4,7 @@ import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingpoint.domain.node.processing.TagProcessingPolicy;
 import oss.relay.timing.timingpoint.runtime.config.Config;
 import oss.relay.timing.timingpoint.runtime.config.Presentation;
-import oss.relay.timing.timingpoint.io.storage.FileRecordStoreMaintenance;
+import oss.relay.timing.timingpoint.io.storage.FileRecordStoreBackup;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,7 +65,7 @@ public class StartupParametersTest {
     }
 
     @Test
-    public void appliesPendingTimingDataClearBeforeRuntimeComposition()
+    public void appliesPendingLogBookBackupAndClearBeforeRuntimeComposition()
             throws Exception {
         Path timingData =
                 temporaryFolder.getRoot()
@@ -79,7 +79,7 @@ public class StartupParametersTest {
                 original);
 
         Path reservedBackup =
-                FileRecordStoreMaintenance.requestClearOnRestart(
+                FileRecordStoreBackup.requestBackupAndClearOnRestart(
                         timingData);
 
         Config.TimingNodeConfig timingNode =
@@ -105,7 +105,7 @@ public class StartupParametersTest {
                         null);
 
         List<Path> backups =
-                ApplicationLauncher.applyPendingTimingDataMaintenance(
+                ApplicationLauncher.applyPendingLogBookBackupAndClear(
                         config);
 
         assertEquals(
@@ -117,7 +117,7 @@ public class StartupParametersTest {
         assertFalse(
                 Files.exists(timingData));
         assertFalse(
-                FileRecordStoreMaintenance.hasPendingClear(
+                FileRecordStoreBackup.hasPendingClear(
                         timingData));
         assertEquals(
                 Collections.emptyList(),
