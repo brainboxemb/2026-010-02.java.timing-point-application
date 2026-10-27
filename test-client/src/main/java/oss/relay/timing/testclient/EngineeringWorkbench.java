@@ -68,7 +68,7 @@ final class EngineeringWorkbench {
             Node apiSystems,
             Node centralNodes,
             Node centralLocations,
-            Node centralStages,
+            Node centralStageStarts,
             Node centralMessages,
             Node centralLogBook,
             Node centralCurrentState,
@@ -256,7 +256,7 @@ final class EngineeringWorkbench {
                 new WorkbenchPanel(
                         "stages-viewer",
                         "Stages",
-                        centralStages));
+                        centralStageStarts));
         viewerLeaf.addDockables(
                 nodeViewer,
                 centralViewer,
