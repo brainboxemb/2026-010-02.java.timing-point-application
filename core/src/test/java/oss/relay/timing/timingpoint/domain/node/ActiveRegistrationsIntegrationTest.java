@@ -69,7 +69,7 @@ public class ActiveRegistrationsIntegrationTest {
                                     Collections.singletonList(
                                             DefaultUpstreamData.createTeamAssignmentSet(
                                                     "R0001",
-                                                    "0042"))));
+                                                    "0042")))));
             stream.takeSent();
 
             awaitUniqueTeamCount(components.nodeService(), 2);
