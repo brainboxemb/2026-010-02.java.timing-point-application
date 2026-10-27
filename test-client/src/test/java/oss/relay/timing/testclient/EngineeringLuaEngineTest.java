@@ -69,7 +69,7 @@ class EngineeringLuaEngineTest {
     }
 
     @Test
-    void centralConfigurationUsesGlobalStateWithoutStageId() {
+    void centralConfigurationUsesStageIdScopedStarts() {
         List<String> calls = new ArrayList<>();
         List<String> output = new ArrayList<>();
         CentralActions actions = new CentralActions() {
@@ -91,21 +91,24 @@ class EngineeringLuaEngineTest {
 
             @Override
             public MutationResult setStageStart(
+                    int stageId,
                     String regId,
                     String start) {
-                calls.add("start-set:" + regId + ":" + start);
+                calls.add("start-set:" + stageId + ":" + regId + ":" + start);
                 return changed(1);
             }
 
             @Override
             public MutationResult deleteStageStart(
+                    int stageId,
                     String regId) {
-                calls.add("start-del:" + regId);
+                calls.add("start-del:" + stageId + ":" + regId);
                 return changed(1);
             }
 
             @Override
             public MutationResult setStageStartRange(
+                    int stageId,
                     String prefix,
                     int from,
                     int to,
@@ -113,19 +116,20 @@ class EngineeringLuaEngineTest {
                     long intervalMillis) {
                 calls.add(
                         "start-range:"
-                                + prefix + ":" + from + ":" + to
+                                + stageId + ":" + prefix + ":" + from + ":" + to
                                 + ":" + start + ":" + intervalMillis);
                 return changed(to - from + 1);
             }
 
             @Override
             public MutationResult deleteStageStartRange(
+                    int stageId,
                     String prefix,
                     int from,
                     int to) {
                 calls.add(
                         "start-range-del:"
-                                + prefix + ":" + from + ":" + to);
+                                + stageId + ":" + prefix + ":" + from + ":" + to);
                 return changed(to - from + 1);
             }
 
@@ -138,8 +142,8 @@ class EngineeringLuaEngineTest {
 
         EngineeringLuaEngine.run(
                 "central.team_set('A0001','T001'); "
-                        + "central.stage_start_set('A0001','10:30:00.25'); "
-                        + "central.stage_start_range{prefix='A',from=2,to=3,"
+                        + "central.stage_start_set(2,'A0001','10:30:00.25'); "
+                        + "central.stage_start_range{stage=2,prefix='A',from=2,to=3,"
                         + "start='10:31:00',intervalMs=1000}; "
                         + "central.timing_data_req(7)",
                 (id, profile) -> fail("must not simulate"),
@@ -152,8 +156,8 @@ class EngineeringLuaEngineTest {
         assertEquals(
                 List.of(
                         "team-set:A0001:T001",
-                        "start-set:A0001:10:30:00.25",
-                        "start-range:A:2:3:10:31:00:1000",
+                        "start-set:2:A0001:10:30:00.25",
+                        "start-range:2:A:2:3:10:31:00:1000",
                         "req:A:7"),
                 calls);
         assertTrue(
