@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     private static final int MAX_SCRIPT_BYTES = 128 * 1024;
     static final String STARTER =
-            "-- Local Lua works while the Engineering Client is LIVE.\n"
+            "-- Lua automation runs independently of connection state.\n"
             + "print('Engineering Lua is ready')\n"
             + "timing.log('Selected TimingNode is LIVE')\n"
             + "-- For simulated antenna passages, first verify that\n"
@@ -47,6 +47,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     private final Supplier<String> selectedNode;
     private final BooleanSupplier guiBatchRunning;
     private final CentralActions centralActions;
+    private final EngineeringClientActions clientActions;
     private final Runnable refreshControls;
     private final ClientLog clientLog;
 
@@ -74,12 +75,14 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                            Supplier<String> selectedNode,
                            BooleanSupplier guiBatchRunning,
                            CentralActions centralActions,
+                           EngineeringClientActions clientActions,
                            Runnable refreshControls,
                            ClientLog clientLog) {
         this.clientSupplier = java.util.Objects.requireNonNull(clientSupplier);
         this.selectedNode = java.util.Objects.requireNonNull(selectedNode);
         this.guiBatchRunning = java.util.Objects.requireNonNull(guiBatchRunning);
         this.centralActions = java.util.Objects.requireNonNull(centralActions);
+        this.clientActions = java.util.Objects.requireNonNull(clientActions);
         this.refreshControls = java.util.Objects.requireNonNull(refreshControls);
         this.clientLog = java.util.Objects.requireNonNull(clientLog);
 
@@ -241,15 +244,11 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         simulationAvailable = simulationEnabled;
         available = canRun(live, guiBatchRunning.getAsBoolean());
         if (!running) {
-            state.setText(!live ? "Scripts require Events LIVE (connect and sync)"
-                    : guiBatchRunning.getAsBoolean() ? "GUI simulation batch is running"
+            state.setText(guiBatchRunning.getAsBoolean() ? "GUI simulation batch is running"
                     : nodeId == null || nodeId.isBlank()
-                            ? "Lua ready; node-specific commands unavailable until a node is selected"
+                            ? "Lua ready; client/central commands available; node-specific commands need a selected node"
                     : !simulationEnabled ? "Lua ready; simulation unavailable (TAG_SCENARIO_SIMULATION)"
                     : "Lua ready (simulation available)");
-        }
-        if (running && !live) {
-            stopScript();
         }
         run.setDisable(running || !available);
         stop.setDisable(!running);
@@ -258,7 +257,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     }
 
     static boolean canRun(boolean live, boolean guiBatchRunning) {
-        return live && !guiBatchRunning;
+        return !guiBatchRunning;
     }
 
     private void runScript() {
@@ -306,6 +305,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                             client.simulateRegistration(nodeId, regId, profile);
                         },
                         scriptCentralActions(),
+                        clientActions,
                         nodeId,
                         line -> Platform.runLater(() -> {
                             if (currentGeneration == generation)
