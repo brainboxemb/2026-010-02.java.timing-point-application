@@ -212,7 +212,7 @@ final class ApplicationLauncher {
         }
     }
 
-    static List<Path> applyPendingTimingDataMaintenance(
+    static List<Path> applyPendingLogBookBackupAndClear(
             Config config)
             throws IOException {
         if (config == null) {
