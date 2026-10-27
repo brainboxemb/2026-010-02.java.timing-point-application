@@ -25,7 +25,7 @@ import java.util.Objects;
  * Central-side IF-06 simulator state.
  *
  * <p>TIMING_DATA receive progress is durable protocol state for this simulator session.
- * Central-owned RACE_DATA is current state rather than a packet history: per node the
+ * Central-owned current-state is current state rather than a packet history: per node the
  * simulator keeps the authoritative state, the last confirmed baseline and at most one
  * immutable normal DN_PACKET outstanding.</p>
  */
@@ -86,14 +86,6 @@ final class CentralSystemSimulator {
             String start) {
     }
 
-    record StageView(
-            int stageId,
-            List<StageStartView> startTimes) {
-        StageView {
-            startTimes = List.copyOf(startTimes);
-        }
-    }
-
     /** Bounded model-side diagnostic history; TableView rendering is virtualized separately. */
     private static final int MAX_MESSAGE_HISTORY = 10_000;
 
@@ -104,7 +96,7 @@ final class CentralSystemSimulator {
     private final Deque<MessageView> messages = new ArrayDeque<>(MAX_MESSAGE_HISTORY);
     private final List<TimingRecord> timingRecords = new ArrayList<>();
     private final Map<RegistrationId, TeamId> currentTeams = new LinkedHashMap<>();
-    private final Map<Integer, Map<RegistrationId, TimingTimestamp>> currentStageStarts =
+    private final Map<RegistrationId, TimingTimestamp> currentStageStarts =
             new LinkedHashMap<>();
 
     private boolean connected;
@@ -238,85 +230,37 @@ final class CentralSystemSimulator {
     }
 
     /**
-     * Applies one Central-owned RaceData state update and returns any packet that became sendable.
+     * Applies Central-owned Team Mapping and returns any packet that became sendable.
      *
-     * <p>If another normal DN_PACKET is outstanding the authoritative state changes now, but that
-     * packet remains immutable. The resulting RaceData delta is built only after the outstanding
-     * packet is confirmed.</p>
-     */
-    List<UpstreamData> updateRaceData(
-            NodeId nodeId,
-            List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
-            List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
-        requireConnected();
-        if (nodeId == null) {
-            throw new IllegalArgumentException("nodeId must not be null");
-        }
-        if (teamAssignmentChanges == null || stageStartTimeChanges == null) {
-            throw new IllegalArgumentException(
-                    "RACE_DATA change lists must not be null");
-        }
-
-        NodeState node =
-                nodes.computeIfAbsent(
-                        nodeId.value(),
-                        ignored -> new NodeState(nodeId.value()));
-
-        if (!node.runtimeStatusKnown
-                || node.locationId == null
-                || !"OPEN".equals(node.lifecycleState)) {
-            throw new IllegalStateException(
-                    "RACE_DATA requires a current OPEN LocationId for "
-                            + nodeId.value());
-        }
-
-        applyCurrentRaceData(
-                Integer.valueOf(node.locationId.intValue()),
-                teamAssignmentChanges,
-                stageStartTimeChanges);
-        return sendRaceDataForOpenNodes();
-    }
-
-    /**
-     * Applies Central-owned Team Mapping independently from any selected TimingNode.
-     *
-     * <p>The current assignment is routed to every OPEN node through that node's
-     * normal LocationId-scoped RACE_DATA/RECV lane.</p>
+     * <p>The current assignment state is independent from WP LocationId. The simulator routes
+     * current state to OPEN nodes through their normal downstream stop-and-wait lane.</p>
      */
     List<UpstreamData> updateTeamAssignments(
-            List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges) {
-        if (teamAssignmentChanges == null) {
+            List<UpstreamData.TeamAssignmentChange> changes) {
+
+        if (changes == null) {
             throw new IllegalArgumentException(
                     "teamAssignmentChanges must not be null");
         }
-        applyCurrentRaceData(
-                null,
-                teamAssignmentChanges,
-                List.of());
-        return sendRaceDataForOpenNodes();
+        applyCurrentTeamAssignments(changes);
+        return sendCurrentStateForOpenNodes();
     }
 
     /**
-     * Applies Central-owned StageStartTimes for Stage N.
+     * Applies Central-owned RegistrationId-scoped stage starts.
      *
-     * <p>Stage N finishes at LocationId N. StageId is Central authoring/routing
-     * context and is not added to IF-06.</p>
+     * <p>The retained start state has no StageId or LocationId. Runtime OPEN state controls which
+     * nodes are currently eligible to receive the current values; it is not part of the values.</p>
      */
     List<UpstreamData> updateStageStarts(
-            int stageId,
-            List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
-        if (stageId <= 0) {
-            throw new IllegalArgumentException("StageId must be positive");
-        }
-        if (stageStartTimeChanges == null) {
+            List<UpstreamData.StageStartTimeChange> changes) {
+
+        if (changes == null) {
             throw new IllegalArgumentException(
                     "stageStartTimeChanges must not be null");
         }
-        applyCurrentRaceData(
-                Integer.valueOf(stageId),
-                List.of(),
-                stageStartTimeChanges);
-        return sendRaceDataForOpenNodes();
+        applyCurrentStageStarts(changes);
+        return sendCurrentStateForOpenNodes();
     }
 
     /** Queues one explicit TIMING_DATA_REQ through normal downstream stop-and-wait delivery. */
@@ -538,36 +482,17 @@ final class CentralSystemSimulator {
         return List.copyOf(result);
     }
 
-    List<StageView> stages() {
-        List<Integer> stageIds =
-                new ArrayList<>(configuredLocationIds);
-        for (Integer stageId : currentStageStarts.keySet()) {
-            if (!stageIds.contains(stageId)) {
-                stageIds.add(stageId);
-            }
-        }
-        stageIds.sort(Integer::compareTo);
+    /** Returns all Central-owned current stage starts in retained order. */
+    List<StageStartView> stageStarts() {
 
-        List<StageView> result =
-                new ArrayList<>(stageIds.size());
-        for (Integer stageId : stageIds) {
-            Map<RegistrationId, TimingTimestamp> starts =
-                    currentStageStarts.getOrDefault(
-                            stageId,
-                            Collections.emptyMap());
-            List<StageStartView> values =
-                    new ArrayList<>(starts.size());
-            for (Map.Entry<RegistrationId, TimingTimestamp> entry
-                    : starts.entrySet()) {
-                values.add(
-                        new StageStartView(
-                                entry.getKey().value(),
-                                entry.getValue().toString()));
-            }
+        List<StageStartView> result =
+                new ArrayList<>(currentStageStarts.size());
+        for (Map.Entry<RegistrationId, TimingTimestamp> entry
+                : currentStageStarts.entrySet()) {
             result.add(
-                    new StageView(
-                            stageId.intValue(),
-                            values));
+                    new StageStartView(
+                            entry.getKey().value(),
+                            entry.getValue().toString()));
         }
         return List.copyOf(result);
     }
@@ -749,7 +674,7 @@ final class CentralSystemSimulator {
      * Resets the assumed downstream baseline after a fresh-node RECV 0.
      *
      * <p>The current SI-01 sends RECV 0 only before it has processed a normal downstream
-     * packet in this runtime. Central therefore rebuilds from an empty RaceData baseline
+     * packet in this runtime. Central therefore rebuilds from an empty current state baseline
      * and starts the downstream packet sequence again at 1.</p>
      */
     private void resetDownstreamState(NodeState node) {
@@ -760,7 +685,6 @@ final class CentralSystemSimulator {
         node.sourceHeadQueryPending = false;
         node.acknowledgedTeams.clear();
         node.acknowledgedStageStarts.clear();
-        node.acknowledgedStageLocationId = null;
     }
 
     private void handleTimingData(
@@ -789,7 +713,7 @@ final class CentralSystemSimulator {
 
     }
 
-    private List<UpstreamData> sendRaceDataForOpenNodes() {
+    private List<UpstreamData> sendCurrentStateForOpenNodes() {
         if (!connected) {
             return Collections.emptyList();
         }
@@ -808,7 +732,7 @@ final class CentralSystemSimulator {
 
         UpstreamData.Message message = node.pendingMessages.pollFirst();
         if (message == null) {
-            message = createNextRaceDataDelta(node);
+            message = createNextCurrentStateDelta(node);
         }
         if (message == null) {
             return Collections.emptyList();
@@ -823,46 +747,46 @@ final class CentralSystemSimulator {
         return List.of(packet);
     }
 
-    /** Builds at most one bounded delta from the last confirmed RaceData baseline. */
-    private UpstreamData.RaceData createNextRaceDataDelta(
+    /**
+     * Builds at most one bounded current-state message from the last confirmed baseline.
+     *
+     * <p>TEAM_ASSIGNMENTS is emitted before STAGE_STARTS when both are dirty. Stop-and-wait
+     * delivery then naturally sends the second family after the first packet is confirmed.</p>
+     */
+    private UpstreamData.Message createNextCurrentStateDelta(
             NodeState node) {
+
         if (!node.runtimeStatusKnown
                 || node.locationId == null
                 || !"OPEN".equals(node.lifecycleState)) {
             return null;
         }
 
-        if (!Objects.equals(
-                node.acknowledgedStageLocationId,
-                node.locationId)) {
-            node.acknowledgedStageStarts.clear();
-            node.acknowledgedStageLocationId = node.locationId;
+        UpstreamData.TeamAssignments assignments =
+                createTeamAssignmentsDelta(node);
+        if (assignments != null) {
+            return assignments;
         }
+        return createStageStartsDelta(node);
+    }
 
-        Map<RegistrationId, TimingTimestamp> stageStarts =
-                currentStageStarts.getOrDefault(
-                        node.locationId,
-                        Collections.emptyMap());
+    private UpstreamData.TeamAssignments createTeamAssignmentsDelta(
+            NodeState node) {
 
-        List<UpstreamData.TeamAssignmentChange> teamChanges =
-                new ArrayList<>();
-        List<UpstreamData.StageStartTimeChange> startChanges =
+        List<UpstreamData.TeamAssignmentChange> changes =
                 new ArrayList<>();
 
         for (Map.Entry<RegistrationId, TeamId> entry
                 : node.acknowledgedTeams.entrySet()) {
             if (!currentTeams.containsKey(entry.getKey())) {
-                teamChanges.add(
+                changes.add(
                         new UpstreamData.TeamAssignmentChange(
                                 UpstreamData.ChangeOperation.DEL,
                                 entry.getKey(),
                                 null));
-                if (changeCount(teamChanges, startChanges)
-                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
-                    return createRaceData(
-                            node,
-                            teamChanges,
-                            startChanges);
+                if (changes.size()
+                        >= UpstreamData.MAX_TEAM_ASSIGNMENT_CHANGES) {
+                    return DefaultUpstreamData.createTeamAssignments(changes);
                 }
             }
         }
@@ -872,89 +796,70 @@ final class CentralSystemSimulator {
             if (!Objects.equals(
                     entry.getValue(),
                     node.acknowledgedTeams.get(entry.getKey()))) {
-                teamChanges.add(
+                changes.add(
                         new UpstreamData.TeamAssignmentChange(
                                 UpstreamData.ChangeOperation.SET,
                                 entry.getKey(),
                                 entry.getValue()));
-                if (changeCount(teamChanges, startChanges)
-                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
-                    return createRaceData(
-                            node,
-                            teamChanges,
-                            startChanges);
+                if (changes.size()
+                        >= UpstreamData.MAX_TEAM_ASSIGNMENT_CHANGES) {
+                    return DefaultUpstreamData.createTeamAssignments(changes);
                 }
             }
         }
 
+        return changes.isEmpty()
+                ? null
+                : DefaultUpstreamData.createTeamAssignments(changes);
+    }
+
+    private UpstreamData.StageStarts createStageStartsDelta(
+            NodeState node) {
+
+        List<UpstreamData.StageStartTimeChange> changes =
+                new ArrayList<>();
+
         for (Map.Entry<RegistrationId, TimingTimestamp> entry
                 : node.acknowledgedStageStarts.entrySet()) {
-            if (!stageStarts.containsKey(entry.getKey())) {
-                startChanges.add(
+            if (!currentStageStarts.containsKey(entry.getKey())) {
+                changes.add(
                         new UpstreamData.StageStartTimeChange(
                                 UpstreamData.ChangeOperation.DEL,
                                 entry.getKey(),
                                 null));
-                if (changeCount(teamChanges, startChanges)
-                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
-                    return createRaceData(
-                            node,
-                            teamChanges,
-                            startChanges);
+                if (changes.size()
+                        >= UpstreamData.MAX_STAGE_START_CHANGES) {
+                    return DefaultUpstreamData.createStageStarts(changes);
                 }
             }
         }
 
         for (Map.Entry<RegistrationId, TimingTimestamp> entry
-                : stageStarts.entrySet()) {
+                : currentStageStarts.entrySet()) {
             if (!Objects.equals(
                     entry.getValue(),
                     node.acknowledgedStageStarts.get(entry.getKey()))) {
-                startChanges.add(
+                changes.add(
                         new UpstreamData.StageStartTimeChange(
                                 UpstreamData.ChangeOperation.SET,
                                 entry.getKey(),
                                 entry.getValue()));
-                if (changeCount(teamChanges, startChanges)
-                        >= UpstreamData.MAX_RACE_DATA_CHANGES) {
-                    return createRaceData(
-                            node,
-                            teamChanges,
-                            startChanges);
+                if (changes.size()
+                        >= UpstreamData.MAX_STAGE_START_CHANGES) {
+                    return DefaultUpstreamData.createStageStarts(changes);
                 }
             }
         }
 
-        if (teamChanges.isEmpty() && startChanges.isEmpty()) {
-            return null;
-        }
-        return createRaceData(
-                node,
-                teamChanges,
-                startChanges);
+        return changes.isEmpty()
+                ? null
+                : DefaultUpstreamData.createStageStarts(changes);
     }
 
-    private static UpstreamData.RaceData createRaceData(
-            NodeState node,
-            List<UpstreamData.TeamAssignmentChange> teamChanges,
-            List<UpstreamData.StageStartTimeChange> startChanges) {
-        return DefaultUpstreamData.createRaceData(
-                new LocationId(node.locationId.intValue()),
-                teamChanges,
-                startChanges);
-    }
+    private void applyCurrentTeamAssignments(
+            List<UpstreamData.TeamAssignmentChange> changes) {
 
-    private static int changeCount(
-            List<UpstreamData.TeamAssignmentChange> teamChanges,
-            List<UpstreamData.StageStartTimeChange> startChanges) {
-        return teamChanges.size() + startChanges.size();
-    }
-
-    private void applyCurrentRaceData(
-            Integer stageId,
-            List<UpstreamData.TeamAssignmentChange> teamChanges,
-            List<UpstreamData.StageStartTimeChange> startChanges) {
-        for (UpstreamData.TeamAssignmentChange change : teamChanges) {
+        for (UpstreamData.TeamAssignmentChange change : changes) {
             if (change == null) {
                 throw new IllegalArgumentException(
                         "team assignment change must not be null");
@@ -974,31 +879,24 @@ final class CentralSystemSimulator {
                                     + change.operation());
             }
         }
+    }
 
-        if (!startChanges.isEmpty() && stageId == null) {
-            throw new IllegalArgumentException(
-                    "StageStartTimes require StageId/LocationId context");
-        }
-        Map<RegistrationId, TimingTimestamp> starts =
-                stageId == null
-                        ? Collections.emptyMap()
-                        : currentStageStarts.computeIfAbsent(
-                                stageId,
-                                ignored -> new LinkedHashMap<>());
+    private void applyCurrentStageStarts(
+            List<UpstreamData.StageStartTimeChange> changes) {
 
-        for (UpstreamData.StageStartTimeChange change : startChanges) {
+        for (UpstreamData.StageStartTimeChange change : changes) {
             if (change == null) {
                 throw new IllegalArgumentException(
                         "stage-start change must not be null");
             }
             switch (change.operation()) {
                 case SET:
-                    starts.put(
+                    currentStageStarts.put(
                             change.registrationId(),
                             change.start());
                     break;
                 case DEL:
-                    starts.remove(
+                    currentStageStarts.remove(
                             change.registrationId());
                     break;
                 default:
@@ -1012,36 +910,38 @@ final class CentralSystemSimulator {
     private static void applyAcknowledgedPacket(
             NodeState node,
             UpstreamData packet) {
-        if (packet.family() != UpstreamData.Family.RACE_DATA) {
-            return;
-        }
 
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) packet.message();
-        node.acknowledgedStageLocationId =
-                Integer.valueOf(raceData.locationId().value());
-        for (UpstreamData.TeamAssignmentChange change
-                : raceData.teamAssignmentChanges()) {
-            if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                node.acknowledgedTeams.put(
-                        change.registrationId(),
-                        change.teamId());
-            } else {
-                node.acknowledgedTeams.remove(
-                        change.registrationId());
-            }
-        }
+        switch (packet.family()) {
+            case TEAM_ASSIGNMENTS:
+                for (UpstreamData.TeamAssignmentChange change
+                        : ((UpstreamData.TeamAssignments) packet.message()).changes()) {
+                    if (change.operation() == UpstreamData.ChangeOperation.SET) {
+                        node.acknowledgedTeams.put(
+                                change.registrationId(),
+                                change.teamId());
+                    } else {
+                        node.acknowledgedTeams.remove(
+                                change.registrationId());
+                    }
+                }
+                return;
 
-        for (UpstreamData.StageStartTimeChange change
-                : raceData.stageStartTimeChanges()) {
-            if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                node.acknowledgedStageStarts.put(
-                        change.registrationId(),
-                        change.start());
-            } else {
-                node.acknowledgedStageStarts.remove(
-                        change.registrationId());
-            }
+            case STAGE_STARTS:
+                for (UpstreamData.StageStartTimeChange change
+                        : ((UpstreamData.StageStarts) packet.message()).changes()) {
+                    if (change.operation() == UpstreamData.ChangeOperation.SET) {
+                        node.acknowledgedStageStarts.put(
+                                change.registrationId(),
+                                change.start());
+                    } else {
+                        node.acknowledgedStageStarts.remove(
+                                change.registrationId());
+                    }
+                }
+                return;
+
+            default:
+                return;
         }
     }
 
@@ -1140,7 +1040,6 @@ final class CentralSystemSimulator {
                 new LinkedHashMap<>();
         private final Map<RegistrationId, TimingTimestamp> acknowledgedStageStarts =
                 new LinkedHashMap<>();
-        private Integer acknowledgedStageLocationId;
         private final Deque<UpstreamData.Message> pendingMessages =
                 new ArrayDeque<>();
 
