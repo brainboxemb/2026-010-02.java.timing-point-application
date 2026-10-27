@@ -416,7 +416,7 @@ The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/fil
 editor. The Engineering Client still does not expose arbitrary TagObservation injection,
 TagProcessor/filter mutation or node-side StageStartTimes/NextUpTeams editors. It does
 provide a read-only Node **StartTimes** view of the values actually applied in SI-01. The
-Central RACE_DATA editor remains separately available as **C|RaceData**.
+Central current-state editor remains separately available as **C|Current State**.
 
 The narrow explorer deliberately contains separate **System** and **Central** projections.
 System is the direct IF-03/API system view of SI-01. Central uses the complete IF-03
