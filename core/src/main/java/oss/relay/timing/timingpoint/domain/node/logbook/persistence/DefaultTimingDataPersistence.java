@@ -4,6 +4,9 @@ import oss.relay.timing.timingdata.TimingDataCodec;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingRecord;
 import oss.relay.timing.timingpoint.io.storage.AppendOnlyRecordStore;
+import oss.relay.timing.timingpoint.io.storage.AppendOnlyRecordStoreMaintenance;
+
+import java.nio.file.Path;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +16,8 @@ import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalid
 /**
  * Scalar timing-record persistence over a generic append-only record store.
  */
-public final class DefaultTimingDataPersistence implements TimingDataPersistence {
+public final class DefaultTimingDataPersistence
+        implements TimingDataPersistence, TimingDataPersistenceMaintenance {
     private final AppendOnlyRecordStore recordStore;
     private final char timingNodeId;
     private final TimingDataCodec codec;
@@ -48,6 +52,42 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
             recordNumber++;
         }
         return new LoadResult(records, raw.repairedIncompleteTail());
+    }
+
+    @Override
+    public Path backupTimingData()
+            throws PersistenceException {
+        AppendOnlyRecordStoreMaintenance maintenance =
+                maintenance();
+        try {
+            return maintenance.backup();
+        } catch (AppendOnlyRecordStore.StoreException ex) {
+            throw new PersistenceException(
+                    "could not back up persisted TimingData",
+                    ex);
+        }
+    }
+
+    @Override
+    public Path requestTimingDataClearOnRestart()
+            throws PersistenceException {
+        AppendOnlyRecordStoreMaintenance maintenance =
+                maintenance();
+        try {
+            return maintenance.requestClearOnRestart();
+        } catch (AppendOnlyRecordStore.StoreException ex) {
+            throw new PersistenceException(
+                    "could not schedule persisted TimingData clear",
+                    ex);
+        }
+    }
+
+    private AppendOnlyRecordStoreMaintenance maintenance() {
+        if (!(recordStore instanceof AppendOnlyRecordStoreMaintenance)) {
+            throw new IllegalStateException(
+                    "TimingData persistence does not support file maintenance");
+        }
+        return (AppendOnlyRecordStoreMaintenance) recordStore;
     }
 
     @Override
