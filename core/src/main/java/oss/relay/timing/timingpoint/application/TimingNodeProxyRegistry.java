@@ -48,7 +48,9 @@ final class TimingNodeProxyRegistry
                             components.eventData(),
                             components.nodeState(),
                             components.nodeStateTestControl(),
-                            components.logBook()));
+                            components.logBook(),
+                            components.logBookTestControl(),
+                            components.logBookBackup()));
         }
     }
 

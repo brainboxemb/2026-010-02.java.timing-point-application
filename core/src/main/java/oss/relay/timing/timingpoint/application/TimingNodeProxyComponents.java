@@ -3,6 +3,8 @@ package oss.relay.timing.timingpoint.application;
 import oss.relay.timing.eventdata.EventData;
 import oss.relay.timing.timingpoint.domain.node.TimingNode;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookBackup;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookTestControl;
 import oss.relay.timing.timingpoint.domain.node.service.state.NodeStateAccessor;
 import oss.relay.timing.timingpoint.domain.node.service.state.NodeStateTestControl;
 
@@ -20,25 +22,36 @@ public final class TimingNodeProxyComponents {
     private final NodeStateAccessor nodeState;
     private final NodeStateTestControl nodeStateTestControl;
     private final LogBookAccessor logBook;
+    private final LogBookTestControl logBookTestControl;
+    private final LogBookBackup logBookBackup;
 
-    /** Creates one immutable proxy-composition value. */
     public TimingNodeProxyComponents(
             TimingNode timingNode,
             EventData eventData,
             NodeStateAccessor nodeState,
             NodeStateTestControl nodeStateTestControl,
-            LogBookAccessor logBook) {
+            LogBookAccessor logBook,
+            LogBookTestControl logBookTestControl,
+            LogBookBackup logBookBackup) {
 
         failIfInvalidArgument(timingNode != null, "timingNode must not be null");
         failIfInvalidArgument(eventData != null, "eventData must not be null");
         failIfInvalidArgument(nodeState != null, "nodeState must not be null");
         failIfInvalidArgument(nodeStateTestControl != null, "nodeStateTestControl must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
+        failIfInvalidArgument(
+                logBookTestControl != null,
+                "logBookTestControl must not be null");
+        failIfInvalidArgument(
+                logBookBackup != null,
+                "logBookBackup must not be null");
         this.timingNode = timingNode;
         this.eventData = eventData;
         this.nodeState = nodeState;
         this.nodeStateTestControl = nodeStateTestControl;
         this.logBook = logBook;
+        this.logBookTestControl = logBookTestControl;
+        this.logBookBackup = logBookBackup;
     }
 
     TimingNode timingNode() {
@@ -59,5 +72,13 @@ public final class TimingNodeProxyComponents {
 
     LogBookAccessor logBook() {
         return logBook;
+    }
+
+    LogBookTestControl logBookTestControl() {
+        return logBookTestControl;
+    }
+
+    LogBookBackup logBookBackup() {
+        return logBookBackup;
     }
 }

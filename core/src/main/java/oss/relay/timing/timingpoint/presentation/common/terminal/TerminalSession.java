@@ -682,7 +682,7 @@ public final class TerminalSession {
         if (arguments.length == 2
                 && "backup".equalsIgnoreCase(arguments[1])) {
             Path backup =
-                    timingNode.backupTimingData();
+                    timingNode.backupLogBook();
             output.println(
                     "LogBook backup: "
                             + backup.toAbsolutePath().normalize());
@@ -802,7 +802,7 @@ public final class TerminalSession {
         }
 
         Path backup =
-                timingNode.requestTimingDataClearOnRestart();
+                timingNode.requestLogBookBackupAndClearOnRestart();
         output.println(
                 "LogBook backup+clear scheduled; backup="
                         + backup.toAbsolutePath().normalize());

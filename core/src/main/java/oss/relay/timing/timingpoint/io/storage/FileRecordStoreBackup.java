@@ -14,23 +14,16 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
-/**
- * Process-level maintenance for one file-backed append-only store.
- *
- * <p>A clear request is durable and is applied only between runtime instances,
- * after the old runtime has stopped writing and before the replacement runtime loads.</p>
- */
-public final class FileRecordStoreMaintenance {
+public final class FileRecordStoreBackup {
     private static final String CLEAR_MARKER_SUFFIX = ".clear-on-restart";
     private static final String BACKUP_PREFIX = ".backup-";
     private static final DateTimeFormatter BACKUP_TIME =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")
                     .withZone(ZoneOffset.UTC);
 
-    private FileRecordStoreMaintenance() {
+    private FileRecordStoreBackup() {
     }
 
-    /** Creates a standalone point-in-time backup. Caller owns synchronization with append. */
     public static Path backup(Path file) throws IOException {
         requireFile(file);
         Path backup = backupPath(file, newToken());
@@ -38,10 +31,7 @@ public final class FileRecordStoreMaintenance {
         return backup;
     }
 
-    /**
-     * Creates or reuses one durable clear request and returns its reserved backup path.
-     */
-    public static Path requestClearOnRestart(Path file) throws IOException {
+    public static Path requestBackupAndClearOnRestart(Path file) throws IOException {
         requireFile(file);
         ensureParent(file);
 
@@ -67,12 +57,7 @@ public final class FileRecordStoreMaintenance {
         return backupPath(file, token);
     }
 
-    /**
-     * Applies one pending clear request. Safe to call on every startup.
-     *
-     * @return backup path when a request was applied; null when none was pending
-     */
-    public static Path applyPendingClear(Path file) throws IOException {
+    public static Path applyPendingBackupAndClear(Path file) throws IOException {
         requireFile(file);
         Path marker = marker(file);
         if (!Files.exists(marker)) {
@@ -88,7 +73,7 @@ public final class FileRecordStoreMaintenance {
         return backup;
     }
 
-    public static boolean hasPendingClear(Path file) {
+    public static boolean hasPendingBackupAndClear(Path file) {
         requireFile(file);
         return Files.exists(marker(file));
     }
@@ -155,7 +140,7 @@ public final class FileRecordStoreMaintenance {
                 || !token.matches(
                         "[0-9]{8}-[0-9]{6}-[0-9]{3}-[0-9a-f]{8}")) {
             throw new IllegalArgumentException(
-                    "Invalid file-maintenance token");
+                    "Invalid backup token");
         }
     }
 

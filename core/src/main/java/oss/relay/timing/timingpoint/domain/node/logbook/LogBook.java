@@ -3,9 +3,6 @@ package oss.relay.timing.timingpoint.domain.node.logbook;
 import oss.relay.timing.timingdata.TimingRecord;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
-import oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataPersistenceMaintenance;
-
-import java.nio.file.Path;
 import oss.relay.timing.timingpoint.platform.environment.MonotonicClock;
 import oss.relay.timing.timingpoint.infra.lifecycle.LifecycleComponent;
 import oss.relay.timing.timingpoint.platform.events.Event;
@@ -41,14 +38,13 @@ import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalid
  * to this LogBook.</p>
  */
 public final class LogBook extends LifecycleComponent
-        implements LogBookAccessor, LogBookTestControl, LogBookMaintenance {
+        implements LogBookAccessor, LogBookTestControl {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
     public static final long DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS = 5000L;
     public static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS = 2000L;
 
     private final LogBookState logBookState;
     private final LogBookOperations logBookOperations;
-    private final TimingDataPersistenceMaintenance persistenceMaintenance;
     private final SerialLane<LogBookOperationItem<?>> dataLane;
     private final LogBookMetrics metrics;
     private final long commitWaitTimeoutMillis;
@@ -102,10 +98,6 @@ public final class LogBook extends LifecycleComponent
         failIfInvalidArgument(orderedQueryWaitTimeoutMillis > 0L, "orderedQueryWaitTimeoutMillis must be positive");
 
         this.logBookState = new LogBookState(timingNodeId);
-        this.persistenceMaintenance =
-                timingDataPersistence instanceof TimingDataPersistenceMaintenance
-                        ? (TimingDataPersistenceMaintenance) timingDataPersistence
-                        : null;
         this.logBookOperations = new LogBookOperations(
                 logBookState,
                 timingDataPersistence,
@@ -145,37 +137,6 @@ public final class LogBook extends LifecycleComponent
     public ExecutionMetrics dataLaneMetrics() {
 
         return dataLane.metrics();
-    }
-
-    @Override
-    public Path backupTimingData() {
-        return maintenanceOperation(
-                true);
-    }
-
-    @Override
-    public Path requestTimingDataClearOnRestart() {
-        return maintenanceOperation(
-                false);
-    }
-
-    private Path maintenanceOperation(
-            boolean backupOnly) {
-        if (persistenceMaintenance == null) {
-            throw new IllegalStateException(
-                    "TimingData persistence does not support maintenance");
-        }
-        try {
-            return backupOnly
-                    ? persistenceMaintenance.backupTimingData()
-                    : persistenceMaintenance.requestTimingDataClearOnRestart();
-        } catch (TimingDataPersistence.PersistenceException ex) {
-            throw new IllegalStateException(
-                    backupOnly
-                            ? "Could not back up TimingData"
-                            : "Could not schedule TimingData clear",
-                    ex);
-        }
     }
 
     /** Arms one engineering/test failure for the next LogBook command write. */
@@ -366,12 +327,12 @@ public final class LogBook extends LifecycleComponent
         LogBookStatus loadedStatus;
         try {
             TimingDataPersistence.LoadResult loadResult =
-                    logBookOperations.loadPersistedTimingData();
+                    logBookOperations.loadLogBookData();
 
             // The blocking load may outlive TimingNode deactivation. Do not
             // restore or publish startup state for an inactive LogBook.
             failIfInactive();
-            logBookOperations.restorePersistedTimingData(loadResult);
+            logBookOperations.restoreLogBookData(loadResult);
 
             LOG.info(
                     "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
