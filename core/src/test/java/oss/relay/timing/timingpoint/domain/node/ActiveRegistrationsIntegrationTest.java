@@ -65,13 +65,11 @@ public class ActiveRegistrationsIntegrationTest {
                     DefaultUpstreamData.createDnPacket(
                             new NodeId("A"),
                             1L,
-                            DefaultUpstreamData.createRaceData(
-                                    new LocationId(1),
+                            DefaultUpstreamData.createTeamAssignments(
                                     Collections.singletonList(
                                             DefaultUpstreamData.createTeamAssignmentSet(
                                                     "R0001",
-                                                    "0042")),
-                                    Collections.<UpstreamData.StageStartTimeChange>emptyList())));
+                                                    "0042"))));
             stream.takeSent();
 
             awaitUniqueTeamCount(components.nodeService(), 2);
@@ -166,7 +164,7 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
     @Test
-    public void raceDataStageStartsUpdateRecoveredRuntimeAndRanking() {
+    public void stageStartsUpdateRecoveredRuntimeAndRanking() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
@@ -199,9 +197,7 @@ public class ActiveRegistrationsIntegrationTest {
                     DefaultUpstreamData.createDnPacket(
                             new NodeId("A"),
                             1L,
-                            DefaultUpstreamData.createRaceData(
-                                    new LocationId(1),
-                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            DefaultUpstreamData.createStageStarts(
                                     Arrays.asList(
                                             DefaultUpstreamData.createStageStartSet(
                                                     "A0001",
@@ -222,9 +218,7 @@ public class ActiveRegistrationsIntegrationTest {
                     DefaultUpstreamData.createDnPacket(
                             new NodeId("A"),
                             2L,
-                            DefaultUpstreamData.createRaceData(
-                                    new LocationId(1),
-                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            DefaultUpstreamData.createStageStarts(
                                     Collections.singletonList(
                                             DefaultUpstreamData.createStageStartSet(
                                                     "A0001",
