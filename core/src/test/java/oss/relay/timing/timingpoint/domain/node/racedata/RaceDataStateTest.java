@@ -12,45 +12,29 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 public class RaceDataStateTest {
 
     @Test
     public void raceDataStageStartSetAndDeleteUseRegistrationIdentity() {
         RaceDataState state = new RaceDataState(EventData.empty());
+        RaceDataUpdate update = new RaceDataUpdate(16);
         RegistrationId registrationId = new RegistrationId("R0042");
 
-        state.applyChanges(
-                Collections.<RegistrationId, TeamId>emptyMap(),
-                Collections.<RegistrationId>emptyList(),
-                Collections.singletonMap(
-                        registrationId,
-                        Long.valueOf(12_34_56_78L)),
-                Collections.<RegistrationId>emptyList());
-
+        update.setStageStart(registrationId, 12_34_56_78L);
+        state.applyChanges(update);
         assertEquals(1L, state.stageStartRevision());
-        assertEquals(
-                Long.valueOf(12_34_56_78L),
-                state.stageStartFor(registrationId));
+        assertEquals(Long.valueOf(12_34_56_78L), state.stageStartFor(registrationId));
 
-        state.applyChanges(
-                Collections.<RegistrationId, TeamId>emptyMap(),
-                Collections.<RegistrationId>emptyList(),
-                Collections.singletonMap(
-                        registrationId,
-                        Long.valueOf(12_34_56_78L)),
-                Collections.<RegistrationId>emptyList());
-        assertEquals(
-                "idempotent SET must not advance the applied-state revision",
-                1L,
-                state.stageStartRevision());
+        update.clear();
+        update.setStageStart(registrationId, 12_34_56_78L);
+        state.applyChanges(update);
+        assertEquals(1L, state.stageStartRevision());
 
-        state.applyChanges(
-                Collections.<RegistrationId, TeamId>emptyMap(),
-                Collections.<RegistrationId>emptyList(),
-                Collections.<RegistrationId, Long>emptyMap(),
-                Collections.singletonList(registrationId));
-
+        update.clear();
+        update.deleteStageStart(registrationId);
+        state.applyChanges(update);
         assertNull(state.stageStartFor(registrationId));
         assertEquals(2L, state.stageStartRevision());
     }
@@ -58,44 +42,92 @@ public class RaceDataStateTest {
     @Test
     public void technicalVisitorsExposeOnlyLiveRaceDataState() {
         RegistrationId fixed = new RegistrationId("F0001");
-        EventData eventData =
-                new EventData(
-                        Collections.emptyMap(),
-                        Collections.singletonMap(fixed, new TeamId("0001")));
+        EventData eventData = new EventData(
+                Collections.emptyMap(),
+                Collections.singletonMap(fixed, new TeamId("0001")));
         RaceDataState state = new RaceDataState(eventData);
+        RaceDataUpdate update = new RaceDataUpdate(16);
         RegistrationId first = new RegistrationId("R0042");
         RegistrationId second = new RegistrationId("R0043");
 
-        state.applyChanges(
-                Collections.singletonMap(first, new TeamId("0042")),
-                Collections.<RegistrationId>emptyList(),
-                Collections.singletonMap(second, Long.valueOf(12_34_56_78L)),
-                Collections.<RegistrationId>emptyList());
+        update.setTeamAssignment(first, new TeamId("0042"));
+        update.setStageStart(second, 12_34_56_78L);
+        state.applyChanges(update);
 
         List<String> mappings = new ArrayList<String>();
         List<String> stageStarts = new ArrayList<String>();
-        assertEquals(
-                1,
-                state.visitLiveAssignments(
-                        (registrationId, teamId) ->
-                                mappings.add(
-                                        registrationId.value()
-                                                + "="
-                                                + teamId.value())));
-        assertEquals(
-                1,
-                state.visitStageStarts(
-                        (registrationId, stageStart) ->
-                                stageStarts.add(
-                                        registrationId.value()
-                                                + "="
-                                                + stageStart)));
+        assertEquals(1, state.visitLiveAssignments(
+                (registrationId, teamId) ->
+                        mappings.add(registrationId.value() + "=" + teamId.value())));
+        assertEquals(1, state.visitStageStarts(
+                (registrationId, stageStart) ->
+                        stageStarts.add(registrationId.value() + "=" + stageStart)));
 
         assertEquals(Collections.singletonList("R0042=0042"), mappings);
         assertEquals(new TeamId("0001"), state.teamIdFor(fixed));
-        assertEquals(
-                Collections.singletonList("R0043=12345678"),
-                stageStarts);
+        assertEquals(Collections.singletonList("R0043=12345678"), stageStarts);
+    }
+
+    @Test
+    public void invalidAssignmentTransactionDoesNotApplyStageStart() {
+        RaceDataState state = new RaceDataState(EventData.empty());
+        RaceDataUpdate update = new RaceDataUpdate(16);
+        RegistrationId first = new RegistrationId("R0042");
+        RegistrationId second = new RegistrationId("R0043");
+        TeamId teamId = new TeamId("0042");
+
+        update.setTeamAssignment(first, teamId);
+        state.applyChanges(update);
+
+        update.clear();
+        update.setStageStart(second, 12_34_56_78L);
+        update.setTeamAssignment(second, teamId);
+        try {
+            state.applyChanges(update);
+            fail("duplicate TeamId must reject the complete transaction");
+        } catch (IllegalArgumentException expected) {
+            // Validation completed before mutation.
+        }
+
+        assertNull(state.stageStartFor(second));
+        assertNull(state.teamIdFor(second));
+        assertEquals(teamId, state.teamIdFor(first));
+    }
+
+    @Test
+    public void assignmentSwapValidatesAgainstFinalTransaction() {
+        RaceDataState state = new RaceDataState(EventData.empty());
+        RaceDataUpdate update = new RaceDataUpdate(16);
+        RegistrationId first = new RegistrationId("R0042");
+        RegistrationId second = new RegistrationId("R0043");
+        TeamId firstTeam = new TeamId("0042");
+        TeamId secondTeam = new TeamId("0043");
+
+        update.setTeamAssignment(first, firstTeam);
+        update.setTeamAssignment(second, secondTeam);
+        state.applyChanges(update);
+
+        update.clear();
+        update.setTeamAssignment(first, secondTeam);
+        update.setTeamAssignment(second, firstTeam);
+        state.applyChanges(update);
+
+        assertEquals(secondTeam, state.teamIdFor(first));
+        assertEquals(firstTeam, state.teamIdFor(second));
+    }
+
+    @Test
+    public void deleteWinsOverSetInReusableBuffer() {
+        RaceDataUpdate update = new RaceDataUpdate(16);
+        RegistrationId registrationId = new RegistrationId("R0042");
+
+        update.setStageStart(registrationId, 12_34_56_78L);
+        update.deleteStageStart(registrationId);
+        update.setStageStart(registrationId, 12_34_57_00L);
+
+        assertEquals(0, update.stageStartSetCount());
+        assertEquals(1, update.stageStartDeleteCount());
+        assertEquals(registrationId, update.stageStartDeleteRegistrationId(0));
     }
 
     @Test
@@ -104,13 +136,9 @@ public class RaceDataStateTest {
         RegistrationId registrationId = new RegistrationId("R0042");
 
         state.setStageStart(registrationId, 12_34_56_78L);
-        assertEquals(
-                Long.valueOf(12_34_56_78L),
-                state.stageStartFor(registrationId));
+        assertEquals(Long.valueOf(12_34_56_78L), state.stageStartFor(registrationId));
 
         state.setStageStart(registrationId, 2026_10_23_12_34_57_12L);
-        assertEquals(
-                Long.valueOf(2026_10_23_12_34_57_12L),
-                state.stageStartFor(registrationId));
+        assertEquals(Long.valueOf(2026_10_23_12_34_57_12L), state.stageStartFor(registrationId));
     }
 }

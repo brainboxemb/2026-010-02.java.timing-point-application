@@ -5,6 +5,7 @@ import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
 import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataState;
+import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
 import oss.relay.timing.timingpoint.domain.node.registration.RegisteredTeams;
 import oss.relay.timing.timingpoint.domain.node.registration.StageTiming;
@@ -14,8 +15,6 @@ import oss.relay.timing.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -66,26 +65,21 @@ public final class NodeState implements NodeStateAccessor, NodeStateTestControl 
                         failureHandler);
     }
 
-    /** Applies one validated live RaceData change and keeps the active registration projection aligned. */
-    public void applyRaceDataChanges(
-            Map<RegistrationId, TeamId> assignmentsToSet,
-            List<RegistrationId> assignmentsToDelete,
-            Map<RegistrationId, Long> stageStartsToSet,
-            List<RegistrationId> stageStartsToDelete) {
+    /** Applies one validated bounded RaceData transaction and keeps derived projections aligned. */
+    public void applyRaceDataChanges(RaceDataUpdate changes) {
 
-        raceData.applyChanges(
-                assignmentsToSet,
-                assignmentsToDelete,
-                stageStartsToSet,
-                stageStartsToDelete);
-        dataTask.stageStartChangesApplied(stageStartsToSet, stageStartsToDelete);
-    }
+        failIfInvalidArgument(changes != null, "changes must not be null");
+        raceData.applyChanges(changes);
+        dataTask.raceDataApplied(changes);
 
-    /** Re-evaluates active team membership after one live assignment changed. */
-    public void teamAssignmentChanged(RegistrationId registrationId) {
-
-        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-        dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
+        for (int index = 0; index < changes.teamAssignmentSetCount(); index++) {
+            RegistrationId registrationId = changes.teamAssignmentSetRegistrationId(index);
+            dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
+        }
+        for (int index = 0; index < changes.teamAssignmentDeleteCount(); index++) {
+            RegistrationId registrationId = changes.teamAssignmentDeleteRegistrationId(index);
+            dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
+        }
     }
 
     /** Applies one absolute engineering override using the same compact UTC state as RaceData. */
