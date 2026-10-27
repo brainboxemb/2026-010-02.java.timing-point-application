@@ -1,6 +1,5 @@
 package oss.relay.timing.upstreamdata.defaultprofile;
 
-import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
@@ -80,20 +79,35 @@ public class DefaultUpstreamDataCodecTest {
     }
 
     @Test
-    public void roundTripsRaceDataWithoutSourceSequence()
+    public void roundTripsIndependentCurrentStateMessagesWithoutLocation()
             throws Exception {
-        UpstreamData original =
+        UpstreamData assignments =
                 DefaultUpstreamData.createDnPacket(
                         new NodeId("A"),
                         43L,
-                        DefaultUpstreamData.createRaceData(
-                                new LocationId(1),
+                        DefaultUpstreamData.createTeamAssignments(
                                 Arrays.asList(
                                         DefaultUpstreamData.createTeamAssignmentSet(
                                                 "R0001",
                                                 "0042"),
                                         DefaultUpstreamData.createTeamAssignmentDelete(
-                                                "R0002")),
+                                                "R0002"))));
+
+        String assignmentJson = text(codec.encode(assignments));
+        assertTrue(assignmentJson.contains("\"type\":\"TEAM_ASSIGNMENTS\""));
+        assertTrue(!assignmentJson.contains("\"locationId\""));
+        assertTrue(!assignmentJson.contains("\"seq\":"));
+
+        UpstreamData decodedAssignments = codec.decode(bytes(assignmentJson));
+        assertEquals(
+                ((UpstreamData.TeamAssignments) assignments.message()).changes(),
+                ((UpstreamData.TeamAssignments) decodedAssignments.message()).changes());
+
+        UpstreamData stageStarts =
+                DefaultUpstreamData.createDnPacket(
+                        new NodeId("A"),
+                        44L,
+                        DefaultUpstreamData.createStageStarts(
                                 Arrays.asList(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "R0001",
@@ -104,28 +118,15 @@ public class DefaultUpstreamDataCodecTest {
                                                 TimingTimestamp.parse(
                                                         "2026-10-14T00:02:00")))));
 
-        String json = text(codec.encode(original));
-        assertTrue(json.contains("\"type\":\"DN_PACKET\""));
-        assertTrue(json.contains("\"pckNr\":43"));
-        assertTrue(json.contains("\"type\":\"RACE_DATA\""));
-        assertTrue(json.contains("\"locationId\":1"));
-        assertTrue(!json.contains("\"seq\":"));
-        assertTrue(json.contains("\"teamAssignments\""));
-        assertTrue(json.contains("\"stageStartTimes\""));
+        String stageJson = text(codec.encode(stageStarts));
+        assertTrue(stageJson.contains("\"type\":\"STAGE_STARTS\""));
+        assertTrue(!stageJson.contains("\"locationId\""));
+        assertTrue(!stageJson.contains("\"seq\":"));
 
-        UpstreamData decoded = codec.decode(bytes(json));
-        assertEquals(43L, decoded.packetNr());
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) decoded.message();
-        assertEquals(new LocationId(1), raceData.locationId());
+        UpstreamData decodedStageStarts = codec.decode(bytes(stageJson));
         assertEquals(
-                ((UpstreamData.RaceData) original.message())
-                        .teamAssignmentChanges(),
-                raceData.teamAssignmentChanges());
-        assertEquals(
-                ((UpstreamData.RaceData) original.message())
-                        .stageStartTimeChanges(),
-                raceData.stageStartTimeChanges());
+                ((UpstreamData.StageStarts) stageStarts.message()).changes(),
+                ((UpstreamData.StageStarts) decodedStageStarts.message()).changes());
     }
 
     @Test
@@ -298,9 +299,9 @@ public class DefaultUpstreamDataCodecTest {
 
         assertInvalid(
                 "{\"v\":1,\"type\":\"UP_PACKET\",\"nodeId\":\"A\",\"pckNr\":1,"
-                        + "\"msg\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
-                        + "\"data\":{\"teamAssignments\":["
-                        + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0042\"}]}}}");
+                        + "\"msg\":{\"type\":\"TEAM_ASSIGNMENTS\","
+                        + "\"data\":[{\"op\":\"SET\",\"regId\":\"R0001\","
+                        + "\"teamId\":\"0042\"}]}}");
 
         assertInvalid(
                 "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"pckNr\":1,"
@@ -309,9 +310,8 @@ public class DefaultUpstreamDataCodecTest {
 
         assertInvalid(
                 "{\"v\":1,\"type\":\"DN_PACKET\",\"nodeId\":\"A\",\"pckNr\":1,"
-                        + "\"msg\":{\"type\":\"RACE_DATA\",\"locationId\":1,"
-                        + "\"data\":{\"teamAssignments\":["
-                        + "{\"op\":\"SET\",\"regId\":\"R0001\"}]}}}");
+                        + "\"msg\":{\"type\":\"TEAM_ASSIGNMENTS\","
+                        + "\"data\":[{\"op\":\"SET\",\"regId\":\"R0001\"}]}}");
     }
 
     @Test
@@ -321,9 +321,7 @@ public class DefaultUpstreamDataCodecTest {
                 DefaultUpstreamData.createDnPacket(
                         new NodeId("A"),
                         1L,
-                        DefaultUpstreamData.createRaceData(
-                                new LocationId(1),
-                                Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                        DefaultUpstreamData.createStageStarts(
                                 Collections.singletonList(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "R0001",
@@ -332,11 +330,11 @@ public class DefaultUpstreamDataCodecTest {
 
         UpstreamData decoded =
                 codec.decode(codec.encode(packet));
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) decoded.message();
+        UpstreamData.StageStarts stageStarts =
+                (UpstreamData.StageStarts) decoded.message();
         assertEquals(
                 TimingTimestamp.Knowledge.TIME_ONLY,
-                raceData.stageStartTimeChanges()
+                stageStarts.changes()
                         .get(0)
                         .start()
                         .knowledge());
