@@ -174,13 +174,11 @@ public class WebSocketEndpointTest {
                     DefaultUpstreamData.createDnPacket(
                             nodeId,
                             1L,
-                            DefaultUpstreamData.createRaceData(
-                                    new LocationId(1),
+                            DefaultUpstreamData.createTeamAssignments(
                                     Collections.singletonList(
                                             DefaultUpstreamData.createTeamAssignmentSet(
                                                     "R0001",
-                                                    "0042")),
-                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+                                                    "0042")));
 
             upstream.send(upstreamJson(racePacket));
 
