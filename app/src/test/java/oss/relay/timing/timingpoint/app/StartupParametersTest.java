@@ -117,7 +117,7 @@ public class StartupParametersTest {
         assertFalse(
                 Files.exists(timingData));
         assertFalse(
-                FileRecordStoreBackup.hasPendingClear(
+                FileRecordStoreBackup.hasPendingBackupAndClear(
                         timingData));
         assertEquals(
                 Collections.emptyList(),
