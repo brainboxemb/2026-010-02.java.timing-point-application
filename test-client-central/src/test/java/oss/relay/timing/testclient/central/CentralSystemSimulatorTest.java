@@ -280,21 +280,13 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void stagesExposeConfiguredAndAuthoredCentralState() {
+    void stageStartsExposeOneGlobalCentralState() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(2, 1));
 
-        assertEquals(
-                List.of(1, 2),
-                simulator.stages().stream()
-                        .map(CentralSystemSimulator.StageView::stageId)
-                        .toList());
-        assertTrue(
-                simulator.stages().get(0)
-                        .startTimes().isEmpty());
+        assertTrue(simulator.stageStarts().isEmpty());
 
         simulator.updateStageStarts(
-                4,
                 List.of(
                         DefaultUpstreamData.createStageStartSet(
                                 "A0002",
@@ -303,20 +295,13 @@ final class CentralSystemSimulatorTest {
                                 "A0003",
                                 TimingTimestamp.parse("10:30:15"))));
 
-        assertEquals(
-                List.of(1, 2, 4),
-                simulator.stages().stream()
-                        .map(CentralSystemSimulator.StageView::stageId)
-                        .toList());
-        CentralSystemSimulator.StageView stage4 =
-                simulator.stages().get(2);
-        assertEquals(2, stage4.startTimes().size());
+        assertEquals(2, simulator.stageStarts().size());
         assertEquals(
                 "A0002",
-                stage4.startTimes().get(0).registrationId());
+                simulator.stageStarts().get(0).registrationId());
         assertEquals(
                 "10:30:15",
-                stage4.startTimes().get(1).start());
+                simulator.stageStarts().get(1).start());
     }
 
     @Test
@@ -334,7 +319,6 @@ final class CentralSystemSimulatorTest {
 
         assertTrue(
                 simulator.updateStageStarts(
-                                2,
                                 List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",
@@ -393,13 +377,12 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void currentRuntimeOpenReleasesStoredStageStarts() {
+    void currentRuntimeOpenReleasesStoredStageStartsWithoutLocationInMessage() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(2));
         simulator.connected();
 
         simulator.updateStageStarts(
-                2,
                 List.of(
                         DefaultUpstreamData.createStageStartSet(
                                 "A0001",
@@ -414,60 +397,40 @@ final class CentralSystemSimulatorTest {
 
         assertEquals(1, replies.size());
         assertEquals(
-                UpstreamData.Family.RACE_DATA,
+                UpstreamData.Family.STAGE_STARTS,
                 replies.get(0).family());
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) replies.get(0).message();
-        assertEquals(2, raceData.locationId().value());
-        assertEquals(1, raceData.stageStartTimeChanges().size());
+        UpstreamData.StageStarts stageStarts =
+                (UpstreamData.StageStarts) replies.get(0).message();
+        assertEquals(1, stageStarts.changes().size());
         assertEquals(
                 "A0001",
-                raceData.stageStartTimeChanges()
+                stageStarts.changes()
                         .get(0)
                         .registrationId()
                         .value());
     }
 
     @Test
-    void centralStageStartStateRoutesStageNOnlyToLocationN() {
+    void stageStartStateIsNotKeyedByOpenLocation() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(2);
 
-        List<UpstreamData> wrongStage =
+        List<UpstreamData> packets =
                 simulator.updateStageStarts(
-                        1,
-                        List.of(
-                                DefaultUpstreamData.createStageStartSet(
-                                        "A0001",
-                                        TimingTimestamp.parse("10:00:00"))));
-
-        assertTrue(wrongStage.isEmpty());
-
-        List<UpstreamData> matchingStage =
-                simulator.updateStageStarts(
-                        2,
                         List.of(
                                 DefaultUpstreamData.createStageStartSet(
                                         "A0001",
                                         TimingTimestamp.parse("10:05:00"))));
 
-        assertEquals(1, matchingStage.size());
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) matchingStage.get(0).message();
-        assertEquals(2, raceData.locationId().value());
-        assertEquals(1, raceData.stageStartTimeChanges().size());
+        assertEquals(1, packets.size());
+        UpstreamData.StageStarts stageStarts =
+                (UpstreamData.StageStarts) packets.get(0).message();
         assertEquals(
                 "A0001",
-                raceData.stageStartTimeChanges()
-                        .get(0)
-                        .registrationId()
-                        .value());
+                stageStarts.changes().get(0).registrationId().value());
         assertEquals(
                 "10:05:00",
-                raceData.stageStartTimeChanges()
-                        .get(0)
-                        .start()
-                        .toString());
+                stageStarts.changes().get(0).start().toString());
     }
 
     @Test
@@ -478,7 +441,6 @@ final class CentralSystemSimulatorTest {
 
         assertTrue(
                 simulator.updateStageStarts(
-                                2,
                                 List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",
@@ -502,10 +464,9 @@ final class CentralSystemSimulatorTest {
                         RECEIVED.plusMillis(1L));
 
         assertEquals(1, afterRuntimeOpen.size());
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) afterRuntimeOpen.get(0).message();
-        assertEquals(2, raceData.locationId().value());
-        assertEquals(1, raceData.stageStartTimeChanges().size());
+        assertSame(
+                UpstreamData.Family.STAGE_STARTS,
+                afterRuntimeOpen.get(0).family());
     }
 
     @Test
@@ -521,45 +482,37 @@ final class CentralSystemSimulatorTest {
                                         "T001")));
 
         assertEquals(1, packets.size());
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) packets.get(0).message();
-        assertEquals(7, raceData.locationId().value());
-        assertEquals(1, raceData.teamAssignmentChanges().size());
+        UpstreamData.TeamAssignments assignments =
+                (UpstreamData.TeamAssignments) packets.get(0).message();
+        assertEquals(1, assignments.changes().size());
     }
 
     @Test
-    void raceDataUsesOneImmutableOutstandingPacketAndBuildsNextDeltaAfterRecv() {
+    void currentStateFamiliesUseIndependentPacketsBehindOneStopAndWaitLane() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(7);
 
-        List<UpstreamData> first =
-                simulator.updateRaceData(
-                        NODE_A,
-                        List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        "A0001",
-                                        "T001")),
-                        List.of());
-
-        assertEquals(1, first.size());
-        UpstreamData packet1 = first.get(0);
-        assertEquals(1L, packet1.packetNr());
+        UpstreamData assignmentPacket =
+                simulator.updateTeamAssignments(
+                                List.of(
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0001",
+                                                "T001")))
+                        .get(0);
+        assertEquals(1L, assignmentPacket.packetNr());
         assertSame(
-                UpstreamData.Family.RACE_DATA,
-                packet1.family());
+                UpstreamData.Family.TEAM_ASSIGNMENTS,
+                assignmentPacket.family());
 
-        List<UpstreamData> whileOutstanding =
-                simulator.updateRaceData(
-                        NODE_A,
-                        List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        "A0002",
-                                        "T002")),
-                        List.of());
-
-        assertTrue(whileOutstanding.isEmpty());
+        assertTrue(
+                simulator.updateStageStarts(
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("10:00:00"))))
+                        .isEmpty());
         assertSame(
-                packet1,
+                assignmentPacket,
                 simulator.outstandingPacket(NODE_A));
 
         List<UpstreamData> afterAck =
@@ -568,17 +521,11 @@ final class CentralSystemSimulatorTest {
                         RECEIVED.plusSeconds(2));
 
         assertEquals(1, afterAck.size());
-        UpstreamData packet2 = afterAck.get(0);
-        assertEquals(2L, packet2.packetNr());
-        UpstreamData.RaceData delta =
-                (UpstreamData.RaceData) packet2.message();
-        assertEquals(1, delta.teamAssignmentChanges().size());
-        assertEquals(
-                "A0002",
-                delta.teamAssignmentChanges()
-                        .get(0)
-                        .registrationId()
-                        .value());
+        UpstreamData stagePacket = afterAck.get(0);
+        assertEquals(2L, stagePacket.packetNr());
+        assertSame(
+                UpstreamData.Family.STAGE_STARTS,
+                stagePacket.family());
 
         CentralSystemSimulator.NodeView view =
                 simulator.nodes().get(0);
@@ -592,21 +539,17 @@ final class CentralSystemSimulatorTest {
                 openSimulatorAtLocation(7);
 
         UpstreamData first =
-                simulator.updateRaceData(
-                        NODE_A,
-                        List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        "A0001",
-                                        "T001")),
-                        List.of())
+                simulator.updateTeamAssignments(
+                                List.of(
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0001",
+                                                "T001")))
                         .get(0);
-        simulator.updateRaceData(
-                NODE_A,
+        simulator.updateTeamAssignments(
                 List.of(
                         DefaultUpstreamData.createTeamAssignmentSet(
                                 "A0002",
-                                "T002")),
-                List.of());
+                                "T002")));
 
         UpstreamData second =
                 simulator.accept(
@@ -629,13 +572,11 @@ final class CentralSystemSimulatorTest {
                 openSimulatorAtLocation(7);
 
         UpstreamData outstanding =
-                simulator.updateRaceData(
-                        NODE_A,
-                        List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        "A0001",
-                                        "T001")),
-                        List.of())
+                simulator.updateTeamAssignments(
+                                List.of(
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0001",
+                                                "T001")))
                         .get(0);
 
         simulator.disconnected();
@@ -657,39 +598,52 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void recvZeroRebuildsCurrentRaceStateFromPacketOne() {
+    void recvZeroRebuildsIndependentCurrentStateFromPacketOne() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(7);
 
         UpstreamData first =
-                simulator.updateRaceData(
-                        NODE_A,
-                        List.of(
-                                DefaultUpstreamData.createTeamAssignmentSet(
-                                        "A0001",
-                                        "T001")),
-                        List.of())
+                simulator.updateTeamAssignments(
+                                List.of(
+                                        DefaultUpstreamData.createTeamAssignmentSet(
+                                                "A0001",
+                                                "T001")))
                         .get(0);
         simulator.accept(
                 receivePacket(4L, first.packetNr()),
                 RECEIVED.plusSeconds(1));
 
+        UpstreamData stage =
+                simulator.updateStageStarts(
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("10:00:00"))))
+                        .get(0);
+        simulator.accept(
+                receivePacket(5L, stage.packetNr()),
+                RECEIVED.plusSeconds(2));
+
         List<UpstreamData> rebuilt =
                 simulator.accept(
-                        receivePacket(5L, 0L),
-                        RECEIVED.plusSeconds(2));
+                        receivePacket(6L, 0L),
+                        RECEIVED.plusSeconds(3));
 
         assertEquals(1, rebuilt.size());
         assertEquals(1L, rebuilt.get(0).packetNr());
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) rebuilt.get(0).message();
-        assertEquals(1, raceData.teamAssignmentChanges().size());
-        assertEquals(
-                "A0001",
-                raceData.teamAssignmentChanges()
-                        .get(0)
-                        .registrationId()
-                        .value());
+        assertSame(
+                UpstreamData.Family.TEAM_ASSIGNMENTS,
+                rebuilt.get(0).family());
+
+        List<UpstreamData> second =
+                simulator.accept(
+                        receivePacket(7L, 1L),
+                        RECEIVED.plusSeconds(4));
+        assertEquals(1, second.size());
+        assertEquals(2L, second.get(0).packetNr());
+        assertSame(
+                UpstreamData.Family.STAGE_STARTS,
+                second.get(0).family());
     }
 
     @Test
