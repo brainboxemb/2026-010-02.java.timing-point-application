@@ -72,7 +72,7 @@ public class FileAppendOnlyRecordStoreTest {
         Path reserved =
                 store.requestBackupAndClearOnRestart();
         assertTrue(
-                FileRecordStoreBackup.hasPendingClear(file));
+                FileRecordStoreBackup.hasPendingBackupAndClear(file));
         assertEquals(
                 reserved,
                 store.requestClearOnRestart());
