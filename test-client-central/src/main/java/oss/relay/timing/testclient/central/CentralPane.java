@@ -31,7 +31,6 @@ final class CentralPane implements AutoCloseable {
     private final ComboBox<String> raceTeamPrefix = new ComboBox<>();
     private final TextField raceRegistration = new TextField();
     private final TextField raceTeam = new TextField();
-    private final TextField raceStage = new TextField("1");
     private final ComboBox<String> raceStagePrefix = new ComboBox<>();
     private final TextField raceRegistrationFrom = new TextField();
     private final TextField raceRegistrationTo = new TextField();
@@ -263,7 +262,6 @@ final class CentralPane implements AutoCloseable {
         raceRegistrationFrom.setPromptText("1");
         raceRegistrationTo.setPromptText("100");
         raceTeam.setPromptText("TeamId");
-        raceStage.setPromptText("StageId");
         raceStageStart.setPromptText("190000 or 19:00:00");
         raceStageIntervalSeconds.setPromptText("0");
 
@@ -303,19 +301,16 @@ final class CentralPane implements AutoCloseable {
         GridPane stageForm = new GridPane();
         stageForm.setHgap(8);
         stageForm.setVgap(8);
-        stageForm.add(new Label("StageId"), 0, 0);
-        stageForm.add(raceStage, 1, 0);
-        stageForm.add(new Label("Registration prefix"), 0, 1);
-        stageForm.add(raceStagePrefix, 1, 1);
-        stageForm.add(new Label("Registration from"), 0, 2);
-        stageForm.add(raceRegistrationFrom, 1, 2);
-        stageForm.add(new Label("Registration to"), 0, 3);
-        stageForm.add(raceRegistrationTo, 1, 3);
-        stageForm.add(new Label("Start time"), 0, 4);
-        stageForm.add(raceStageStart, 1, 4);
-        stageForm.add(new Label("Interval seconds"), 0, 5);
-        stageForm.add(raceStageIntervalSeconds, 1, 5);
-        GridPane.setHgrow(raceStage, Priority.ALWAYS);
+        stageForm.add(new Label("Registration prefix"), 0, 0);
+        stageForm.add(raceStagePrefix, 1, 0);
+        stageForm.add(new Label("Registration from"), 0, 1);
+        stageForm.add(raceRegistrationFrom, 1, 1);
+        stageForm.add(new Label("Registration to"), 0, 2);
+        stageForm.add(raceRegistrationTo, 1, 2);
+        stageForm.add(new Label("Start time"), 0, 3);
+        stageForm.add(raceStageStart, 1, 3);
+        stageForm.add(new Label("Interval seconds"), 0, 4);
+        stageForm.add(raceStageIntervalSeconds, 1, 4);
         GridPane.setHgrow(raceRegistrationFrom, Priority.ALWAYS);
         GridPane.setHgrow(raceRegistrationTo, Priority.ALWAYS);
         GridPane.setHgrow(raceStageStart, Priority.ALWAYS);
@@ -325,7 +320,7 @@ final class CentralPane implements AutoCloseable {
         HBox stageActions = new HBox(8, stageStartSet, stageStartDelete);
         VBox pane = new VBox(
                 10,
-                new Label("Central RaceData"),
+                new Label("Central current state"),
                 new Label("Team Mapping"),
                 teamForm,
                 teamActions,
@@ -402,14 +397,10 @@ final class CentralPane implements AutoCloseable {
 
     private void applyStageStart(boolean delete) {
         try {
-            int stageId =
-                    Integer.parseInt(
-                            raceStage.getText().trim());
             CentralActions.MutationResult result;
             if (delete) {
                 result =
                         centralActions.deleteStageStartRangeByNumber(
-                                stageId,
                                 raceStagePrefix.getValue(),
                                 raceRegistrationFrom.getText(),
                                 raceRegistrationTo.getText());
@@ -421,7 +412,6 @@ final class CentralPane implements AutoCloseable {
                                 1000L);
                 result =
                         centralActions.setStageStartRangeByNumber(
-                                stageId,
                                 raceStagePrefix.getValue(),
                                 raceRegistrationFrom.getText(),
                                 raceRegistrationTo.getText(),
@@ -430,12 +420,12 @@ final class CentralPane implements AutoCloseable {
             }
             raceFeedback.setText(
                     mutationFeedback(
-                            "Stage " + stageId + " start times",
+                            "Stage start times",
                             result));
             refresh();
         } catch (NumberFormatException ex) {
             raceFeedback.setText(
-                    "StageId and interval seconds must be integers");
+                    "Interval seconds must be an integer");
         } catch (ArithmeticException ex) {
             raceFeedback.setText("Interval seconds is too large");
         } catch (RuntimeException ex) {
@@ -539,7 +529,6 @@ final class CentralPane implements AutoCloseable {
         raceTeamPrefix.setDisable(false);
         raceRegistration.setDisable(false);
         raceTeam.setDisable(false);
-        raceStage.setDisable(false);
         raceStagePrefix.setDisable(false);
         raceRegistrationFrom.setDisable(false);
         raceRegistrationTo.setDisable(false);
