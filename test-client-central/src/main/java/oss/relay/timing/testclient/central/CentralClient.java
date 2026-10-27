@@ -25,7 +25,7 @@ public final class CentralClient implements AutoCloseable {
     private final CentralTransport transport;
     private final CentralSystemSimulator simulator;
     private final CentralPane centralPane;
-    private final CentralStagesPane stagesPane;
+    private final CentralStageStartsPane stageStartsPane;
     private final CentralMessagesPane messagesPane;
     private final CentralLogBookPane logBookPane;
     private final Actions actions = new Actions();
@@ -39,7 +39,7 @@ public final class CentralClient implements AutoCloseable {
         this.transport = transport;
         simulator = new CentralSystemSimulator(configuredLocationIds);
         centralPane = new CentralPane(simulator, actions);
-        stagesPane = new CentralStagesPane(simulator);
+        stageStartsPane = new CentralStageStartsPane(simulator);
         messagesPane = new CentralMessagesPane(simulator);
         logBookPane = new CentralLogBookPane(simulator);
     }
@@ -56,8 +56,8 @@ public final class CentralClient implements AutoCloseable {
         return centralPane.locationsPane();
     }
 
-    public Node stagesPane() {
-        return stagesPane.pane();
+    public Node stageStartsPane() {
+        return stageStartsPane.pane();
     }
 
     public Node currentStatePane() {
@@ -130,7 +130,7 @@ public final class CentralClient implements AutoCloseable {
 
     public void refresh() {
         centralPane.refresh();
-        stagesPane.refresh();
+        stageStartsPane.refresh();
         messagesPane.refresh();
         logBookPane.refresh();
     }
