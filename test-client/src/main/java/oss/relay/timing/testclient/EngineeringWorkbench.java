@@ -71,7 +71,7 @@ final class EngineeringWorkbench {
             Node centralStages,
             Node centralMessages,
             Node centralLogBook,
-            Node centralRaceData,
+            Node centralCurrentState,
             Node centralTimingData,
             Node timingNode,
             Node apiInfo,
@@ -105,7 +105,7 @@ final class EngineeringWorkbench {
                 simulation);
         Node centralControls =
                 createCentralControls(
-                        centralRaceData,
+                        centralCurrentState,
                         centralTimingData);
         Node centralExplorer =
                 createCentralExplorer(
@@ -355,7 +355,7 @@ final class EngineeringWorkbench {
     }
 
     private Node createCentralControls(
-            Node centralRaceData,
+            Node centralCurrentState,
             Node centralTimingData) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
@@ -373,7 +373,7 @@ final class EngineeringWorkbench {
                         new WorkbenchPanel(
                                 "central-race-data",
                                 "RaceData",
-                                centralRaceData)),
+                                centralCurrentState)),
                 dockable(builder, controls,
                         new WorkbenchPanel(
                                 "central-timing-data",
