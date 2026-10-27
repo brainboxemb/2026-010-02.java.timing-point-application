@@ -1,7 +1,6 @@
 package oss.relay.timing.upstreamdata.defaultprofile;
 
 import oss.relay.timing.eventdata.TeamId;
-import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
@@ -52,15 +51,18 @@ public final class DefaultUpstreamData {
         return new UpstreamData.TimingDataTransfer(records);
     }
 
-    /** Creates one RACE_DATA semantic message. */
-    public static UpstreamData.RaceData createRaceData(
-            LocationId locationId,
-            List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
-            List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
-        return new UpstreamData.RaceData(
-                locationId,
-                teamAssignmentChanges,
-                stageStartTimeChanges);
+    /** Creates one TEAM_ASSIGNMENTS semantic message. */
+    public static UpstreamData.TeamAssignments createTeamAssignments(
+            List<UpstreamData.TeamAssignmentChange> changes) {
+
+        return new UpstreamData.TeamAssignments(changes);
+    }
+
+    /** Creates one STAGE_STARTS semantic message. */
+    public static UpstreamData.StageStarts createStageStarts(
+            List<UpstreamData.StageStartTimeChange> changes) {
+
+        return new UpstreamData.StageStarts(changes);
     }
 
     /** Creates one TIMING_DATA replay request. */
