@@ -39,7 +39,7 @@ public class NodeUpstreamTest {
         activate(node.node());
         activate(node.nodeUpstream());
         try {
-            stream.receive(racePacket(1L, "R0001", "0042"));
+            stream.receive(teamAssignmentsPacket(1L, "R0001", "0042"));
 
             UpstreamData confirmation = stream.takeSent();
             assertSame(UpstreamData.Family.RECV, confirmation.family());
@@ -60,8 +60,8 @@ public class NodeUpstreamTest {
         activate(node.node());
         activate(node.nodeUpstream());
         try {
-            stream.receive(racePacket(1L, "R0001", "0042"));
-            stream.receive(racePacket(2L, "R0002", "0043"));
+            stream.receive(teamAssignmentsPacket(1L, "R0001", "0042"));
+            stream.receive(teamAssignmentsPacket(2L, "R0002", "0043"));
 
             assertReceive(stream.takeSent(), 1L);
             assertReceive(stream.takeSent(), 2L);
@@ -79,13 +79,13 @@ public class NodeUpstreamTest {
         activate(node.node());
         activate(node.nodeUpstream());
         try {
-            stream.receive(racePacket(2L, "R0002", "0043"));
+            stream.receive(teamAssignmentsPacket(2L, "R0002", "0043"));
             assertReceive(stream.takeSent(), 0L);
 
-            stream.receive(racePacket(1L, "R0001", "0042"));
+            stream.receive(teamAssignmentsPacket(1L, "R0001", "0042"));
             assertReceive(stream.takeSent(), 1L);
 
-            stream.receive(racePacket(2L, "R0002", "0043"));
+            stream.receive(teamAssignmentsPacket(2L, "R0002", "0043"));
             assertReceive(stream.takeSent(), 2L);
         } finally {
             deactivate(node.nodeUpstream());
@@ -105,7 +105,7 @@ public class NodeUpstreamTest {
                             new NodeId("A"),
                             1L,
                             DefaultUpstreamData.createSequenceNotification(0L)));
-            stream.receive(racePacket(1L, "R0001", "0042"));
+            stream.receive(teamAssignmentsPacket(1L, "R0001", "0042"));
 
             assertReceive(stream.takeSent(), 1L);
             assertEquals(0, stream.sentCount());
@@ -593,20 +593,18 @@ public class NodeUpstreamTest {
         }
     }
 
-    private static UpstreamData racePacket(
+    private static UpstreamData teamAssignmentsPacket(
             long packetNr,
             String registrationId,
             String teamId) {
         return DefaultUpstreamData.createDnPacket(
                 new NodeId("A"),
                 packetNr,
-                DefaultUpstreamData.createRaceData(
-                        new LocationId(1),
+                DefaultUpstreamData.createTeamAssignments(
                         Collections.singletonList(
                                 DefaultUpstreamData.createTeamAssignmentSet(
                                         registrationId,
-                                        teamId)),
-                        Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+                                        teamId))));
     }
 
     private static UpstreamData timingDataRequestPacket(
