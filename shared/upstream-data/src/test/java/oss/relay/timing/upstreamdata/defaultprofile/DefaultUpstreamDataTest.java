@@ -1,6 +1,5 @@
 package oss.relay.timing.upstreamdata.defaultprofile;
 
-import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingRecord;
 import oss.relay.timing.upstreamdata.UpstreamData;
@@ -45,68 +44,73 @@ public class DefaultUpstreamDataTest {
     }
 
     @Test
-    public void raceDataHasLocationButNoIndependentSequence() {
+    public void currentStateMessagesHaveIndependentSixteenChangeBounds() {
         List<UpstreamData.TeamAssignmentChange> teams =
                 new ArrayList<UpstreamData.TeamAssignmentChange>();
         List<UpstreamData.StageStartTimeChange> starts =
                 new ArrayList<UpstreamData.StageStartTimeChange>();
 
-        for (int i = 1; i <= 8; i++) {
+        for (int i = 1; i <= 16; i++) {
             teams.add(
                     DefaultUpstreamData.createTeamAssignmentSet(
                             String.format("A%04d", i),
-                            "0001"));
+                            String.format("%04d", i)));
             starts.add(
                     DefaultUpstreamData.createStageStartDelete(
                             String.format("R%04d", i)));
         }
 
-        UpstreamData.RaceData accepted =
-                DefaultUpstreamData.createRaceData(
-                        new LocationId(7),
-                        teams,
-                        starts);
-        assertEquals(new LocationId(7), accepted.locationId());
+        assertEquals(
+                16,
+                DefaultUpstreamData.createTeamAssignments(teams)
+                        .changes()
+                        .size());
+        assertEquals(
+                16,
+                DefaultUpstreamData.createStageStarts(starts)
+                        .changes()
+                        .size());
+
+        teams.add(
+                DefaultUpstreamData.createTeamAssignmentDelete("A0017"));
+        try {
+            DefaultUpstreamData.createTeamAssignments(teams);
+            fail("expected oversized TEAM_ASSIGNMENTS");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
 
         starts.add(
-                DefaultUpstreamData.createStageStartDelete("R0009"));
+                DefaultUpstreamData.createStageStartDelete("R0017"));
         try {
-            DefaultUpstreamData.createRaceData(
-                    new LocationId(7),
-                    teams,
-                    starts);
-            fail("expected oversized RACE_DATA");
+            DefaultUpstreamData.createStageStarts(starts);
+            fail("expected oversized STAGE_STARTS");
         } catch (IllegalArgumentException expected) {
             // expected
         }
     }
 
     @Test
-    public void raceDataRejectsMissingLocationAndDuplicateKeys() {
+    public void currentStateMessagesRejectDuplicateRegistrationKeys() {
         try {
-            DefaultUpstreamData.createRaceData(
-                    null,
-                    Collections.singletonList(
-                            DefaultUpstreamData.createTeamAssignmentSet(
-                                    "A0001",
-                                    "0001")),
-                    Collections.<UpstreamData.StageStartTimeChange>emptyList());
-            fail("expected missing LocationId");
-        } catch (IllegalArgumentException expected) {
-            // expected
-        }
-
-        try {
-            DefaultUpstreamData.createRaceData(
-                    new LocationId(1),
+            DefaultUpstreamData.createTeamAssignments(
                     Arrays.asList(
                             DefaultUpstreamData.createTeamAssignmentSet(
                                     "R0001",
                                     "0042"),
                             DefaultUpstreamData.createTeamAssignmentDelete(
-                                    "R0001")),
-                    Collections.<UpstreamData.StageStartTimeChange>emptyList());
-            fail("expected duplicate RaceData key");
+                                    "R0001")));
+            fail("expected duplicate TEAM_ASSIGNMENTS key");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+
+        try {
+            DefaultUpstreamData.createStageStarts(
+                    Arrays.asList(
+                            DefaultUpstreamData.createStageStartDelete("R0001"),
+                            DefaultUpstreamData.createStageStartDelete("R0001")));
+            fail("expected duplicate STAGE_STARTS key");
         } catch (IllegalArgumentException expected) {
             // expected
         }
@@ -143,13 +147,11 @@ public class DefaultUpstreamDataTest {
             DefaultUpstreamData.createUpPacket(
                     nodeId,
                     1L,
-                    DefaultUpstreamData.createRaceData(
-                            new LocationId(1),
+                    DefaultUpstreamData.createTeamAssignments(
                             Collections.singletonList(
                                     DefaultUpstreamData.createTeamAssignmentDelete(
-                                            "R0001")),
-                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
-            fail("expected RACE_DATA direction rejection");
+                                            "R0001"))));
+            fail("expected TEAM_ASSIGNMENTS direction rejection");
         } catch (IllegalArgumentException expected) {
             // expected
         }
