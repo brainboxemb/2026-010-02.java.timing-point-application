@@ -381,7 +381,7 @@ final class CentralPane implements AutoCloseable {
         String teamId = raceTeam.getText();
 
         try {
-            CentralControlActions.MutationResult result =
+            CentralActions.MutationResult result =
                     delete
                             ? centralActions.deleteTeamAssignmentByNumber(
                                     prefix,
@@ -405,7 +405,7 @@ final class CentralPane implements AutoCloseable {
             int stageId =
                     Integer.parseInt(
                             raceStage.getText().trim());
-            CentralControlActions.MutationResult result;
+            CentralActions.MutationResult result;
             if (delete) {
                 result =
                         centralActions.deleteStageStartRangeByNumber(
@@ -445,7 +445,7 @@ final class CentralPane implements AutoCloseable {
 
     static String mutationFeedback(
             String subject,
-            CentralControlActions.MutationResult result) {
+            CentralActions.MutationResult result) {
         if (result.immediatePackets() == 0) {
             return subject
                     + ": "

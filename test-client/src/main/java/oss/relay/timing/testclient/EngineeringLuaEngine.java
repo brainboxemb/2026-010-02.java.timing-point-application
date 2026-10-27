@@ -1,6 +1,7 @@
 package oss.relay.timing.testclient;
 
 import oss.relay.timing.testclient.central.CentralActions;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
@@ -58,6 +59,7 @@ final class EngineeringLuaEngine {
                 sender,
                 null,
                 null,
+                null,
                 output,
                 valid);
     }
@@ -66,6 +68,7 @@ final class EngineeringLuaEngine {
             String source,
             SimulationSender sender,
             CentralActions centralActions,
+            EngineeringClientActions clientActions,
             String centralNodeId,
             Consumer<String> output,
             BooleanSupplier valid) {
@@ -119,6 +122,26 @@ final class EngineeringLuaEngine {
                 check.run();
                 output.accept(message.tojstring());
                 return LuaValue.NIL;
+            }
+        });
+        timing.set("now", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                check.run();
+                if (args.narg() > 1) {
+                    throw new LuaError("now accepts zero or one offsetSeconds argument");
+                }
+                long offsetSeconds =
+                        args.narg() == 0
+                                ? 0L
+                                : args.arg1().checklong();
+                try {
+                    return LuaValue.valueOf(
+                            Instant.now()
+                                    .plusSeconds(offsetSeconds)
+                                    .toString());
+                } catch (RuntimeException ex) {
+                    throw new LuaError("invalid now offset: " + offsetSeconds);
+                }
             }
         });
         timing.set("sleep", new OneArgFunction() {
@@ -181,58 +204,102 @@ final class EngineeringLuaEngine {
         LuaTable central = new LuaTable();
         central.set("team_set", new TwoArgFunction() {
             @Override public LuaValue call(LuaValue regId, LuaValue teamId) {
-                return centralAction(
+                return centralMutation(
                         centralActions,
-                        centralNodeId,
                         output,
                         check,
                         () -> centralActions.setTeamAssignment(
-                                centralNodeId,
                                 regId.checkjstring(),
                                 teamId.checkjstring()));
             }
         });
         central.set("team_del", new OneArgFunction() {
             @Override public LuaValue call(LuaValue regId) {
-                return centralAction(
+                return centralMutation(
                         centralActions,
-                        centralNodeId,
                         output,
                         check,
                         () -> centralActions.deleteTeamAssignment(
-                                centralNodeId,
                                 regId.checkjstring()));
             }
         });
-        central.set("stage_start_set", new TwoArgFunction() {
-            @Override public LuaValue call(LuaValue regId, LuaValue start) {
-                return centralAction(
+        central.set("stage_start_set", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                if (args.narg() != 3) {
+                    throw new LuaError(
+                            "stage_start_set requires stageId, regId, start");
+                }
+                int stageId = args.arg(1).checkint();
+                String regId = args.arg(2).checkjstring();
+                String start = args.arg(3).checkjstring();
+                return centralMutation(
                         centralActions,
-                        centralNodeId,
                         output,
                         check,
                         () -> centralActions.setStageStart(
-                                centralNodeId,
-                                regId.checkjstring(),
-                                start.checkjstring()));
+                                stageId,
+                                regId,
+                                start));
             }
         });
-        central.set("stage_start_del", new OneArgFunction() {
-            @Override public LuaValue call(LuaValue regId) {
-                return centralAction(
+        central.set("stage_start_del", new TwoArgFunction() {
+            @Override public LuaValue call(LuaValue stageId, LuaValue regId) {
+                return centralMutation(
                         centralActions,
-                        centralNodeId,
                         output,
                         check,
                         () -> centralActions.deleteStageStart(
-                                centralNodeId,
+                                stageId.checkint(),
                                 regId.checkjstring()));
+            }
+        });
+        central.set("stage_start_range", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue options) {
+                LuaTable opts = options.checktable();
+                int stageId = opts.get("stage").checkint();
+                String prefix =
+                        opts.get("prefix").optjstring("A");
+                int from = opts.get("from").checkint();
+                int to = opts.get("to").checkint();
+                String start = opts.get("start").checkjstring();
+                long intervalMs =
+                        opts.get("intervalMs").optlong(0L);
+                return centralMutation(
+                        centralActions,
+                        output,
+                        check,
+                        () -> centralActions.setStageStartRange(
+                                stageId,
+                                prefix,
+                                from,
+                                to,
+                                start,
+                                intervalMs));
+            }
+        });
+        central.set("stage_start_range_del", new OneArgFunction() {
+            @Override public LuaValue call(LuaValue options) {
+                LuaTable opts = options.checktable();
+                int stageId = opts.get("stage").checkint();
+                String prefix =
+                        opts.get("prefix").optjstring("A");
+                int from = opts.get("from").checkint();
+                int to = opts.get("to").checkint();
+                return centralMutation(
+                        centralActions,
+                        output,
+                        check,
+                        () -> centralActions.deleteStageStartRange(
+                                stageId,
+                                prefix,
+                                from,
+                                to));
             }
         });
         central.set("timing_data_req", new OneArgFunction() {
             @Override public LuaValue call(LuaValue fromSequence) {
                 long from = fromSequence.checklong();
-                return centralAction(
+                return centralNodeAction(
                         centralActions,
                         centralNodeId,
                         output,
@@ -243,6 +310,110 @@ final class EngineeringLuaEngine {
             }
         });
         globals.set("central", central);
+
+        LuaTable client = new LuaTable();
+        client.set("reset", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.reset();
+                output.accept("Engineering Client reset requested");
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("events_connect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.connectEvents();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("events_disconnect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.disconnectEvents();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("central_connect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.connectCentral();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("central_disconnect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.disconnectCentral();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("api_available", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                return LuaValue.valueOf(clientActions.apiAvailable());
+            }
+        });
+        client.set("events_connected", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                return LuaValue.valueOf(clientActions.eventsConnected());
+            }
+        });
+        client.set("central_connected", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                return LuaValue.valueOf(clientActions.centralConnected());
+            }
+        });
+        client.set("status", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                EngineeringClientActions.Status status =
+                        clientActions.status();
+                LuaTable value = new LuaTable();
+                value.set(
+                        "apiAvailable",
+                        LuaValue.valueOf(status.apiAvailable()));
+                value.set(
+                        "eventsConnected",
+                        LuaValue.valueOf(status.eventsConnected()));
+                value.set(
+                        "centralConnected",
+                        LuaValue.valueOf(status.centralConnected()));
+                return value;
+            }
+        });
+        client.set("wait", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                requireClientActions(clientActions, check);
+                if (args.narg() < 2 || args.narg() > 3) {
+                    throw new LuaError(
+                            "client.wait requires boundary, expected[, timeoutMs]");
+                }
+                String boundary =
+                        args.arg(1)
+                                .checkjstring()
+                                .toLowerCase(Locale.ROOT);
+                boolean expected = args.arg(2).checkboolean();
+                int timeoutMs =
+                        args.narg() == 3
+                                ? args.arg(3).checkint()
+                                : 5_000;
+                if (timeoutMs < 0 || timeoutMs > MAX_SLEEP_MS) {
+                    throw new LuaError(
+                            "timeoutMs must be 0.." + MAX_SLEEP_MS);
+                }
+                waitForClientState(
+                        clientActions,
+                        boundary,
+                        expected,
+                        timeoutMs,
+                        check);
+                return LuaValue.TRUE;
+            }
+        });
+        globals.set("client", client);
 
         // Optional convenience: Lua print() is routed into Script Output.
         globals.set("print", new VarArgFunction() {
@@ -262,7 +433,81 @@ final class EngineeringLuaEngine {
         check.run();
     }
 
-    private static LuaValue centralAction(
+    private static void requireClientActions(
+            EngineeringClientActions clientActions,
+            Runnable check) {
+        check.run();
+        if (clientActions == null) {
+            throw new LuaError("Engineering Client actions unavailable");
+        }
+    }
+
+    private static void waitForClientState(
+            EngineeringClientActions clientActions,
+            String boundary,
+            boolean expected,
+            int timeoutMs,
+            Runnable check) {
+        long deadline =
+                System.nanoTime()
+                        + java.util.concurrent.TimeUnit.MILLISECONDS
+                                .toNanos(timeoutMs);
+        while (true) {
+            check.run();
+            boolean actual;
+            switch (boundary) {
+                case "api" -> actual = clientActions.apiAvailable();
+                case "events" -> actual = clientActions.eventsConnected();
+                case "central" -> actual = clientActions.centralConnected();
+                default -> throw new LuaError(
+                        "boundary must be api, events or central");
+            }
+            if (actual == expected) {
+                return;
+            }
+            if (System.nanoTime() >= deadline) {
+                throw new LuaError(
+                        "timeout waiting for "
+                                + boundary
+                                + "="
+                                + expected);
+            }
+            sleep(50, check);
+        }
+    }
+
+    private static LuaValue centralMutation(
+            CentralActions centralActions,
+            Consumer<String> output,
+            Runnable check,
+            java.util.function.Supplier<CentralActions.MutationResult> action) {
+        check.run();
+        if (centralActions == null) {
+            throw new LuaError("Central action unavailable");
+        }
+
+        final CentralActions.MutationResult result;
+        try {
+            result = action.get();
+        } catch (RuntimeException ex) {
+            check.run();
+            String message =
+                    ex.getMessage() == null
+                            ? ex.getClass().getSimpleName()
+                            : ex.getMessage();
+            throw new LuaError("Central action rejected: " + message);
+        }
+        check.run();
+        output.accept(
+                "Central state updated: "
+                        + result.affected()
+                        + " affected, "
+                        + result.immediatePackets()
+                        + " immediate packet(s)");
+        return LuaValue.valueOf(result.affected());
+    }
+
+    private static LuaValue centralNodeAction(
             CentralActions centralActions,
             String nodeId,
             Consumer<String> output,
@@ -272,7 +517,8 @@ final class EngineeringLuaEngine {
         if (centralActions == null
                 || nodeId == null
                 || nodeId.isBlank()) {
-            throw new LuaError("Central action unavailable: no selected TimingNode");
+            throw new LuaError(
+                    "Node-specific Central action unavailable: select a TimingNode before Run");
         }
 
         final long packetNr;

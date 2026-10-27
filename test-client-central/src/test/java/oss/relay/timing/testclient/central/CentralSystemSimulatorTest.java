@@ -860,6 +860,33 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void fullResetClearsCentralOwnedSourceState() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(1, 2));
+        simulator.updateStageStarts(
+                2,
+                List.of(
+                        DefaultUpstreamData.createStageStartSet(
+                                "A0001",
+                                TimingTimestamp.parse("10:00:00"))));
+
+        assertFalse(simulator.stages().isEmpty());
+
+        simulator.resetTargetState();
+        assertFalse(
+                simulator.stages().isEmpty(),
+                "target reset retains Central-owned source state");
+
+        simulator.resetAllState();
+        assertTrue(
+                simulator.stages().stream()
+                        .allMatch(stage -> stage.startTimes().isEmpty()),
+                "full reset clears all authored StageStartTimes");
+        assertTrue(simulator.timingRecords().isEmpty());
+        assertFalse(simulator.isConnected());
+    }
+
+    @Test
     void reconstructedLogBookIgnoresReplayDuplicatesAndSurvivesReconnect() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(7));

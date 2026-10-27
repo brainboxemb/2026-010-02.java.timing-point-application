@@ -14,8 +14,8 @@ not remove the software-item boundary.
 
 ## Client-side Lua scripting
 
-The **Scripts** dock tab (beside Simulation) runs local `.lua` engineering
-scripts. Open a file with **Open .lua**, drop it onto the Scripts panel, or
+The **Scripts** dock tab (beside Terminal) runs local `.lua` engineering
+automation scripts. Open a file with **Open .lua**, drop it onto the Scripts panel, or
 edit the script in place; **Run** is always explicit and dropping a file does
 not execute it. **Open .lua** starts in the tool's standard `scripts/` directory
 (`test-client/scripts/` in a source checkout; `scripts/` beside the packaged
@@ -35,14 +35,16 @@ timing.sleep(1000)
 
 `order` accepts `linear` or `random` (seeded/reproducible); the profiles
 are `simple`, `normal` or `edge`. Registrations use the same
-`A%04d` generator as the Simulation GUI. The currently selected
-LIVE TimingNode is captured when Run starts; disconnect, node change or
-loss of connection stops the script. Simulation calls separately require the
+`A%04d` generator as the Simulation GUI. A selected TimingNode is optional at Run start. Generic `client.*` and
+Central configuration calls work without one; node-specific simulation and
+TIMING_DATA_REQ calls require the captured node. A script remains alive while
+it intentionally disconnects/reconnects Events or Central. Simulation calls separately require the
 TAG_SCENARIO_SIMULATION capability. Script and GUI simulation batches cannot
 run concurrently. IF-03 remains the only operation boundary.
 See the [Lua language/API reference](docs/lua-scripting.md) for supported calls,
-requirements and troubleshooting, and [scripts/batch.lua](scripts/batch.lua)
-for an editable standard script.
+requirements and troubleshooting, plus [scripts/batch.lua](scripts/batch.lua),
+[scripts/stage-starts.lua](scripts/stage-starts.lua) and
+[scripts/central-reconnect.lua](scripts/central-reconnect.lua) for editable standard scripts.
 
 The interpreter intentionally does **not** expose `luajava`, filesystem
 `io`, process `os`, package loaders or Java reflection. These restrictions
@@ -266,7 +268,9 @@ projections visible close to the controls. The separate right-side **Stages** vi
 a **Stage** selector, matching the Central viewer's node-selection pattern, and shows the
 selected StageId's **StartTimes** as RegistrationId/start-time rows. Authored values remain
 visible even before any node opens. **Node Controls** contains TimingNode, API,
-Registration, Simulation and Scripts. **Central Controls** separates **RaceData** from
+Registration and Simulation. **Scripts** is a generic engineering tool beside
+**Terminal**, because it can automate client lifecycle, Central configuration and
+node-specific operations. **Central Controls** separates **RaceData** from
 **TimingData**: RaceData owns team/stage-start changes; TimingData shows Central's
 contiguous received sequence and lets an operator request TimingData from an explicit
 source sequence. The existing Central **LogBook** viewer remains the record-oriented view

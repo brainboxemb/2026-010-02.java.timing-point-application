@@ -2,11 +2,6 @@ package oss.relay.timing.testclient.central;
 
 /** Central operator controls that are intentionally not exported to local scripts. */
 interface CentralControlActions extends CentralActions {
-    record MutationResult(
-            int affected,
-            int immediatePackets) {
-    }
-
     MutationResult setTeamAssignmentByNumber(
             String registrationPrefix,
             String registrationNumber,

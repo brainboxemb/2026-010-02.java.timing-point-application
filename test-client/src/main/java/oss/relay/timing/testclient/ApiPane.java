@@ -44,10 +44,11 @@ final class ApiPane {
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog,
-            CentralActions centralActions) {
+            CentralActions centralActions,
+            EngineeringClientActions clientActions) {
         if (clientSupplier == null || requests == null
                 || feedback == null || apiState == null || clientLog == null
-                || centralActions == null) {
+                || centralActions == null || clientActions == null) {
             throw new IllegalArgumentException("API pane dependencies must not be null");
         }
         this.clientSupplier = clientSupplier;
@@ -82,7 +83,8 @@ final class ApiPane {
                 feedback,
                 apiState,
                 clientLog,
-                centralActions);
+                centralActions,
+                clientActions);
         timingPane.setCapabilitiesListener(this::showCapabilities);
 
         rawResponse.setEditable(false);

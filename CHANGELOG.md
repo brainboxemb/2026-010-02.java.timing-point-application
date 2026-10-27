@@ -1,5 +1,7 @@
 # Changelog
 
+- Generalize SI-02 Lua automation: move Scripts beside Terminal, allow generic scripts without Events/node selection, add `timing.now(offsetSeconds)`, global/StageId-based Central configuration helpers, and `client.*` reset/connect/disconnect/status/wait actions for repeatable API/Events/Central reconnect scenarios. Standard scripts now include StageStartTimes configuration and Central reconnect examples.
+
 - Make `test-client/scripts/` the standard Engineering Client Lua directory; **Open .lua** defaults there in source runs and to the packaged app-image `scripts/` directory, which Windows packaging now includes beside the launcher.
 
 - Add bounded IF-03 inspection of the StageStartTimes actually applied in SI-01 and a Node **StartTimes** tab beside Registrations; share the applied StageStart revision with registration projection metadata so SI-02 rereads elapsed RunningTime/rank after RACE_DATA start-time changes.

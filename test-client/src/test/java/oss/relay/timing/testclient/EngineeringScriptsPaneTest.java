@@ -12,9 +12,9 @@ class EngineeringScriptsPaneTest {
     @TempDir
     Path temporaryDirectory;
 
-    @Test void localLuaCanRunWhileSimulationCapabilityIsUnavailable() {
-        // Run readiness does not depend on SI-01 TAG_SCENARIO_SIMULATION.
-        assertTrue(EngineeringScriptsPane.canRun(true, "A", false));
+    @Test void localLuaCanRunWhileDisconnectedOrSimulationUnavailable() {
+        assertTrue(EngineeringScriptsPane.canRun(false, false));
+        assertTrue(EngineeringScriptsPane.canRun(true, false));
     }
 
     @Test
@@ -65,10 +65,9 @@ class EngineeringScriptsPaneTest {
                         launcher));
     }
 
-    @Test void runRequiresSyncedSelectedNodeAndNoConcurrentGuiBatch() {
-        assertFalse(EngineeringScriptsPane.canRun(false, "A", false));
-        assertFalse(EngineeringScriptsPane.canRun(true, null, false));
-        assertFalse(EngineeringScriptsPane.canRun(true, "", false));
-        assertFalse(EngineeringScriptsPane.canRun(true, "A", true));
+    @Test void concurrentGuiBatchIsTheOnlyGenericRunGate() {
+        assertTrue(EngineeringScriptsPane.canRun(false, false));
+        assertFalse(EngineeringScriptsPane.canRun(false, true));
+        assertFalse(EngineeringScriptsPane.canRun(true, true));
     }
 }
