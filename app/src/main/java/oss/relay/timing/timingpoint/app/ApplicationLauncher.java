@@ -6,6 +6,7 @@ import oss.relay.timing.timingpoint.infra.loggingserver.LoggingServer;
 import oss.relay.timing.timingpoint.runtime.TimingApplicationRuntime;
 import oss.relay.timing.timingpoint.runtime.config.Config;
 import oss.relay.timing.timingpoint.runtime.config.YamlLoader;
+import oss.relay.timing.timingpoint.io.storage.FileRecordStoreMaintenance;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -168,6 +169,9 @@ final class ApplicationLauncher {
                         processLogging.logging(),
                         out);
 
+                applyPendingTimingDataMaintenance(
+                        config);
+
                 if (!retainingCurrentLogging) {
                     processLogging.startLoggingServer(config);
                 }
@@ -206,6 +210,42 @@ final class ApplicationLauncher {
         } finally {
             processLogging.close();
         }
+    }
+
+    /**
+     * Applies durable TimingData clear requests before a replacement runtime is composed.
+     *
+     * <p>The caller reaches this point only after the previous runtime has fully
+     * deactivated (or on cold startup), so no LogBook can still append to these files.</p>
+     */
+    static List<Path> applyPendingTimingDataMaintenance(
+            Config config)
+            throws IOException {
+        if (config == null) {
+            throw new IllegalArgumentException(
+                    "config must not be null");
+        }
+
+        List<Path> backups =
+                new ArrayList<Path>();
+        for (Config.TimingSystemConfig system
+                : config.timingSystems()) {
+            for (Config.TimingNodeConfig node
+                    : system.timingNodes()) {
+                Path backup =
+                        FileRecordStoreMaintenance.applyPendingClear(
+                                node.timingDataPath());
+                if (backup != null) {
+                    backups.add(backup);
+                    LOGGER.info(
+                            "Applied pending TimingData clear for node "
+                                    + node.timingNodeId().value()
+                                    + "; backup="
+                                    + backup.toAbsolutePath().normalize());
+                }
+            }
+        }
+        return backups;
     }
 
     /** Process-owned logging resources that may outlive one TimingApplicationRuntime. */

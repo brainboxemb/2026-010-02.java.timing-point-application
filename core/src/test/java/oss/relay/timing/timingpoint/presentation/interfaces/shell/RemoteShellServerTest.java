@@ -40,7 +40,7 @@ public class RemoteShellServerTest {
             assertTrue(response.contains(
                     "help [command]               Show commands or details for one command"));
             assertTrue(response.contains(
-                    "lb [options]                 Inspect raw LogBook history"));
+                    "lb [options]                 Inspect/maintain raw LogBook history"));
             assertTrue(response.contains(
                     "lbl <locationId> [options]   Inspect raw LogBook by location"));
             assertTrue(response.contains(

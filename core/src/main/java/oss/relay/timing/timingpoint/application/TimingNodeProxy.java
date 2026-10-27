@@ -17,6 +17,9 @@ import oss.relay.timing.timingpoint.domain.node.logbook.LogBookCommand;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookCommands;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQueries;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookTestControl;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookMaintenance;
+
+import java.nio.file.Path;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
 import oss.relay.timing.timingpoint.domain.node.registration.StageTiming;
 import oss.relay.timing.timingpoint.domain.node.service.state.NodeStateAccessor;
@@ -268,6 +271,7 @@ public final class TimingNodeProxy {
     private final NodeStateTestControl nodeStateTestControl;
     private final LogBookAccessor logBook;
     private final LogBookTestControl logBookTestControl;
+    private final LogBookMaintenance logBookMaintenance;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<TimingNodeStatus>();
 
     public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChangedEvent;
@@ -295,6 +299,10 @@ public final class TimingNodeProxy {
                     "TimingNode LogBook does not expose engineering test control");
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
+        this.logBookMaintenance =
+                logBook instanceof LogBookMaintenance
+                        ? (LogBookMaintenance) logBook
+                        : null;
         this.NEW_DATA_ENTRY = timingNode.NEW_DATA_ENTRY;
         timingNode.PROPERTIES.CHANGED.subscribe(this::publishVisibleStatusChange);
     }
@@ -495,6 +503,28 @@ public final class TimingNodeProxy {
 
     public CloseResult close() {
         return timingNode.close();
+    }
+
+    /** Creates one consistent physical backup of this node's persisted TimingData. */
+    public Path backupTimingData() {
+        if (logBookMaintenance == null) {
+            throw new IllegalStateException(
+                    "TimingData maintenance is unavailable");
+        }
+        return logBookMaintenance.backupTimingData();
+    }
+
+    /**
+     * Durably schedules backup+clear for the next application restart.
+     *
+     * <p>The current runtime is intentionally left untouched until normal deactivation.</p>
+     */
+    public Path requestTimingDataClearOnRestart() {
+        if (logBookMaintenance == null) {
+            throw new IllegalStateException(
+                    "TimingData maintenance is unavailable");
+        }
+        return logBookMaintenance.requestTimingDataClearOnRestart();
     }
 
     public void testNextLogBookWriteFailure(LogBookTestControl.WriteFailure failure) {

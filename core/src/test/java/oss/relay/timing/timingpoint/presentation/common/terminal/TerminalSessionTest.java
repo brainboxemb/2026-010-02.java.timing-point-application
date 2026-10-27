@@ -6,21 +6,36 @@ import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingTimestamp;
+import oss.relay.timing.timingpoint.application.PresentationGateway;
 import oss.relay.timing.timingpoint.application.TimingNodeProxy;
+import oss.relay.timing.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import oss.relay.timing.timingpoint.infra.BuildIdentity;
+import oss.relay.timing.timingpoint.infra.lifecycle.LifecycleTestSupport;
+import oss.relay.timing.timingpoint.io.storage.FileAppendOnlyRecordStore;
+import oss.relay.timing.timingpoint.io.storage.FileRecordStoreMaintenance;
+import oss.relay.timing.timingpoint.testsupport.TimingNodeFixture;
+import oss.relay.timing.timingdata.defaultprofile.DefaultTimingDataCodec;
 import oss.relay.timing.timingpoint.testsupport.PresentationGatewayFixture;
 
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /** Verifies terminal operator-time and help semantics independently of the host time zone. */
 public class TerminalSessionTest {
+    @Rule
+    public final TemporaryFolder temporaryFolder =
+            new TemporaryFolder();
 
     @Test
     public void rebootRequestsRestartWithoutRequestingStop() throws Exception {
@@ -78,6 +93,117 @@ public class TerminalSessionTest {
         assertTrue(retainedLogging.get());
         assertTrue(!restarted.get());
         assertTrue(!stopped.get());
+    }
+
+    @Test
+    public void logBookBackupAndClearScheduleSafeRestart()
+            throws Exception {
+        Path timingData =
+                temporaryFolder.getRoot()
+                        .toPath()
+                        .resolve("timing-data.jsonl");
+        NodeId nodeId = new NodeId("A");
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createComponents(
+                        nodeId,
+                        new DefaultTimingDataPersistence(
+                                new FileAppendOnlyRecordStore(timingData),
+                                nodeId,
+                                new DefaultTimingDataCodec()),
+                        () -> TimingTimestamp.parse(
+                                        "2026-10-27T09:00:00Z")
+                                .instant());
+        PresentationGateway gateway =
+                new PresentationGateway(
+                        identity(),
+                        java.util.Collections.singletonList(
+                                components.presentationComponents()),
+                        PresentationGatewayFixture.configurationControl(
+                                nodeId));
+        AtomicBoolean restarted =
+                new AtomicBoolean(false);
+        StringWriter output =
+                new StringWriter();
+
+        LifecycleTestSupport.activate(
+                components.node());
+        try {
+            TerminalSession session =
+                    new TerminalSession(
+                            gateway,
+                            null,
+                            () -> { },
+                            () -> restarted.set(true));
+            session.run(
+                    new StringReader(
+                            "open 5\n"
+                                    + "close\n"
+                                    + "lb backup\n"
+                                    + "lb clear\n"),
+                    output,
+                    "ready");
+        } finally {
+            LifecycleTestSupport.deactivate(
+                    components.node());
+        }
+
+        String text = output.toString();
+        assertTrue(text.contains("LogBook backup: "));
+        assertTrue(text.contains(
+                "LogBook backup+clear scheduled; backup="));
+        assertTrue(text.contains(
+                "Restarting application to apply LogBook clear."));
+        assertTrue(restarted.get());
+        assertTrue(
+                FileRecordStoreMaintenance.hasPendingClear(
+                        timingData));
+        assertTrue(Files.isRegularFile(timingData));
+
+        long backupCount;
+        try (java.util.stream.Stream<Path> files =
+                Files.list(
+                        temporaryFolder.getRoot()
+                                .toPath())) {
+            backupCount =
+                    files.filter(value ->
+                                    value.getFileName()
+                                            .toString()
+                                            .startsWith(
+                                                    "timing-data.jsonl.backup-"))
+                            .count();
+        }
+        assertEquals(1L, backupCount);
+    }
+
+    @Test
+    public void logBookClearRejectsOpenTimingNode()
+            throws Exception {
+        AtomicBoolean restarted =
+                new AtomicBoolean(false);
+        StringWriter output =
+                new StringWriter();
+
+        try (PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity())) {
+            TerminalSession session =
+                    new TerminalSession(
+                            fixture.handler(),
+                            null,
+                            () -> { },
+                            () -> restarted.set(true));
+            session.run(
+                    new StringReader(
+                            "open 5\n"
+                                    + "lb clear\n"
+                                    + "quit\n"),
+                    output,
+                    "ready");
+        }
+
+        assertTrue(
+                output.toString().contains(
+                        "lb clear requires TimingNode CLOSED"));
+        assertTrue(!restarted.get());
     }
 
     @Test

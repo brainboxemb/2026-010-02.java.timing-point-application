@@ -19,6 +19,7 @@ import oss.relay.timing.timingpoint.application.TimingNodeProxy;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookTestControl;
 import oss.relay.timing.timingpoint.application.TimingNodeStatus;
 import oss.relay.timing.timingpoint.application.CommandResult;
+import oss.relay.timing.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import oss.relay.timing.timingpoint.infra.BuildIdentity;
 import oss.relay.timing.timingpoint.infra.logging.ConsolePromptControl;
 import oss.relay.timing.timingpoint.infra.logging.LoggingLevel;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.file.Path;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -345,6 +347,12 @@ public final class TerminalSession {
                     registrations(arguments, nodeId, output);
                     return false;
                 case "lb":
+                    if (arguments.length == 2
+                            && "clear".equalsIgnoreCase(arguments[1])) {
+                        return clearLogBook(
+                                nodeId,
+                                output);
+                    }
                     logBook(arguments, nodeId, output);
                     return false;
                 case "lbl":
@@ -670,6 +678,17 @@ public final class TerminalSession {
             PrintWriter output) {
 
         TimingNodeProxy timingNode = timingNode(nodeId);
+
+        if (arguments.length == 2
+                && "backup".equalsIgnoreCase(arguments[1])) {
+            Path backup =
+                    timingNode.backupTimingData();
+            output.println(
+                    "LogBook backup: "
+                            + backup.toAbsolutePath().normalize());
+            return;
+        }
+
         int count = timingNode.logBookCount();
 
         if (arguments.length == 2
@@ -692,7 +711,7 @@ public final class TerminalSession {
 
         if ("latest".equalsIgnoreCase(arguments[1])) {
             if (arguments.length > 3) {
-                output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+                output.println("Usage: lb [count|latest [n]|all|backup|clear|<fromSeq> [limit]]");
                 return;
             }
             int limit = LOGBOOK_DEFAULT_LATEST;
@@ -700,7 +719,7 @@ public final class TerminalSession {
                 try {
                     limit = Integer.parseInt(arguments[2]);
                 } catch (NumberFormatException ex) {
-                    output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+                    output.println("Usage: lb [count|latest [n]|all|backup|clear|<fromSeq> [limit]]");
                     return;
                 }
             }
@@ -741,7 +760,7 @@ public final class TerminalSession {
         }
 
         if (arguments.length < 2 || arguments.length > 3) {
-            output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+            output.println("Usage: lb [count|latest [n]|all|backup|clear|<fromSeq> [limit]]");
             return;
         }
 
@@ -753,7 +772,7 @@ public final class TerminalSession {
                 limit = Integer.parseInt(arguments[2]);
             }
         } catch (NumberFormatException ex) {
-            output.println("Usage: lb [count|latest [n]|all|<fromSeq> [limit]]");
+            output.println("Usage: lb [count|latest [n]|all|backup|clear|<fromSeq> [limit]]");
             return;
         }
         if (from < 1L || limit < 1 || limit > MAX_LOGBOOK_PAGE_SIZE) {
@@ -767,6 +786,30 @@ public final class TerminalSession {
         printLogBookRecords(
                 logBookPage(timingNode, from, limit),
                 output);
+    }
+
+    private boolean clearLogBook(
+            NodeId nodeId,
+            PrintWriter output) {
+
+        TimingNodeProxy timingNode =
+                timingNode(nodeId);
+        if (timingNode.status().state()
+                != FunctionalState.CLOSED) {
+            output.println(
+                    "lb clear requires TimingNode CLOSED");
+            return false;
+        }
+
+        Path backup =
+                timingNode.requestTimingDataClearOnRestart();
+        output.println(
+                "LogBook backup+clear scheduled; backup="
+                        + backup.toAbsolutePath().normalize());
+        output.println(
+                "Restarting application to apply LogBook clear.");
+        restart.run();
+        return true;
     }
 
     /**
@@ -2018,8 +2061,8 @@ public final class TerminalSession {
             case "lb":
                 output.println(
                         "Usage: lb[:<NodeId>] "
-                                + "[count|latest [n]|all|<fromSeq> [limit]]");
-                output.println("  Read the real retained LogBook TimingRecord history.");
+                                + "[count|latest [n]|all|backup|clear|<fromSeq> [limit]]");
+                output.println("  Read or maintain the real retained LogBook TimingData.");
                 output.println("  With no option, shows the latest " + LOGBOOK_DEFAULT_LATEST + " rows.");
                 output.println("  count shows only the retained record count.");
                 output.println("  latest [n] shows the newest bounded rows in sequence order.");
@@ -2027,7 +2070,12 @@ public final class TerminalSession {
                 output.println("  all pages through the complete LogBook.");
                 output.println("  type/code/time/recTime follow persisted LogBook vocabulary.");
                 output.println("  time and recTime are absolute UTC timestamps with Z.");
+                output.println("  backup creates a consistent timestamped copy of persisted TimingData.");
+                output.println("  clear requires CLOSED, schedules backup+clear, then restarts the application.");
+                output.println("  The persisted clear is applied between runtime instances, never by truncating a live LogBook.");
                 output.println("  Example: lb count");
+                output.println("  Example: lb backup");
+                output.println("  Example: lb clear");
                 output.println("  Example: lb latest 10");
                 output.println("  Example: lb 100 25");
                 break;
@@ -2121,7 +2169,7 @@ public final class TerminalSession {
         output.println("  start <id|team> <time>       Set registration stage-start time");
         output.println("  reg <id|team> [time]         Register one ID/team");
         output.println("  regs [options]               Show active-WP registration projection");
-        output.println("  lb [options]                 Inspect raw LogBook history");
+        output.println("  lb [options]                 Inspect/maintain raw LogBook history");
         output.println("  lbl <locationId> [options]   Inspect raw LogBook by location");
         output.println("  data [options]               Inspect current live RaceData");
         output.println("  config [options]             Show/update configuration");

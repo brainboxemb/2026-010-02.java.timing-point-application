@@ -1,5 +1,7 @@
 # Changelog
 
+- Add node-scoped `lb backup` and safe `lb clear`: backup snapshots the file store consistently with append; clear requires CLOSED, records a durable clear-on-restart request, triggers normal restart, and applies backup+file removal only after the old runtime has deactivated and before replacement recovery.
+
 - Generalize SI-02 Lua automation: move Scripts beside Terminal, allow generic scripts without Events/node selection, add `timing.now(offsetSeconds)`, global/StageId-based Central configuration helpers, and `client.*` reset/connect/disconnect/status/wait actions for repeatable API/Events/Central reconnect scenarios. Standard scripts now include StageStartTimes configuration and Central reconnect examples.
 
 - Make `test-client/scripts/` the standard Engineering Client Lua directory; **Open .lua** defaults there in source runs and to the packaged app-image `scripts/` directory, which Windows packaging now includes beside the launcher.
