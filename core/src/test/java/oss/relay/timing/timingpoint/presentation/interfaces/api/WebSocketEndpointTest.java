@@ -178,7 +178,7 @@ public class WebSocketEndpointTest {
                                     Collections.singletonList(
                                             DefaultUpstreamData.createTeamAssignmentSet(
                                                     "R0001",
-                                                    "0042")));
+                                                    "0042"))));
 
             upstream.send(upstreamJson(racePacket));
 
