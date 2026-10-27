@@ -12,6 +12,7 @@ import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -36,6 +37,58 @@ public class FileAppendOnlyRecordStoreTest {
         assertArrayEquals(
                 "first".getBytes(StandardCharsets.UTF_8),
                 load.records().get(0).payload());
+    }
+
+    @Test
+    public void backupCopiesOneConsistentRecordFile() throws Exception {
+        Path file = file();
+        FileAppendOnlyRecordStore store =
+                new FileAppendOnlyRecordStore(file);
+        store.append(
+                "first".getBytes(StandardCharsets.UTF_8));
+        store.append(
+                "second".getBytes(StandardCharsets.UTF_8));
+
+        Path backup = store.backup();
+
+        assertTrue(Files.isRegularFile(backup));
+        assertArrayEquals(
+                Files.readAllBytes(file),
+                Files.readAllBytes(backup));
+        assertFalse(
+                backup.equals(file));
+    }
+
+    @Test
+    public void clearOnRestartIsDurableIdempotentAndAlwaysBacksUp()
+            throws Exception {
+        Path file = file();
+        FileAppendOnlyRecordStore store =
+                new FileAppendOnlyRecordStore(file);
+        store.append(
+                "first".getBytes(StandardCharsets.UTF_8));
+        byte[] original = Files.readAllBytes(file);
+
+        Path reserved =
+                store.requestClearOnRestart();
+        assertTrue(
+                FileRecordStoreMaintenance.hasPendingClear(file));
+        assertEquals(
+                reserved,
+                store.requestClearOnRestart());
+
+        Path applied =
+                FileRecordStoreMaintenance.applyPendingClear(file);
+
+        assertEquals(reserved, applied);
+        assertArrayEquals(
+                original,
+                Files.readAllBytes(applied));
+        assertFalse(Files.exists(file));
+        assertFalse(
+                FileRecordStoreMaintenance.hasPendingClear(file));
+        assertNull(
+                FileRecordStoreMaintenance.applyPendingClear(file));
     }
 
     @Test

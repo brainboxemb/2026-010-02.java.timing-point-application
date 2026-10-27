@@ -19,7 +19,8 @@ import java.util.List;
  * append through {@link FileChannel#force(boolean)}. Record meaning belongs to
  * the caller.</p>
  */
-public final class FileAppendOnlyRecordStore implements AppendOnlyRecordStore {
+public final class FileAppendOnlyRecordStore
+        implements AppendOnlyRecordStore, AppendOnlyRecordStoreMaintenance {
     private static final byte LF = (byte) '\n';
     private static final byte CR = (byte) '\r';
 
@@ -33,7 +34,7 @@ public final class FileAppendOnlyRecordStore implements AppendOnlyRecordStore {
     }
 
     @Override
-    public LoadResult load() throws StoreException {
+    public synchronized LoadResult load() throws StoreException {
         if (!Files.exists(file)) {
             return new LoadResult(Collections.emptyList(), false);
         }
@@ -61,7 +62,7 @@ public final class FileAppendOnlyRecordStore implements AppendOnlyRecordStore {
     }
 
     @Override
-    public void append(byte[] record) throws StoreException {
+    public synchronized void append(byte[] record) throws StoreException {
         rejectInvalidRecord(record);
 
         byte[] framed = Arrays.copyOf(record, record.length + 1);
@@ -81,6 +82,29 @@ public final class FileAppendOnlyRecordStore implements AppendOnlyRecordStore {
             channel.force(true);
         } catch (IOException ex) {
             throw new StoreException("could not durably append record to " + file, ex);
+        }
+    }
+
+    @Override
+    public synchronized Path backup() throws StoreException {
+        try {
+            return FileRecordStoreMaintenance.backup(file);
+        } catch (IOException ex) {
+            throw new StoreException(
+                    "could not back up record file " + file,
+                    ex);
+        }
+    }
+
+    @Override
+    public synchronized Path requestClearOnRestart()
+            throws StoreException {
+        try {
+            return FileRecordStoreMaintenance.requestClearOnRestart(file);
+        } catch (IOException ex) {
+            throw new StoreException(
+                    "could not schedule record-file clear " + file,
+                    ex);
         }
     }
 
