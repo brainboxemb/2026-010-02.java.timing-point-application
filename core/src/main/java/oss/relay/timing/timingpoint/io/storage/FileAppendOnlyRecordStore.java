@@ -20,7 +20,7 @@ import java.util.List;
  * the caller.</p>
  */
 public final class FileAppendOnlyRecordStore
-        implements AppendOnlyRecordStore, AppendOnlyRecordStoreMaintenance {
+        implements AppendOnlyRecordStore, RecordStoreBackup {
     private static final byte LF = (byte) '\n';
     private static final byte CR = (byte) '\r';
 
@@ -88,7 +88,7 @@ public final class FileAppendOnlyRecordStore
     @Override
     public synchronized Path backup() throws StoreException {
         try {
-            return FileRecordStoreMaintenance.backup(file);
+            return FileRecordStoreBackup.backup(file);
         } catch (IOException ex) {
             throw new StoreException(
                     "could not back up record file " + file,
@@ -97,10 +97,10 @@ public final class FileAppendOnlyRecordStore
     }
 
     @Override
-    public synchronized Path requestClearOnRestart()
+    public synchronized Path requestBackupAndClearOnRestart()
             throws StoreException {
         try {
-            return FileRecordStoreMaintenance.requestClearOnRestart(file);
+            return FileRecordStoreBackup.requestBackupAndClearOnRestart(file);
         } catch (IOException ex) {
             throw new StoreException(
                     "could not schedule record-file clear " + file,
