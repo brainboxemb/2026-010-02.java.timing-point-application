@@ -280,13 +280,16 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void stageStartsExposeOneGlobalCentralState() {
+    void stageStartsExposeCentralStatePerStageId() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(2, 1));
 
-        assertTrue(simulator.stageStarts().isEmpty());
+        assertEquals(2, simulator.stages().size());
+        assertTrue(simulator.stages().get(0).startTimes().isEmpty());
+        assertTrue(simulator.stages().get(1).startTimes().isEmpty());
 
         simulator.updateStageStarts(
+                2,
                 List.of(
                         DefaultUpstreamData.createStageStartSet(
                                 "A0002",
@@ -295,13 +298,18 @@ final class CentralSystemSimulatorTest {
                                 "A0003",
                                 TimingTimestamp.parse("10:30:15"))));
 
-        assertEquals(2, simulator.stageStarts().size());
+        CentralSystemSimulator.StageView stage2 =
+                simulator.stages().stream()
+                        .filter(stage -> stage.stageId() == 2)
+                        .findFirst()
+                        .orElseThrow();
+        assertEquals(2, stage2.startTimes().size());
         assertEquals(
                 "A0002",
-                simulator.stageStarts().get(0).registrationId());
+                stage2.startTimes().get(0).registrationId());
         assertEquals(
                 "10:30:15",
-                simulator.stageStarts().get(1).start());
+                stage2.startTimes().get(1).start());
     }
 
     @Test
@@ -319,6 +327,7 @@ final class CentralSystemSimulatorTest {
 
         assertTrue(
                 simulator.updateStageStarts(
+                                2,
                                 List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",
@@ -383,6 +392,7 @@ final class CentralSystemSimulatorTest {
         simulator.connected();
 
         simulator.updateStageStarts(
+                2,
                 List.of(
                         DefaultUpstreamData.createStageStartSet(
                                 "A0001",
@@ -411,12 +421,22 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
-    void stageStartStateIsNotKeyedByOpenLocation() {
+    void openLocationSelectsMatchingCentralStageId() {
         CentralSystemSimulator simulator =
                 openSimulatorAtLocation(2);
 
+        assertTrue(
+                simulator.updateStageStarts(
+                                1,
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("09:00:00"))))
+                        .isEmpty());
+
         List<UpstreamData> packets =
                 simulator.updateStageStarts(
+                        2,
                         List.of(
                                 DefaultUpstreamData.createStageStartSet(
                                         "A0001",
@@ -434,6 +454,76 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void changingOpenLocationRoutesTheNewStageProjectionWithoutWireStageId() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(1, 2));
+        simulator.connected();
+
+        assertTrue(
+                simulator.updateStageStarts(
+                                1,
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("09:00:00"))))
+                        .isEmpty());
+        assertTrue(
+                simulator.updateStageStarts(
+                                2,
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0002",
+                                                TimingTimestamp.parse("10:00:00"))))
+                        .isEmpty());
+
+        UpstreamData stage1Packet =
+                simulator.applyRuntimeStatus(
+                                "A",
+                                "OPEN",
+                                Integer.valueOf(1),
+                                RECEIVED)
+                        .get(0);
+        assertSame(
+                UpstreamData.Family.STAGE_STARTS,
+                stage1Packet.family());
+
+        assertTrue(
+                simulator.accept(
+                                receivePacket(
+                                        10L,
+                                        stage1Packet.packetNr()),
+                                RECEIVED.plusMillis(1L))
+                        .isEmpty());
+
+        List<UpstreamData> stage2Packets =
+                simulator.applyRuntimeStatus(
+                        "A",
+                        "OPEN",
+                        Integer.valueOf(2),
+                        RECEIVED.plusMillis(2L));
+
+        assertEquals(1, stage2Packets.size());
+        UpstreamData.StageStarts stage2 =
+                (UpstreamData.StageStarts) stage2Packets.get(0).message();
+        assertEquals(2, stage2.changes().size());
+        assertEquals(
+                UpstreamData.ChangeOperation.DEL,
+                stage2.changes().get(0).operation());
+        assertEquals(
+                "A0001",
+                stage2.changes().get(0).registrationId().value());
+        assertEquals(
+                UpstreamData.ChangeOperation.SET,
+                stage2.changes().get(1).operation());
+        assertEquals(
+                "A0002",
+                stage2.changes().get(1).registrationId().value());
+        assertEquals(
+                TimingTimestamp.parse("10:00:00"),
+                stage2.changes().get(1).start());
+    }
+
+    @Test
     void centralStageStartCanBeAuthoredBeforeNodeOpens() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(2));
@@ -441,6 +531,7 @@ final class CentralSystemSimulatorTest {
 
         assertTrue(
                 simulator.updateStageStarts(
+                                2,
                                 List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",
@@ -506,6 +597,7 @@ final class CentralSystemSimulatorTest {
 
         assertTrue(
                 simulator.updateStageStarts(
+                                7,
                                 List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",
@@ -615,6 +707,7 @@ final class CentralSystemSimulatorTest {
 
         UpstreamData stage =
                 simulator.updateStageStarts(
+                                7,
                                 List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",
@@ -818,21 +911,22 @@ final class CentralSystemSimulatorTest {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(1, 2));
         simulator.updateStageStarts(
+                1,
                 List.of(
                         DefaultUpstreamData.createStageStartSet(
                                 "A0001",
                                 TimingTimestamp.parse("10:00:00"))));
 
-        assertFalse(simulator.stageStarts().isEmpty());
+        assertFalse(simulator.stages().stream().allMatch(stage -> stage.startTimes().isEmpty()));
 
         simulator.resetTargetState();
         assertFalse(
-                simulator.stageStarts().isEmpty(),
+                simulator.stages().stream().allMatch(stage -> stage.startTimes().isEmpty()),
                 "target reset retains Central-owned source state");
 
         simulator.resetAllState();
         assertTrue(
-                simulator.stageStarts().isEmpty(),
+                simulator.stages().stream().allMatch(stage -> stage.startTimes().isEmpty()),
                 "full reset clears all authored StageStartTimes");
         assertTrue(simulator.timingRecords().isEmpty());
         assertFalse(simulator.isConnected());
@@ -895,6 +989,7 @@ final class CentralSystemSimulatorTest {
 
         List<UpstreamData> packets =
                 simulator.updateStageStarts(
+                        7,
                         List.of(
                                 DefaultUpstreamData.createStageStartSet(
                                         "A0001",
@@ -922,6 +1017,7 @@ final class CentralSystemSimulatorTest {
                         .isEmpty());
         assertTrue(
                 simulator.updateStageStarts(
+                                7,
                                 List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",

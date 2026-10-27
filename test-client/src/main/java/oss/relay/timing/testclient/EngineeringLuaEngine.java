@@ -223,30 +223,40 @@ final class EngineeringLuaEngine {
                                 regId.checkjstring()));
             }
         });
-        central.set("stage_start_set", new TwoArgFunction() {
-            @Override public LuaValue call(LuaValue regId, LuaValue start) {
+        central.set("stage_start_set", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                if (args.narg() != 3) {
+                    throw new LuaError(
+                            "stage_start_set requires stageId, regId, start");
+                }
+                int stageId = args.arg(1).checkint();
+                String regId = args.arg(2).checkjstring();
+                String start = args.arg(3).checkjstring();
                 return centralMutation(
                         centralActions,
                         output,
                         check,
                         () -> centralActions.setStageStart(
-                                regId.checkjstring(),
-                                start.checkjstring()));
+                                stageId,
+                                regId,
+                                start));
             }
         });
-        central.set("stage_start_del", new OneArgFunction() {
-            @Override public LuaValue call(LuaValue regId) {
+        central.set("stage_start_del", new TwoArgFunction() {
+            @Override public LuaValue call(LuaValue stageId, LuaValue regId) {
                 return centralMutation(
                         centralActions,
                         output,
                         check,
                         () -> centralActions.deleteStageStart(
+                                stageId.checkint(),
                                 regId.checkjstring()));
             }
         });
         central.set("stage_start_range", new OneArgFunction() {
             @Override public LuaValue call(LuaValue options) {
                 LuaTable opts = options.checktable();
+                int stageId = opts.get("stage").checkint();
                 String prefix =
                         opts.get("prefix").optjstring("A");
                 int from = opts.get("from").checkint();
@@ -259,6 +269,7 @@ final class EngineeringLuaEngine {
                         output,
                         check,
                         () -> centralActions.setStageStartRange(
+                                stageId,
                                 prefix,
                                 from,
                                 to,
@@ -269,6 +280,7 @@ final class EngineeringLuaEngine {
         central.set("stage_start_range_del", new OneArgFunction() {
             @Override public LuaValue call(LuaValue options) {
                 LuaTable opts = options.checktable();
+                int stageId = opts.get("stage").checkint();
                 String prefix =
                         opts.get("prefix").optjstring("A");
                 int from = opts.get("from").checkint();
@@ -278,6 +290,7 @@ final class EngineeringLuaEngine {
                         output,
                         check,
                         () -> centralActions.deleteStageStartRange(
+                                stageId,
                                 prefix,
                                 from,
                                 to));

@@ -265,8 +265,9 @@ Client Log
 
 The upper-left explorer keeps the direct API system view and Central node/location
 projections visible close to the controls. The separate right-side **StartTimes** viewer shows
-Central-owned **StartTimes** directly as RegistrationId/start-time rows. Stage-start state
-has no StageId or LocationId; authored values remain visible even before any node opens. **Node Controls** contains TimingNode, API,
+Central-owned **StartTimes** for a selected StageId as RegistrationId/start-time rows.
+StageId is Central source/routing context; authored values remain visible even before any node
+opens. **Node Controls** contains TimingNode, API,
 Registration and Simulation. **Scripts** is a generic engineering tool beside
 **Terminal**, because it can automate client lifecycle, Central configuration and
 node-specific operations. **Central Controls** separates current **Team Assignments /
@@ -442,9 +443,10 @@ release current TEAM_ASSIGNMENTS/STAGE_STARTS delivery until a new runtime OPEN 
 
 **Central Controls → Current State** is an operator form rather than an explorer and
 authors Central-owned Team Assignments and Stage Starts independently from a selected
-node. Authored data may be retained while nodes are CLOSED. When a node becomes OPEN,
-Central routes the applicable current state through separate TEAM_ASSIGNMENTS and
-STAGE_STARTS messages; the messages themselves carry no LocationId or StageId. Registration input
+node. Team Mapping is global Central state; Stage Starts are authored per StageId. Authored
+data may be retained while nodes are CLOSED. Under the current mapping, OPEN LocationId N
+selects StageId N for routing. Central then emits the applicable projection through
+STAGE_STARTS; the wire message itself carries no LocationId or StageId. Registration input
 uses an explicit A-Z prefix selector plus numeric values: for example prefix `A` and
 number `8` becomes canonical RegistrationId `A0008`, and a range `8..100` becomes
 `A0008..A0100`. Stage-start time accepts the existing IF-06 TimingTimestamp forms and

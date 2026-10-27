@@ -86,6 +86,14 @@ final class CentralSystemSimulator {
             String start) {
     }
 
+    record StageView(
+            int stageId,
+            List<StageStartView> startTimes) {
+        StageView {
+            startTimes = List.copyOf(startTimes);
+        }
+    }
+
     /** Bounded model-side diagnostic history; TableView rendering is virtualized separately. */
     private static final int MAX_MESSAGE_HISTORY = 10_000;
 
@@ -96,7 +104,7 @@ final class CentralSystemSimulator {
     private final Deque<MessageView> messages = new ArrayDeque<>(MAX_MESSAGE_HISTORY);
     private final List<TimingRecord> timingRecords = new ArrayList<>();
     private final Map<RegistrationId, TeamId> currentTeams = new LinkedHashMap<>();
-    private final Map<RegistrationId, TimingTimestamp> currentStageStarts =
+    private final Map<Integer, Map<RegistrationId, TimingTimestamp>> currentStageStarts =
             new LinkedHashMap<>();
 
     private boolean connected;
@@ -247,19 +255,23 @@ final class CentralSystemSimulator {
     }
 
     /**
-     * Applies Central-owned RegistrationId-scoped stage starts.
+     * Applies Central-owned StageStartTimes for one StageId.
      *
-     * <p>The retained start state has no StageId or LocationId. Runtime OPEN state controls which
-     * nodes are currently eligible to receive the current values; it is not part of the values.</p>
+     * <p>StageId remains Central authoring/routing context. Under the current event mapping,
+     * Stage N finishes at LocationId N; STAGE_STARTS itself carries neither value.</p>
      */
     List<UpstreamData> updateStageStarts(
+            int stageId,
             List<UpstreamData.StageStartTimeChange> changes) {
 
+        if (stageId <= 0) {
+            throw new IllegalArgumentException("StageId must be positive");
+        }
         if (changes == null) {
             throw new IllegalArgumentException(
                     "stageStartTimeChanges must not be null");
         }
-        applyCurrentStageStarts(changes);
+        applyCurrentStageStarts(stageId, changes);
         return sendCurrentStateForOpenNodes();
     }
 
@@ -482,17 +494,38 @@ final class CentralSystemSimulator {
         return List.copyOf(result);
     }
 
-    /** Returns all Central-owned current stage starts in retained order. */
-    List<StageStartView> stageStarts() {
+    /** Returns Central-owned stage-start source state grouped by StageId. */
+    List<StageView> stages() {
 
-        List<StageStartView> result =
-                new ArrayList<>(currentStageStarts.size());
-        for (Map.Entry<RegistrationId, TimingTimestamp> entry
-                : currentStageStarts.entrySet()) {
+        List<Integer> stageIds =
+                new ArrayList<>(configuredLocationIds);
+        for (Integer stageId : currentStageStarts.keySet()) {
+            if (!stageIds.contains(stageId)) {
+                stageIds.add(stageId);
+            }
+        }
+        stageIds.sort(Integer::compareTo);
+
+        List<StageView> result =
+                new ArrayList<>(stageIds.size());
+        for (Integer stageId : stageIds) {
+            Map<RegistrationId, TimingTimestamp> starts =
+                    currentStageStarts.getOrDefault(
+                            stageId,
+                            Collections.emptyMap());
+            List<StageStartView> values =
+                    new ArrayList<>(starts.size());
+            for (Map.Entry<RegistrationId, TimingTimestamp> entry
+                    : starts.entrySet()) {
+                values.add(
+                        new StageStartView(
+                                entry.getKey().value(),
+                                entry.getValue().toString()));
+            }
             result.add(
-                    new StageStartView(
-                            entry.getKey().value(),
-                            entry.getValue().toString()));
+                    new StageView(
+                            stageId.intValue(),
+                            values));
         }
         return List.copyOf(result);
     }
@@ -816,12 +849,22 @@ final class CentralSystemSimulator {
     private UpstreamData.StageStarts createStageStartsDelta(
             NodeState node) {
 
+        if (node.locationId == null) {
+            return null;
+        }
+
+        int stageId = node.locationId.intValue();
+        Map<RegistrationId, TimingTimestamp> desiredStarts =
+                currentStageStarts.getOrDefault(
+                        Integer.valueOf(stageId),
+                        Collections.emptyMap());
+
         List<UpstreamData.StageStartTimeChange> changes =
                 new ArrayList<>();
 
         for (Map.Entry<RegistrationId, TimingTimestamp> entry
                 : node.acknowledgedStageStarts.entrySet()) {
-            if (!currentStageStarts.containsKey(entry.getKey())) {
+            if (!desiredStarts.containsKey(entry.getKey())) {
                 changes.add(
                         new UpstreamData.StageStartTimeChange(
                                 UpstreamData.ChangeOperation.DEL,
@@ -835,7 +878,7 @@ final class CentralSystemSimulator {
         }
 
         for (Map.Entry<RegistrationId, TimingTimestamp> entry
-                : currentStageStarts.entrySet()) {
+                : desiredStarts.entrySet()) {
             if (!Objects.equals(
                     entry.getValue(),
                     node.acknowledgedStageStarts.get(entry.getKey()))) {
@@ -882,7 +925,13 @@ final class CentralSystemSimulator {
     }
 
     private void applyCurrentStageStarts(
+            int stageId,
             List<UpstreamData.StageStartTimeChange> changes) {
+
+        Map<RegistrationId, TimingTimestamp> stageStarts =
+                currentStageStarts.computeIfAbsent(
+                        Integer.valueOf(stageId),
+                        ignored -> new LinkedHashMap<>());
 
         for (UpstreamData.StageStartTimeChange change : changes) {
             if (change == null) {
@@ -891,12 +940,12 @@ final class CentralSystemSimulator {
             }
             switch (change.operation()) {
                 case SET:
-                    currentStageStarts.put(
+                    stageStarts.put(
                             change.registrationId(),
                             change.start());
                     break;
                 case DEL:
-                    currentStageStarts.remove(
+                    stageStarts.remove(
                             change.registrationId());
                     break;
                 default:
