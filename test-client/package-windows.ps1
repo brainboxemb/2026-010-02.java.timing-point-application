@@ -94,8 +94,16 @@ try {
         throw "jpackage failed."
     }
 
+    $AppImage = Join-Path $OutputDir "EventTimingEngineeringClient"
+    $ScriptsSource = Join-Path $ModuleRoot "scripts"
+    $ScriptsDestination = Join-Path $AppImage "scripts"
+    if (-not (Test-Path $ScriptsSource)) {
+        throw "Missing Engineering Client standard scripts: $ScriptsSource"
+    }
+    Copy-Item -Recurse -Force $ScriptsSource $ScriptsDestination
+
     Write-Host "Engineering Client app-image:"
-    Write-Host (Join-Path $OutputDir "EventTimingEngineeringClient")
+    Write-Host $AppImage
 }
 finally {
     Pop-Location

@@ -1,5 +1,7 @@
 # Changelog
 
+- Make `test-client/scripts/` the standard Engineering Client Lua directory; **Open .lua** defaults there in source runs and to the packaged app-image `scripts/` directory, which Windows packaging now includes beside the launcher.
+
 - Add bounded IF-03 inspection of the StageStartTimes actually applied in SI-01 and a Node **StartTimes** tab beside Registrations; share the applied StageStart revision with registration projection metadata so SI-02 rereads elapsed RunningTime/rank after RACE_DATA start-time changes.
 
 - Use IF-03 STATUS_SNAPSHOT/STATUS_CHANGED as Central's authority for current TimingNode OPEN/CLOSED and LocationId state; TIMING_DATA NODE_OPEN/NODE_CLOSE remain LogBook history only, so an unmatched historical OPEN cannot restore runtime state or release RACE_DATA after an SI-01 restart.

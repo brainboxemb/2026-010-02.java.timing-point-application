@@ -17,7 +17,9 @@ not remove the software-item boundary.
 The **Scripts** dock tab (beside Simulation) runs local `.lua` engineering
 scripts. Open a file with **Open .lua**, drop it onto the Scripts panel, or
 edit the script in place; **Run** is always explicit and dropping a file does
-not execute it. **Stop** cancels the script, including a CPU-bound Lua loop
+not execute it. **Open .lua** starts in the tool's standard `scripts/` directory
+(`test-client/scripts/` in a source checkout; `scripts/` beside the packaged
+Windows launcher in an app-image). **Stop** cancels the script, including a CPU-bound Lua loop
 or a delay; it cannot undo a simulation request already accepted by SI-01.
 Scripts run in a dedicated worker, not on the JavaFX thread or SI-01 runtime.
 
@@ -39,8 +41,8 @@ loss of connection stops the script. Simulation calls separately require the
 TAG_SCENARIO_SIMULATION capability. Script and GUI simulation batches cannot
 run concurrently. IF-03 remains the only operation boundary.
 See the [Lua language/API reference](docs/lua-scripting.md) for supported calls,
-requirements and troubleshooting, and [examples/batch.lua](examples/batch.lua)
-for an editable example.
+requirements and troubleshooting, and [scripts/batch.lua](scripts/batch.lua)
+for an editable standard script.
 
 The interpreter intentionally does **not** expose `luajava`, filesystem
 `io`, process `os`, package loaders or Java reflection. These restrictions
