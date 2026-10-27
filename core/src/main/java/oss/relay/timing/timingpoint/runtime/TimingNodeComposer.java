@@ -2,7 +2,9 @@ package oss.relay.timing.timingpoint.runtime;
 
 import oss.relay.timing.timingpoint.domain.node.TimingNode;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBook;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookBackup;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookMetrics;
+import oss.relay.timing.timingpoint.domain.node.logbook.persistence.DefaultTimingDataBackup;
 import oss.relay.timing.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import oss.relay.timing.timingpoint.domain.node.processing.TagProcessingMetrics;
@@ -56,12 +58,18 @@ final class TimingNodeComposer {
                         nodeConfig.timingNodeId())
                         .tagProcessing();
 
+        FileAppendOnlyRecordStore recordStore =
+                new FileAppendOnlyRecordStore(
+                        nodeConfig.timingDataPath());
         TimingDataPersistence persistence =
                 new DefaultTimingDataPersistence(
-                        new FileAppendOnlyRecordStore(
-                                nodeConfig.timingDataPath()),
+                        recordStore,
                         nodeConfig.timingNodeId(),
                         system.timingDataCodec());
+        LogBookBackup logBookBackup =
+                new LogBookBackup(
+                        new DefaultTimingDataBackup(
+                                recordStore));
 
         LogBook logBook =
                 new LogBook(
@@ -108,6 +116,7 @@ final class TimingNodeComposer {
         return new TimingNodeComposition(
                 node,
                 nodeService,
-                logBook);
+                logBook,
+                logBookBackup);
     }
 }
