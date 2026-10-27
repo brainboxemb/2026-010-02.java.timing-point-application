@@ -168,10 +168,57 @@ public final class CentralClient implements AutoCloseable {
                 String registrationPrefix,
                 String registrationNumber,
                 String teamId) {
-            String registrationId =
+            return setTeamAssignment(
                     registrationId(
                             registrationPrefix,
-                            registrationNumber);
+                            registrationNumber),
+                    teamId);
+        }
+
+        @Override
+        public MutationResult deleteTeamAssignmentByNumber(
+                String registrationPrefix,
+                String registrationNumber) {
+            return deleteTeamAssignment(
+                    registrationId(
+                            registrationPrefix,
+                            registrationNumber));
+        }
+
+        @Override
+        public MutationResult setStageStartRangeByNumber(
+                int stageId,
+                String registrationPrefix,
+                String firstRegistrationNumber,
+                String lastRegistrationNumber,
+                String start,
+                long intervalMillis) {
+            return setStageStartRange(
+                    stageId,
+                    registrationPrefix,
+                    registrationNumber(firstRegistrationNumber),
+                    registrationNumber(lastRegistrationNumber),
+                    start,
+                    intervalMillis);
+        }
+
+        @Override
+        public MutationResult deleteStageStartRangeByNumber(
+                int stageId,
+                String registrationPrefix,
+                String firstRegistrationNumber,
+                String lastRegistrationNumber) {
+            return deleteStageStartRange(
+                    stageId,
+                    registrationPrefix,
+                    registrationNumber(firstRegistrationNumber),
+                    registrationNumber(lastRegistrationNumber));
+        }
+
+        @Override
+        public MutationResult setTeamAssignment(
+                String registrationId,
+                String teamId) {
             int packets =
                     sendPacketsAndCount(
                             simulator.updateTeamAssignments(
@@ -183,13 +230,8 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult deleteTeamAssignmentByNumber(
-                String registrationPrefix,
-                String registrationNumber) {
-            String registrationId =
-                    registrationId(
-                            registrationPrefix,
-                            registrationNumber);
+        public MutationResult deleteTeamAssignment(
+                String registrationId) {
             int packets =
                     sendPacketsAndCount(
                             simulator.updateTeamAssignments(
@@ -200,11 +242,41 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult setStageStartRangeByNumber(
+        public MutationResult setStageStart(
+                int stageId,
+                String registrationId,
+                String start) {
+            int packets =
+                    sendPacketsAndCount(
+                            simulator.updateStageStarts(
+                                    stageId,
+                                    List.of(
+                                            DefaultUpstreamData.createStageStartSet(
+                                                    registrationId,
+                                                    parseOperatorTimestamp(start)))));
+            return new MutationResult(1, packets);
+        }
+
+        @Override
+        public MutationResult deleteStageStart(
+                int stageId,
+                String registrationId) {
+            int packets =
+                    sendPacketsAndCount(
+                            simulator.updateStageStarts(
+                                    stageId,
+                                    List.of(
+                                            DefaultUpstreamData.createStageStartDelete(
+                                                    registrationId))));
+            return new MutationResult(1, packets);
+        }
+
+        @Override
+        public MutationResult setStageStartRange(
                 int stageId,
                 String registrationPrefix,
-                String firstRegistrationNumber,
-                String lastRegistrationNumber,
+                int firstRegistrationNumber,
+                int lastRegistrationNumber,
                 String start,
                 long intervalMillis) {
             if (intervalMillis < 0L) {
@@ -214,8 +286,8 @@ public final class CentralClient implements AutoCloseable {
             List<String> registrations =
                     registrationRange(
                             registrationPrefix,
-                            firstRegistrationNumber,
-                            lastRegistrationNumber);
+                            Integer.toString(firstRegistrationNumber),
+                            Integer.toString(lastRegistrationNumber));
             TimingTimestamp first =
                     parseOperatorTimestamp(start);
             List<UpstreamData.StageStartTimeChange> changes =
@@ -241,16 +313,16 @@ public final class CentralClient implements AutoCloseable {
         }
 
         @Override
-        public MutationResult deleteStageStartRangeByNumber(
+        public MutationResult deleteStageStartRange(
                 int stageId,
                 String registrationPrefix,
-                String firstRegistrationNumber,
-                String lastRegistrationNumber) {
+                int firstRegistrationNumber,
+                int lastRegistrationNumber) {
             List<String> registrations =
                     registrationRange(
                             registrationPrefix,
-                            firstRegistrationNumber,
-                            lastRegistrationNumber);
+                            Integer.toString(firstRegistrationNumber),
+                            Integer.toString(lastRegistrationNumber));
             List<UpstreamData.StageStartTimeChange> changes =
                     new ArrayList<>(registrations.size());
             for (String registrationId : registrations) {
@@ -266,65 +338,6 @@ public final class CentralClient implements AutoCloseable {
             return new MutationResult(
                     registrations.size(),
                     packets);
-        }
-
-        @Override
-        public long setTeamAssignment(
-                String nodeId,
-                String registrationId,
-                String teamId) {
-            return sendPackets(
-                    simulator.updateRaceData(
-                            new NodeId(nodeId),
-                            List.of(
-                                    DefaultUpstreamData.createTeamAssignmentSet(
-                                            registrationId,
-                                            teamId)),
-                            List.of()));
-        }
-
-        @Override
-        public long deleteTeamAssignment(
-                String nodeId,
-                String registrationId) {
-            return sendPackets(
-                    simulator.updateRaceData(
-                            new NodeId(nodeId),
-                            List.of(
-                                    DefaultUpstreamData.createTeamAssignmentDelete(
-                                            registrationId)),
-                            List.of()));
-        }
-
-        @Override
-        public long setStageStart(
-                String nodeId,
-                String registrationId,
-                String start) {
-            TimingTimestamp parsed =
-                    TimingTimestamp.parse(
-                            start == null ? null : start.trim());
-            return sendPackets(
-                    simulator.updateRaceData(
-                            new NodeId(nodeId),
-                            List.of(),
-                            List.of(
-                                    DefaultUpstreamData.createStageStartSet(
-                                            registrationId,
-                                            parsed))));
-        }
-
-        @Override
-        public long deleteStageStart(
-                String nodeId,
-                String registrationId) {
-            return sendPackets(
-                    simulator.updateRaceData(
-                            new NodeId(nodeId),
-                            List.of(),
-                            List.of(
-                                    DefaultUpstreamData.createStageStartDelete(
-                                            registrationId))));
         }
 
         @Override
