@@ -200,12 +200,12 @@ final class LogBookOperations {
         return record;
     }
 
-    TimingDataPersistence.LoadResult loadPersistedTimingData()
+    TimingDataPersistence.LoadResult loadLogBookData()
             throws TimingDataPersistence.PersistenceException {
         return timingDataPersistence.load();
     }
 
-    void restorePersistedTimingData(TimingDataPersistence.LoadResult loadResult) {
+    void restoreLogBookData(TimingDataPersistence.LoadResult loadResult) {
         failIfInvalidArgument(loadResult != null, "loadResult must not be null");
         for (TimingRecord record : loadResult.records()) {
             state.addCommittedRecord(record);
