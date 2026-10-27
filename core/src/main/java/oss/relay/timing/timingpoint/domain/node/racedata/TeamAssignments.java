@@ -12,9 +12,9 @@ import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalid
 /**
  * Package-private live RegistrationId-to-TeamId assignment state owned by RaceDataState.
  *
- * <p>RaceDataState validates a complete bounded RACE_DATA transaction before mutating this state.
- * This type is an implementation detail; callers outside the race-data package resolve teams
- * through RaceDataState rather than mutating the assignment map directly.</p>
+ * <p>NodeService validates a complete bounded TEAM_ASSIGNMENTS message before mutating this
+ * state. This type is an implementation detail; callers outside the race-data package resolve
+ * teams through RaceDataState rather than mutating the assignment map directly.</p>
  */
 final class TeamAssignments {
     private final Map<RegistrationId, TeamId> assignments;
@@ -35,8 +35,8 @@ final class TeamAssignments {
     /**
      * Finds the current live RegistrationId owning one TeamId, or null when unassigned.
      *
-     * <p>The bounded transaction validator uses this targeted scan instead of retaining a second
-     * reverse index solely for validation.</p>
+     * <p>The bounded TEAM_ASSIGNMENTS validator uses this targeted scan instead of retaining a
+     * second reverse index solely for validation.</p>
      */
     RegistrationId registrationIdFor(TeamId teamId) {
 
@@ -64,7 +64,7 @@ final class TeamAssignments {
         assignments.remove(registrationId);
     }
 
-    /** Visits all live RACE_DATA assignments in retained order and returns their count. */
+    /** Visits all live Central-owned assignments in retained order and returns their count. */
     int visit(BiConsumer<RegistrationId, TeamId> visitor) {
 
         failIfInvalidArgument(visitor != null, "visitor must not be null");
