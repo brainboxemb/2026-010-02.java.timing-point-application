@@ -5,7 +5,9 @@ import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingpoint.application.TimingNodeProxyComponents;
 import oss.relay.timing.timingpoint.domain.node.TimingNode;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBook;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookBackup;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookMetrics;
+import oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataBackup;
 import oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import oss.relay.timing.timingpoint.domain.node.processing.TagProcessingMetrics;
 import oss.relay.timing.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -81,6 +83,7 @@ public final class TimingNodeFixture {
         private final TimingNode node;
         private final EventData eventData;
         private final LogBook logBook;
+        private final LogBookBackup logBookBackup;
         private final NodeService nodeService;
         private final TagProcessor tagProcessor;
         private final NodeUpstream nodeUpstream;
@@ -91,6 +94,7 @@ public final class TimingNodeFixture {
                 TimingNode node,
                 EventData eventData,
                 LogBook logBook,
+                LogBookBackup logBookBackup,
                 NodeService nodeService,
                 TagProcessor tagProcessor,
                 NodeUpstream nodeUpstream,
@@ -98,6 +102,7 @@ public final class TimingNodeFixture {
             this.node = node;
             this.eventData = eventData;
             this.logBook = logBook;
+            this.logBookBackup = logBookBackup;
             this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
             this.nodeUpstream = nodeUpstream;
@@ -141,7 +146,9 @@ public final class TimingNodeFixture {
                     eventData,
                     nodeService.state(),
                     nodeService.stateTestControl(),
-                    logBook);
+                    logBook,
+                    logBook,
+                    logBookBackup);
         }
     }
 
@@ -180,6 +187,7 @@ public final class TimingNodeFixture {
         return createComponents(
                 nodeId,
                 persistence,
+                unavailableLogBookBackup(),
                 timeSource,
                 EventData.empty());
     }
@@ -191,9 +199,39 @@ public final class TimingNodeFixture {
             TimeSource timeSource,
             EventData eventData) {
 
+        return createComponents(
+                nodeId,
+                persistence,
+                unavailableLogBookBackup(),
+                timeSource,
+                eventData);
+    }
+
+    public static Components createComponents(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            LogBookBackup logBookBackup,
+            TimeSource timeSource) {
+
+        return createComponents(
+                nodeId,
+                persistence,
+                logBookBackup,
+                timeSource,
+                EventData.empty());
+    }
+
+    public static Components createComponents(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            LogBookBackup logBookBackup,
+            TimeSource timeSource,
+            EventData eventData) {
+
         return compose(
                 nodeId,
                 persistence,
+                logBookBackup,
                 timeSource,
                 eventData,
                 unavailableStream(nodeId),
@@ -250,6 +288,7 @@ public final class TimingNodeFixture {
         return compose(
                 nodeId,
                 persistence,
+                unavailableLogBookBackup(),
                 timeSource,
                 eventData,
                 upstreamStream,
@@ -280,6 +319,7 @@ public final class TimingNodeFixture {
         return compose(
                 nodeId,
                 persistence,
+                unavailableLogBookBackup(),
                 timeSource,
                 EventData.empty(),
                 unavailableStream(nodeId),
@@ -297,6 +337,7 @@ public final class TimingNodeFixture {
     private static Components compose(
             NodeId nodeId,
             TimingDataPersistence persistence,
+            LogBookBackup logBookBackup,
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream,
@@ -374,10 +415,28 @@ public final class TimingNodeFixture {
                 node,
                 eventData,
                 logBook,
+                logBookBackup,
                 nodeService,
                 tagProcessor,
                 nodeUpstream,
                 raceData);
+    }
+
+    private static LogBookBackup unavailableLogBookBackup() {
+        return new LogBookBackup(
+                new TimingDataBackup() {
+                    @Override
+                    public java.nio.file.Path backup() {
+                        throw new UnsupportedOperationException(
+                                "LogBook backup is not configured for this fixture");
+                    }
+
+                    @Override
+                    public java.nio.file.Path requestBackupAndClearOnRestart() {
+                        throw new UnsupportedOperationException(
+                                "LogBook backup is not configured for this fixture");
+                    }
+                });
     }
 
     /** The unavailable transport still uses the normal fixed stream/gateway composition. */
