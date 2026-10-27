@@ -252,7 +252,7 @@ The main window separates **engineering controls** from **viewers**:
 ```text
 left: navigation / controls / diagnostics       right: detachable viewers
 -----------------------------------------       -------------------------------
-System                                         [ Node A ] [ Central ] [ Stages ]
+System                                         [ Node A ] [ Central ] [ StartTimes ]
 Central: Nodes / Locations                      viewer content only
 Node Controls / Central Controls
 -----------------------------------------
@@ -264,7 +264,7 @@ Client Log
 ```
 
 The upper-left explorer keeps the direct API system view and Central node/location
-projections visible close to the controls. The separate right-side **Stages** viewer shows
+projections visible close to the controls. The separate right-side **StartTimes** viewer shows
 Central-owned **StartTimes** directly as RegistrationId/start-time rows. Stage-start state
 has no StageId or LocationId; authored values remain visible even before any node opens. **Node Controls** contains TimingNode, API,
 Registration and Simulation. **Scripts** is a generic engineering tool beside
@@ -281,7 +281,7 @@ left-side docks, so all three can remain visible and be resized independently.
 The right side is reserved for viewer workspaces. The **Node A** title follows the
 API-selected NodeId. **Central** deliberately remains a global title because its Messages
 and LogBook tabs already provide their own node filtering/selection and are not scoped to
-the API-selected node. **Stages** is a separate global viewer beside Node and Central,
+the API-selected node. **StartTimes** is a separate global viewer beside Node and Central,
 because stage-start definitions are Central-owned current state rather than LogBook history. This
 right-side viewer leaf can later grow with additional node viewers without moving the
 shared controls.
