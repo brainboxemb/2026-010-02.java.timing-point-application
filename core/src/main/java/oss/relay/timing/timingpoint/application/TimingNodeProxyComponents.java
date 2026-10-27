@@ -25,7 +25,6 @@ public final class TimingNodeProxyComponents {
     private final LogBookTestControl logBookTestControl;
     private final LogBookBackup logBookBackup;
 
-    /** Creates one immutable proxy-composition value. */
     public TimingNodeProxyComponents(
             TimingNode timingNode,
             EventData eventData,
