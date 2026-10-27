@@ -91,6 +91,11 @@ public final class CentralClient implements AutoCloseable {
         refresh();
     }
 
+    public void resetAllState() {
+        simulator.resetAllState();
+        refresh();
+    }
+
     public void accept(
             UpstreamData data,
             Instant eventTime,
