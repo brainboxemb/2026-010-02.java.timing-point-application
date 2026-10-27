@@ -54,7 +54,7 @@ final class CentralPane implements AutoCloseable {
 
     private final VBox nodesPane;
     private final VBox locationsPane;
-    private final VBox raceDataPane;
+    private final VBox currentStatePane;
     private final VBox timingDataPane;
     private final Timeline heartbeatAgeRefresh;
 
@@ -72,7 +72,7 @@ final class CentralPane implements AutoCloseable {
 
         configureNodes();
         configureLocations();
-        configureRaceData();
+        configureCurrentState();
         configureTimingData();
 
         connectionState.getStyleClass().add("sync-state");
@@ -80,7 +80,7 @@ final class CentralPane implements AutoCloseable {
         nodesPane.getStyleClass().add("engineering-explorer-pane");
         locationsPane = new VBox(locations);
         locationsPane.getStyleClass().add("engineering-explorer-pane");
-        raceDataPane = createRaceDataPane();
+        currentStatePane = createCurrentStatePane();
         timingDataPane = createTimingDataPane();
         VBox.setVgrow(nodes, Priority.ALWAYS);
         VBox.setVgrow(locations, Priority.ALWAYS);
@@ -101,8 +101,8 @@ final class CentralPane implements AutoCloseable {
         return locationsPane;
     }
 
-    javafx.scene.Node raceDataPane() {
-        return raceDataPane;
+    javafx.scene.Node currentStatePane() {
+        return currentStatePane;
     }
 
     javafx.scene.Node timingDataPane() {
@@ -122,7 +122,7 @@ final class CentralPane implements AutoCloseable {
         nodes.setItems(FXCollections.observableArrayList(nodeViews));
         locations.setItems(FXCollections.observableArrayList(simulator.locations()));
         refreshNodeSelectors(nodeViews);
-        refreshRaceDataState();
+        refreshCurrentState();
         refreshTimingDataState();
     }
 
@@ -245,7 +245,7 @@ final class CentralPane implements AutoCloseable {
         return text.toString();
     }
 
-    private void configureRaceData() {
+    private void configureCurrentState() {
         List<String> prefixes =
                 java.util.stream.IntStream
                         .rangeClosed('A', 'Z')
@@ -285,7 +285,7 @@ final class CentralPane implements AutoCloseable {
         timingRequest.setOnAction(event -> requestTimingData());
     }
 
-    private VBox createRaceDataPane() {
+    private VBox createCurrentStatePane() {
         GridPane teamForm = new GridPane();
         teamForm.setHgap(8);
         teamForm.setVgap(8);
@@ -525,7 +525,7 @@ final class CentralPane implements AutoCloseable {
         }
     }
 
-    private void refreshRaceDataState() {
+    private void refreshCurrentState() {
         raceTeamPrefix.setDisable(false);
         raceRegistration.setDisable(false);
         raceTeam.setDisable(false);
