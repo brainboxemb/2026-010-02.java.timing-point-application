@@ -8,11 +8,13 @@ import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingTimestamp;
 import oss.relay.timing.timingpoint.application.PresentationGateway;
 import oss.relay.timing.timingpoint.application.TimingNodeProxy;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookBackup;
+import oss.relay.timing.timingpoint.domain.node.logbook.persistence.DefaultTimingDataBackup;
 import oss.relay.timing.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import oss.relay.timing.timingpoint.infra.BuildIdentity;
 import oss.relay.timing.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import oss.relay.timing.timingpoint.io.storage.FileAppendOnlyRecordStore;
-import oss.relay.timing.timingpoint.io.storage.FileRecordStoreMaintenance;
+import oss.relay.timing.timingpoint.io.storage.FileRecordStoreBackup;
 import oss.relay.timing.timingpoint.testsupport.TimingNodeFixture;
 import oss.relay.timing.timingdata.defaultprofile.DefaultTimingDataCodec;
 import oss.relay.timing.timingpoint.testsupport.PresentationGatewayFixture;
@@ -103,13 +105,18 @@ public class TerminalSessionTest {
                         .toPath()
                         .resolve("timing-data.jsonl");
         NodeId nodeId = new NodeId("A");
+        FileAppendOnlyRecordStore recordStore =
+                new FileAppendOnlyRecordStore(timingData);
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createComponents(
                         nodeId,
                         new DefaultTimingDataPersistence(
-                                new FileAppendOnlyRecordStore(timingData),
+                                recordStore,
                                 nodeId,
                                 new DefaultTimingDataCodec()),
+                        new LogBookBackup(
+                                new DefaultTimingDataBackup(
+                                        recordStore)),
                         () -> TimingTimestamp.parse(
                                         "2026-10-27T09:00:00Z")
                                 .instant());
@@ -155,7 +162,7 @@ public class TerminalSessionTest {
                 "Restarting application to apply LogBook clear."));
         assertTrue(restarted.get());
         assertTrue(
-                FileRecordStoreMaintenance.hasPendingClear(
+                FileRecordStoreBackup.hasPendingClear(
                         timingData));
         assertTrue(Files.isRegularFile(timingData));
 
