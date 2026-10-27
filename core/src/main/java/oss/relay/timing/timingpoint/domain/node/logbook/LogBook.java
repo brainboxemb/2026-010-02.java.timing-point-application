@@ -327,12 +327,12 @@ public final class LogBook extends LifecycleComponent
         LogBookStatus loadedStatus;
         try {
             TimingDataPersistence.LoadResult loadResult =
-                    logBookOperations.loadPersistedTimingData();
+                    logBookOperations.loadLogBookData();
 
             // The blocking load may outlive TimingNode deactivation. Do not
             // restore or publish startup state for an inactive LogBook.
             failIfInactive();
-            logBookOperations.restorePersistedTimingData(loadResult);
+            logBookOperations.restoreLogBookData(loadResult);
 
             LOG.info(
                     "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
