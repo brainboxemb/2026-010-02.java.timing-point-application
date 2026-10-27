@@ -70,15 +70,15 @@ public class FileAppendOnlyRecordStoreTest {
         byte[] original = Files.readAllBytes(file);
 
         Path reserved =
-                store.requestClearOnRestart();
+                store.requestBackupAndClearOnRestart();
         assertTrue(
-                FileRecordStoreMaintenance.hasPendingClear(file));
+                FileRecordStoreBackup.hasPendingClear(file));
         assertEquals(
                 reserved,
                 store.requestClearOnRestart());
 
         Path applied =
-                FileRecordStoreMaintenance.applyPendingClear(file);
+                FileRecordStoreBackup.applyPendingBackupAndClear(file);
 
         assertEquals(reserved, applied);
         assertArrayEquals(
