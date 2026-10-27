@@ -2,23 +2,40 @@ package oss.relay.timing.testclient.central;
 
 /** Central System Simulator actions shared by GUI controls and local engineering scripts. */
 public interface CentralActions {
-    long setTeamAssignment(
-            String nodeId,
+    record MutationResult(
+            int affected,
+            int immediatePackets) {
+    }
+
+    MutationResult setTeamAssignment(
             String registrationId,
             String teamId);
 
-    long deleteTeamAssignment(
-            String nodeId,
+    MutationResult deleteTeamAssignment(
             String registrationId);
 
-    long setStageStart(
-            String nodeId,
+    MutationResult setStageStart(
+            int stageId,
             String registrationId,
             String start);
 
-    long deleteStageStart(
-            String nodeId,
+    MutationResult deleteStageStart(
+            int stageId,
             String registrationId);
+
+    MutationResult setStageStartRange(
+            int stageId,
+            String registrationPrefix,
+            int firstRegistrationNumber,
+            int lastRegistrationNumber,
+            String start,
+            long intervalMillis);
+
+    MutationResult deleteStageStartRange(
+            int stageId,
+            String registrationPrefix,
+            int firstRegistrationNumber,
+            int lastRegistrationNumber);
 
     long requestTimingData(
             String nodeId,
