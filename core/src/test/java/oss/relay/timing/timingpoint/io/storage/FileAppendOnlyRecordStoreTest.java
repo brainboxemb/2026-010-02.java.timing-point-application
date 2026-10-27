@@ -86,9 +86,9 @@ public class FileAppendOnlyRecordStoreTest {
                 Files.readAllBytes(applied));
         assertFalse(Files.exists(file));
         assertFalse(
-                FileRecordStoreMaintenance.hasPendingClear(file));
+                FileRecordStoreBackup.hasPendingBackupAndClear(file));
         assertNull(
-                FileRecordStoreMaintenance.applyPendingClear(file));
+                FileRecordStoreBackup.applyPendingBackupAndClear(file));
     }
 
     @Test
