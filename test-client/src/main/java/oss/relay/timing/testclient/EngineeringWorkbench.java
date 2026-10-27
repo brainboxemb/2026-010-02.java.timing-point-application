@@ -102,8 +102,7 @@ final class EngineeringWorkbench {
                 timingNode,
                 apiInfo,
                 registration,
-                simulation,
-                scripts);
+                simulation);
         Node centralControls =
                 createCentralControls(
                         centralRaceData,
@@ -219,12 +218,17 @@ final class EngineeringWorkbench {
                                 "device-log",
                                 "Device Log",
                                 deviceLog)));
-        terminalLeaf.addDockable(
+        terminalLeaf.addDockables(
                 dockable(builder, terminalLeaf,
                         new WorkbenchPanel(
                                 "terminal",
                                 "Terminal",
-                                terminal)));
+                                terminal)),
+                dockable(builder, terminalLeaf,
+                        new WorkbenchPanel(
+                                "scripts",
+                                "Scripts",
+                                scripts)));
         clientLogLeaf.addDockable(
                 dockable(builder, clientLogLeaf,
                         new WorkbenchPanel(
@@ -314,8 +318,7 @@ final class EngineeringWorkbench {
             Node timingNode,
             Node apiInfo,
             Node registration,
-            Node simulation,
-            Node scripts) {
+            Node simulation) {
         Bento bento = createBento();
         DockBuilding builder = bento.dockBuilding();
         DockContainerRootBranch controlsRoot = builder.root("node-controls-root");
@@ -346,12 +349,7 @@ final class EngineeringWorkbench {
                         new WorkbenchPanel(
                                 "simulation",
                                 "Simulation",
-                                simulation)),
-                dockable(builder, controls,
-                        new WorkbenchPanel(
-                                "scripts",
-                                "Scripts",
-                                scripts)));
+                                simulation)));
 
         return controlsRoot;
     }
