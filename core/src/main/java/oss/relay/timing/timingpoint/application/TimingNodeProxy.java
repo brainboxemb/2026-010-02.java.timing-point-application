@@ -16,8 +16,8 @@ import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookCommand;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookCommands;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQueries;
+import oss.relay.timing.timingpoint.domain.node.logbook.LogBookBackup;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookTestControl;
-import oss.relay.timing.timingpoint.domain.node.logbook.LogBookMaintenance;
 
 import java.nio.file.Path;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
@@ -271,7 +271,7 @@ public final class TimingNodeProxy {
     private final NodeStateTestControl nodeStateTestControl;
     private final LogBookAccessor logBook;
     private final LogBookTestControl logBookTestControl;
-    private final LogBookMaintenance logBookMaintenance;
+    private final LogBookBackup logBookBackup;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<TimingNodeStatus>();
 
     public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChangedEvent;
@@ -282,27 +282,28 @@ public final class TimingNodeProxy {
             EventData eventData,
             NodeStateAccessor nodeState,
             NodeStateTestControl nodeStateTestControl,
-            LogBookAccessor logBook) {
+            LogBookAccessor logBook,
+            LogBookTestControl logBookTestControl,
+            LogBookBackup logBookBackup) {
         failIfInvalidArgument(timingNode != null, "timingNode must not be null");
         failIfInvalidArgument(eventData != null, "eventData must not be null");
         failIfInvalidArgument(nodeState != null, "nodeState must not be null");
         failIfInvalidArgument(nodeStateTestControl != null, "nodeStateTestControl must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
+        failIfInvalidArgument(
+                logBookTestControl != null,
+                "logBookTestControl must not be null");
+        failIfInvalidArgument(
+                logBookBackup != null,
+                "logBookBackup must not be null");
         this.timingNodeId = timingNode.nodeId();
         this.timingNode = timingNode;
         this.eventData = eventData;
         this.nodeState = nodeState;
         this.nodeStateTestControl = nodeStateTestControl;
         this.logBook = logBook;
-        if (!(logBook instanceof LogBookTestControl)) {
-            throw new IllegalStateException(
-                    "TimingNode LogBook does not expose engineering test control");
-        }
-        this.logBookTestControl = (LogBookTestControl) logBook;
-        this.logBookMaintenance =
-                logBook instanceof LogBookMaintenance
-                        ? (LogBookMaintenance) logBook
-                        : null;
+        this.logBookTestControl = logBookTestControl;
+        this.logBookBackup = logBookBackup;
         this.NEW_DATA_ENTRY = timingNode.NEW_DATA_ENTRY;
         timingNode.PROPERTIES.CHANGED.subscribe(this::publishVisibleStatusChange);
     }
@@ -505,26 +506,12 @@ public final class TimingNodeProxy {
         return timingNode.close();
     }
 
-    /** Creates one consistent physical backup of this node's persisted TimingData. */
-    public Path backupTimingData() {
-        if (logBookMaintenance == null) {
-            throw new IllegalStateException(
-                    "TimingData maintenance is unavailable");
-        }
-        return logBookMaintenance.backupTimingData();
+    public Path backupLogBook() {
+        return logBookBackup.backupLogBook();
     }
 
-    /**
-     * Durably schedules backup+clear for the next application restart.
-     *
-     * <p>The current runtime is intentionally left untouched until normal deactivation.</p>
-     */
-    public Path requestTimingDataClearOnRestart() {
-        if (logBookMaintenance == null) {
-            throw new IllegalStateException(
-                    "TimingData maintenance is unavailable");
-        }
-        return logBookMaintenance.requestTimingDataClearOnRestart();
+    public Path requestLogBookBackupAndClearOnRestart() {
+        return logBookBackup.requestBackupAndClearOnRestart();
     }
 
     public void testNextLogBookWriteFailure(LogBookTestControl.WriteFailure failure) {
