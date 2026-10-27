@@ -162,7 +162,7 @@ public class TerminalSessionTest {
                 "Restarting application to apply LogBook clear."));
         assertTrue(restarted.get());
         assertTrue(
-                FileRecordStoreBackup.hasPendingClear(
+                FileRecordStoreBackup.hasPendingBackupAndClear(
                         timingData));
         assertTrue(Files.isRegularFile(timingData));
 
