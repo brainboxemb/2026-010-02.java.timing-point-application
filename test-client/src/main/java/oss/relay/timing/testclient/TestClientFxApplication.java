@@ -121,13 +121,16 @@ public final class TestClientFxApplication extends Application {
                         config.centralLocationIds(),
                         this::sendCentralTransport);
         CentralActions centralActions = centralClient.actions();
+        EngineeringClientActions clientActions =
+                scriptClientActions();
         apiPane = new ApiPane(
                 this::client,
                 requests,
                 feedback::setText,
                 this::setApiState,
                 clientLog,
-                centralActions);
+                centralActions,
+                clientActions);
         workbench = createWorkbench(
                 deviceLogPanel,
                 terminalPanel,
@@ -637,6 +640,114 @@ public final class TestClientFxApplication extends Application {
         });
         context.getItems().addAll(copy, selectAll, new SeparatorMenuItem(), levels);
         return context;
+    }
+
+    private EngineeringClientActions scriptClientActions() {
+        return new EngineeringClientActions() {
+            @Override
+            public void reset() {
+                runOnFxAndWait(
+                        TestClientFxApplication.this::resetClientForScript);
+            }
+
+            @Override
+            public void connectEvents() {
+                runOnFxAndWait(
+                        TestClientFxApplication.this::connectEvents);
+            }
+
+            @Override
+            public void disconnectEvents() {
+                runOnFxAndWait(
+                        TestClientFxApplication.this::disconnectEvents);
+            }
+
+            @Override
+            public void connectCentral() {
+                runOnFxAndWait(
+                        TestClientFxApplication.this::connectCentral);
+            }
+
+            @Override
+            public void disconnectCentral() {
+                runOnFxAndWait(
+                        TestClientFxApplication.this::disconnectCentral);
+            }
+
+            @Override
+            public boolean apiAvailable() {
+                try {
+                    client().getVersion();
+                    return true;
+                } catch (Exception ex) {
+                    return false;
+                }
+            }
+
+            @Override
+            public boolean eventsConnected() {
+                return system.eventClient().isConnected();
+            }
+
+            @Override
+            public boolean centralConnected() {
+                return system.eventClient().isUpstreamRoleConnected();
+            }
+        };
+    }
+
+    private void resetClientForScript() {
+        eventConnectionEpoch.invalidate();
+        apiCheckEpoch.invalidate();
+        system.disconnectStatefulBoundaries();
+        system.httpTraffic().clear();
+        centralClient.resetTargetState();
+
+        setEventConnected(false, "CONNECT");
+        setCentralConnected(false, "CONNECT");
+        setShellConnected(false, "CONNECT");
+        setLogConnected(false, "CONNECT");
+        setApiState("CHECK");
+        apiPane.disconnected(false);
+        feedback.setText("Engineering Client reset");
+        clientLog.info(
+                "Engineering Client reset to disconnected state");
+    }
+
+    private void runOnFxAndWait(Runnable action) {
+        if (Platform.isFxApplicationThread()) {
+            action.run();
+            return;
+        }
+
+        CompletableFuture<Void> completion =
+                new CompletableFuture<>();
+        Platform.runLater(() -> {
+            try {
+                action.run();
+                completion.complete(null);
+            } catch (Throwable failure) {
+                completion.completeExceptionally(failure);
+            }
+        });
+
+        try {
+            completion.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new EngineeringLuaEngine.Stopped();
+        } catch (java.util.concurrent.ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException(
+                    "Engineering Client action failed",
+                    cause);
+        }
     }
 
     private void connectEvents() {
