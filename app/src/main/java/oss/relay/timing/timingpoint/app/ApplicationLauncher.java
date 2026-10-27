@@ -6,7 +6,7 @@ import oss.relay.timing.timingpoint.infra.loggingserver.LoggingServer;
 import oss.relay.timing.timingpoint.runtime.TimingApplicationRuntime;
 import oss.relay.timing.timingpoint.runtime.config.Config;
 import oss.relay.timing.timingpoint.runtime.config.YamlLoader;
-import oss.relay.timing.timingpoint.io.storage.FileRecordStoreMaintenance;
+import oss.relay.timing.timingpoint.io.storage.FileRecordStoreBackup;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -169,7 +169,7 @@ final class ApplicationLauncher {
                         processLogging.logging(),
                         out);
 
-                applyPendingTimingDataMaintenance(
+                applyPendingLogBookBackupAndClear(
                         config);
 
                 if (!retainingCurrentLogging) {
@@ -212,12 +212,6 @@ final class ApplicationLauncher {
         }
     }
 
-    /**
-     * Applies durable TimingData clear requests before a replacement runtime is composed.
-     *
-     * <p>The caller reaches this point only after the previous runtime has fully
-     * deactivated (or on cold startup), so no LogBook can still append to these files.</p>
-     */
     static List<Path> applyPendingTimingDataMaintenance(
             Config config)
             throws IOException {
@@ -233,12 +227,12 @@ final class ApplicationLauncher {
             for (Config.TimingNodeConfig node
                     : system.timingNodes()) {
                 Path backup =
-                        FileRecordStoreMaintenance.applyPendingClear(
+                        FileRecordStoreBackup.applyPendingBackupAndClear(
                                 node.timingDataPath());
                 if (backup != null) {
                     backups.add(backup);
                     LOGGER.info(
-                            "Applied pending TimingData clear for node "
+                            "Applied pending LogBook backup+clear for node "
                                     + node.timingNodeId().value()
                                     + "; backup="
                                     + backup.toAbsolutePath().normalize());
