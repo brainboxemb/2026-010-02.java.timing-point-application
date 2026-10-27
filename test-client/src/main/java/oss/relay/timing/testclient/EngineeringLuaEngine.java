@@ -372,9 +372,15 @@ final class EngineeringLuaEngine {
                 EngineeringClientActions.Status status =
                         clientActions.status();
                 LuaTable value = new LuaTable();
-                value.set("apiAvailable", status.apiAvailable());
-                value.set("eventsConnected", status.eventsConnected());
-                value.set("centralConnected", status.centralConnected());
+                value.set(
+                        "apiAvailable",
+                        LuaValue.valueOf(status.apiAvailable()));
+                value.set(
+                        "eventsConnected",
+                        LuaValue.valueOf(status.eventsConnected()));
+                value.set(
+                        "centralConnected",
+                        LuaValue.valueOf(status.centralConnected()));
                 return value;
             }
         });
