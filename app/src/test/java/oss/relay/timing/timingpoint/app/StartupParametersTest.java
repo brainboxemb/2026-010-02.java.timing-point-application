@@ -121,7 +121,7 @@ public class StartupParametersTest {
                         timingData));
         assertEquals(
                 Collections.emptyList(),
-                ApplicationLauncher.applyPendingTimingDataMaintenance(
+                ApplicationLauncher.applyPendingLogBookBackupAndClear(
                         config));
     }
 }
