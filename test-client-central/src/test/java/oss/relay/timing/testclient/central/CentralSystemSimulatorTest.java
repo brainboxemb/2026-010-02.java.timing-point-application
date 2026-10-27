@@ -454,6 +454,76 @@ final class CentralSystemSimulatorTest {
     }
 
     @Test
+    void changingOpenLocationRoutesTheNewStageProjectionWithoutWireStageId() {
+        CentralSystemSimulator simulator =
+                new CentralSystemSimulator(List.of(1, 2));
+        simulator.connected();
+
+        assertTrue(
+                simulator.updateStageStarts(
+                                1,
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0001",
+                                                TimingTimestamp.parse("09:00:00"))))
+                        .isEmpty());
+        assertTrue(
+                simulator.updateStageStarts(
+                                2,
+                                List.of(
+                                        DefaultUpstreamData.createStageStartSet(
+                                                "A0002",
+                                                TimingTimestamp.parse("10:00:00"))))
+                        .isEmpty());
+
+        UpstreamData stage1Packet =
+                simulator.applyRuntimeStatus(
+                                "A",
+                                "OPEN",
+                                Integer.valueOf(1),
+                                RECEIVED)
+                        .get(0);
+        assertSame(
+                UpstreamData.Family.STAGE_STARTS,
+                stage1Packet.family());
+
+        assertTrue(
+                simulator.accept(
+                                receivePacket(
+                                        10L,
+                                        stage1Packet.packetNr()),
+                                RECEIVED.plusMillis(1L))
+                        .isEmpty());
+
+        List<UpstreamData> stage2Packets =
+                simulator.applyRuntimeStatus(
+                        "A",
+                        "OPEN",
+                        Integer.valueOf(2),
+                        RECEIVED.plusMillis(2L));
+
+        assertEquals(1, stage2Packets.size());
+        UpstreamData.StageStarts stage2 =
+                (UpstreamData.StageStarts) stage2Packets.get(0).message();
+        assertEquals(2, stage2.changes().size());
+        assertEquals(
+                UpstreamData.ChangeOperation.DEL,
+                stage2.changes().get(0).operation());
+        assertEquals(
+                "A0001",
+                stage2.changes().get(0).registrationId().value());
+        assertEquals(
+                UpstreamData.ChangeOperation.SET,
+                stage2.changes().get(1).operation());
+        assertEquals(
+                "A0002",
+                stage2.changes().get(1).registrationId().value());
+        assertEquals(
+                TimingTimestamp.parse("10:00:00"),
+                stage2.changes().get(1).start());
+    }
+
+    @Test
     void centralStageStartCanBeAuthoredBeforeNodeOpens() {
         CentralSystemSimulator simulator =
                 new CentralSystemSimulator(List.of(2));
