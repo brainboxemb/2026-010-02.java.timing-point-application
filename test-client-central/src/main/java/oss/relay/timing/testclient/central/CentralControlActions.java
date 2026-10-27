@@ -12,7 +12,6 @@ interface CentralControlActions extends CentralActions {
             String registrationNumber);
 
     MutationResult setStageStartRangeByNumber(
-            int stageId,
             String registrationPrefix,
             String firstRegistrationNumber,
             String lastRegistrationNumber,
@@ -20,7 +19,6 @@ interface CentralControlActions extends CentralActions {
             long intervalMillis);
 
     MutationResult deleteStageStartRangeByNumber(
-            int stageId,
             String registrationPrefix,
             String firstRegistrationNumber,
             String lastRegistrationNumber);
