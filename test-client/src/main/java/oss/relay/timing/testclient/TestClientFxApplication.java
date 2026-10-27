@@ -701,7 +701,7 @@ public final class TestClientFxApplication extends Application {
         apiCheckEpoch.invalidate();
         system.disconnectStatefulBoundaries();
         system.httpTraffic().clear();
-        centralClient.resetTargetState();
+        centralClient.resetAllState();
 
         setEventConnected(false, "CONNECT");
         setCentralConnected(false, "CONNECT");
