@@ -59,6 +59,7 @@ final class EngineeringLuaEngine {
                 sender,
                 null,
                 null,
+                null,
                 output,
                 valid);
     }
@@ -67,6 +68,7 @@ final class EngineeringLuaEngine {
             String source,
             SimulationSender sender,
             CentralActions centralActions,
+            EngineeringClientActions clientActions,
             String centralNodeId,
             Consumer<String> output,
             BooleanSupplier valid) {
@@ -309,6 +311,104 @@ final class EngineeringLuaEngine {
         });
         globals.set("central", central);
 
+        LuaTable client = new LuaTable();
+        client.set("reset", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.reset();
+                output.accept("Engineering Client reset requested");
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("events_connect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.connectEvents();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("events_disconnect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.disconnectEvents();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("central_connect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.connectCentral();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("central_disconnect", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                clientActions.disconnectCentral();
+                return LuaValue.TRUE;
+            }
+        });
+        client.set("api_available", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                return LuaValue.valueOf(clientActions.apiAvailable());
+            }
+        });
+        client.set("events_connected", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                return LuaValue.valueOf(clientActions.eventsConnected());
+            }
+        });
+        client.set("central_connected", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                return LuaValue.valueOf(clientActions.centralConnected());
+            }
+        });
+        client.set("status", new org.luaj.vm2.lib.ZeroArgFunction() {
+            @Override public LuaValue call() {
+                requireClientActions(clientActions, check);
+                EngineeringClientActions.Status status =
+                        clientActions.status();
+                LuaTable value = new LuaTable();
+                value.set("apiAvailable", status.apiAvailable());
+                value.set("eventsConnected", status.eventsConnected());
+                value.set("centralConnected", status.centralConnected());
+                return value;
+            }
+        });
+        client.set("wait", new VarArgFunction() {
+            @Override public Varargs invoke(Varargs args) {
+                requireClientActions(clientActions, check);
+                if (args.narg() < 2 || args.narg() > 3) {
+                    throw new LuaError(
+                            "client.wait requires boundary, expected[, timeoutMs]");
+                }
+                String boundary =
+                        args.arg(1)
+                                .checkjstring()
+                                .toLowerCase(Locale.ROOT);
+                boolean expected = args.arg(2).checkboolean();
+                int timeoutMs =
+                        args.narg() == 3
+                                ? args.arg(3).checkint()
+                                : 5_000;
+                if (timeoutMs < 0 || timeoutMs > MAX_SLEEP_MS) {
+                    throw new LuaError(
+                            "timeoutMs must be 0.." + MAX_SLEEP_MS);
+                }
+                waitForClientState(
+                        clientActions,
+                        boundary,
+                        expected,
+                        timeoutMs,
+                        check);
+                return LuaValue.TRUE;
+            }
+        });
+        globals.set("client", client);
+
         // Optional convenience: Lua print() is routed into Script Output.
         globals.set("print", new VarArgFunction() {
             @Override public Varargs invoke(Varargs args) {
@@ -325,6 +425,49 @@ final class EngineeringLuaEngine {
         check.run();
         globals.load(source, "engineering-script").call();
         check.run();
+    }
+
+    private static void requireClientActions(
+            EngineeringClientActions clientActions,
+            Runnable check) {
+        check.run();
+        if (clientActions == null) {
+            throw new LuaError("Engineering Client actions unavailable");
+        }
+    }
+
+    private static void waitForClientState(
+            EngineeringClientActions clientActions,
+            String boundary,
+            boolean expected,
+            int timeoutMs,
+            Runnable check) {
+        long deadline =
+                System.nanoTime()
+                        + java.util.concurrent.TimeUnit.MILLISECONDS
+                                .toNanos(timeoutMs);
+        while (true) {
+            check.run();
+            boolean actual;
+            switch (boundary) {
+                case "api" -> actual = clientActions.apiAvailable();
+                case "events" -> actual = clientActions.eventsConnected();
+                case "central" -> actual = clientActions.centralConnected();
+                default -> throw new LuaError(
+                        "boundary must be api, events or central");
+            }
+            if (actual == expected) {
+                return;
+            }
+            if (System.nanoTime() >= deadline) {
+                throw new LuaError(
+                        "timeout waiting for "
+                                + boundary
+                                + "="
+                                + expected);
+            }
+            sleep(50, check);
+        }
     }
 
     private static LuaValue centralMutation(
