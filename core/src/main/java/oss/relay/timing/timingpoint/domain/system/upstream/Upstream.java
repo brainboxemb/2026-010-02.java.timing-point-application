@@ -17,11 +17,11 @@ import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalid
  * TimingSystem-owned upstream protocol component.
  *
  * <p>One node-scoped NodeUpstream is retained for every TimingNode. Each NodeUpstream therefore owns independent
- * TIMING_DATA, RACE_DATA and heartbeat protocol state. The matching UpstreamStream references are retained only so
+ * TIMING_DATA, downstream current-state and heartbeat protocol state. The matching UpstreamStream references are retained only so
  * the owning TimingSystem can install the fixed system-level event links before activation.</p>
  *
  * <p>Each NodeUpstream owns a separate logical task lane backed by the same Runtime-supplied scheduled executor.
- * NodeService applies RACE_DATA separately; the node upstream protocol awaits successful completion before ACK.</p>
+ * NodeService applies TEAM_ASSIGNMENTS and STAGE_STARTS separately; the node upstream protocol awaits successful completion before ACK.</p>
  */
 public final class Upstream extends LifecycleComponent {
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();

@@ -345,29 +345,24 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
 
             @Override
             public MutationResult setStageStart(
-                    int stageId,
                     String registrationId,
                     String start) {
                 return callOnFx(() ->
                         centralActions.setStageStart(
-                                stageId,
                                 registrationId,
                                 start));
             }
 
             @Override
             public MutationResult deleteStageStart(
-                    int stageId,
                     String registrationId) {
                 return callOnFx(() ->
                         centralActions.deleteStageStart(
-                                stageId,
                                 registrationId));
             }
 
             @Override
             public MutationResult setStageStartRange(
-                    int stageId,
                     String registrationPrefix,
                     int firstRegistrationNumber,
                     int lastRegistrationNumber,
@@ -375,7 +370,6 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                     long intervalMillis) {
                 return callOnFx(() ->
                         centralActions.setStageStartRange(
-                                stageId,
                                 registrationPrefix,
                                 firstRegistrationNumber,
                                 lastRegistrationNumber,
@@ -385,13 +379,11 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
 
             @Override
             public MutationResult deleteStageStartRange(
-                    int stageId,
                     String registrationPrefix,
                     int firstRegistrationNumber,
                     int lastRegistrationNumber) {
                 return callOnFx(() ->
                         centralActions.deleteStageStartRange(
-                                stageId,
                                 registrationPrefix,
                                 firstRegistrationNumber,
                                 lastRegistrationNumber));

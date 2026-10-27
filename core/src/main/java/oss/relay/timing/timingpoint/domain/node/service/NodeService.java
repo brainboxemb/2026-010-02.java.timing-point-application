@@ -9,7 +9,6 @@ import oss.relay.timing.timingdata.TimingTimestamp;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookStatus;
 import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataState;
-import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
 import oss.relay.timing.timingpoint.domain.node.registration.StageTiming;
 import oss.relay.timing.timingpoint.domain.node.service.state.NodeState;
@@ -25,6 +24,7 @@ import oss.relay.timing.upstreamdata.UpstreamData;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -55,9 +55,8 @@ public final class NodeService extends LifecycleComponent {
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final TimeSource timeSource;
+    private final RaceDataState raceData;
     private final NodeState state;
-    private final RaceDataUpdate raceDataUpdate =
-            new RaceDataUpdate(UpstreamData.MAX_RACE_DATA_CHANGES);
     private final MainTask mainTask = new MainTask();
 
     /** Creates the service over one LogBook and the node Task Lane. */
@@ -83,6 +82,7 @@ public final class NodeService extends LifecycleComponent {
                         "NodeService-" + nodeId.value(),
                         scheduler);
         this.timeSource = timeSource;
+        this.raceData = raceData;
         this.state =
                 new NodeState(
                         taskRunner,
@@ -110,66 +110,151 @@ public final class NodeService extends LifecycleComponent {
     }
 
     /**
-     * Applies one ordered Central RACE_DATA change set.
+     * Applies one ordered Central TEAM_ASSIGNMENTS change set.
      *
-     * <p>NodeUpstream dispatches this to the independent NodeService task lane. Stage-start
-     * values are normalized once to compact UTC while preserving whether the source supplied a
-     * date. Team assignment changes are then reflected in RegisteredTeams.</p>
+     * <p>The complete bounded message is validated against fixed EventData, retained live
+     * assignments and the other changes in the same message before any mutation occurs.</p>
      */
-    public CompletableFuture<Void> applyRaceData(UpstreamData.RaceData changes) {
+    public CompletableFuture<Void> applyTeamAssignments(
+            UpstreamData.TeamAssignments changes) {
 
         failIfInvalidArgument(changes != null, "changes must not be null");
 
         return taskRunner.runTask(
                 () -> {
-                    applyNormalizedRaceData(changes);
+                    validateTeamAssignments(changes);
+                    for (UpstreamData.TeamAssignmentChange change : changes.changes()) {
+                        switch (change.operation()) {
+                            case SET:
+                                state.teamAssignmentSet(
+                                        change.registrationId(),
+                                        change.teamId());
+                                break;
+                            case DEL:
+                                state.teamAssignmentDeleted(change.registrationId());
+                                break;
+                            default:
+                                throw new IllegalArgumentException(
+                                        "unsupported team assignment operation "
+                                                + change.operation());
+                        }
+                    }
+                    for (UpstreamData.TeamAssignmentChange change : changes.changes()) {
+                        state.teamAssignmentChanged(change.registrationId());
+                    }
                     return TaskStep.done();
                 });
     }
 
-    /** Converts one bounded protocol change set into the reusable normalized working transaction. */
-    private void applyNormalizedRaceData(UpstreamData.RaceData changes) {
+    /**
+     * Applies one ordered Central STAGE_STARTS change set.
+     *
+     * <p>All SET timestamps are normalized in a validation pass before retained state is changed.
+     * The apply pass uses the same offset reference and updates ranking once after the complete
+     * message.</p>
+     */
+    public CompletableFuture<Void> applyStageStarts(
+            UpstreamData.StageStarts changes) {
+
+        failIfInvalidArgument(changes != null, "changes must not be null");
+
+        return taskRunner.runTask(
+                () -> {
+                    applyNormalizedStageStarts(changes);
+                    return TaskStep.done();
+                });
+    }
+
+    /** Validates one bounded assignment message against the final assignment result. */
+    private void validateTeamAssignments(
+            UpstreamData.TeamAssignments assignments) {
+
+        List<UpstreamData.TeamAssignmentChange> changes = assignments.changes();
+        for (int index = 0; index < changes.size(); index++) {
+            UpstreamData.TeamAssignmentChange change = changes.get(index);
+            if (change.operation() != UpstreamData.ChangeOperation.SET) {
+                continue;
+            }
+
+            RegistrationId registrationId = change.registrationId();
+            TeamId teamId = change.teamId();
+            failIfInvalidArgument(
+                    !raceData.hasFixedTeamAssignment(registrationId),
+                    "active assignment cannot override fixed EventData TeamId for %s",
+                    registrationId);
+
+            for (int other = index + 1; other < changes.size(); other++) {
+                UpstreamData.TeamAssignmentChange candidate = changes.get(other);
+                failIfInvalidArgument(
+                        candidate.operation() != UpstreamData.ChangeOperation.SET
+                                || !teamId.equals(candidate.teamId()),
+                        "one TeamId may not be assigned to multiple registrations: %s",
+                        teamId);
+            }
+
+            RegistrationId currentOwner = raceData.liveRegistrationIdFor(teamId);
+            failIfInvalidArgument(
+                    currentOwner == null
+                            || currentOwner.equals(registrationId)
+                            || releasesTeam(assignments, currentOwner, teamId),
+                    "one TeamId may not be assigned to multiple registrations: %s",
+                    teamId);
+        }
+    }
+
+    /** Reports whether one message removes a TeamId from its current live owner. */
+    private static boolean releasesTeam(
+            UpstreamData.TeamAssignments assignments,
+            RegistrationId registrationId,
+            TeamId teamId) {
+
+        for (UpstreamData.TeamAssignmentChange change : assignments.changes()) {
+            if (!change.registrationId().equals(registrationId)) {
+                continue;
+            }
+            return change.operation() == UpstreamData.ChangeOperation.DEL
+                    || !teamId.equals(change.teamId());
+        }
+        return false;
+    }
+
+    /** Validates, normalizes and applies one STAGE_STARTS message without a work buffer. */
+    private void applyNormalizedStageStarts(
+            UpstreamData.StageStarts changes) {
 
         Instant offsetReference = timeSource.now();
         failIfInvalidArgument(offsetReference != null, "timeSource.now must not return null");
 
-        raceDataUpdate.clear();
-        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
-            failIfInvalidArgument(change != null, "team assignment change must not be null");
-            switch (change.operation()) {
-                case SET:
-                    raceDataUpdate.setTeamAssignment(change.registrationId(), change.teamId());
-                    break;
-                case DEL:
-                    raceDataUpdate.deleteTeamAssignment(change.registrationId());
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                            "unsupported team assignment operation " + change.operation());
+        for (UpstreamData.StageStartTimeChange change : changes.changes()) {
+            if (change.operation() == UpstreamData.ChangeOperation.SET) {
+                StageTiming.compactUtc(
+                        change.start(),
+                        timeSource.zone(),
+                        offsetReference);
             }
         }
 
-        for (UpstreamData.StageStartTimeChange change : changes.stageStartTimeChanges()) {
-            failIfInvalidArgument(change != null, "stage start change must not be null");
+        boolean stateChanged = false;
+        for (UpstreamData.StageStartTimeChange change : changes.changes()) {
             switch (change.operation()) {
                 case SET:
-                    raceDataUpdate.setStageStart(
-                            change.registrationId(),
-                            StageTiming.compactUtc(
-                                    change.start(),
-                                    timeSource.zone(),
-                                    offsetReference));
+                    stateChanged |=
+                            state.stageStartSet(
+                                    change.registrationId(),
+                                    StageTiming.compactUtc(
+                                            change.start(),
+                                            timeSource.zone(),
+                                            offsetReference));
                     break;
                 case DEL:
-                    raceDataUpdate.deleteStageStart(change.registrationId());
+                    stateChanged |= state.stageStartDeleted(change.registrationId());
                     break;
                 default:
                     throw new IllegalArgumentException(
                             "unsupported stage start operation " + change.operation());
             }
         }
-
-        state.applyRaceDataChanges(raceDataUpdate);
+        state.stageStartChangesApplied(stateChanged);
     }
 
     /** Requests a complete registration-state rebuild when TimingNode opens one WP. */

@@ -1,7 +1,6 @@
 package oss.relay.timing.upstreamdata;
 
 import oss.relay.timing.eventdata.TeamId;
-import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
@@ -22,7 +21,8 @@ import java.util.Set;
  */
 public final class UpstreamData {
     public static final int MAX_TIMING_DATA_RECORDS = 16;
-    public static final int MAX_RACE_DATA_CHANGES = 16;
+    public static final int MAX_TEAM_ASSIGNMENT_CHANGES = 16;
+    public static final int MAX_STAGE_START_CHANGES = 16;
 
     private final Direction direction;
     private final NodeId timingNodeId;
@@ -97,7 +97,8 @@ public final class UpstreamData {
         TIMING_DATA,
         TIMING_DATA_REQ,
         SEQ,
-        RACE_DATA,
+        TEAM_ASSIGNMENTS,
+        STAGE_STARTS,
         RECV,
         PING,
         STATUS
@@ -149,53 +150,61 @@ public final class UpstreamData {
         }
     }
 
-    /** One Central-to-node RACE_DATA change set. */
-    public static final class RaceData extends Message {
-        private final LocationId locationId;
-        private final List<TeamAssignmentChange> teamAssignmentChanges;
-        private final List<StageStartTimeChange> stageStartTimeChanges;
+    /** One Central-to-node live RegistrationId-to-TeamId assignment change set. */
+    public static final class TeamAssignments extends Message {
+        private final List<TeamAssignmentChange> changes;
 
-        public RaceData(
-                LocationId locationId,
-                List<TeamAssignmentChange> teamAssignmentChanges,
-                List<StageStartTimeChange> stageStartTimeChanges) {
+        public TeamAssignments(List<TeamAssignmentChange> changes) {
 
-            if (locationId == null) {
-                throw new IllegalArgumentException("RACE_DATA locationId must not be null");
-            }
-            this.locationId = locationId;
-            this.teamAssignmentChanges = copyTeamAssignmentChanges(teamAssignmentChanges);
-            this.stageStartTimeChanges = copyStageStartTimeChanges(stageStartTimeChanges);
-
-            int changeCount =
-                    this.teamAssignmentChanges.size()
-                            + this.stageStartTimeChanges.size();
-            if (changeCount == 0) {
-                throw new IllegalArgumentException("RACE_DATA requires at least one change");
-            }
-            if (changeCount > MAX_RACE_DATA_CHANGES) {
+            this.changes = copyTeamAssignmentChanges(changes);
+            if (this.changes.isEmpty()) {
                 throw new IllegalArgumentException(
-                        "RACE_DATA supports at most "
-                                + MAX_RACE_DATA_CHANGES
+                        "TEAM_ASSIGNMENTS requires at least one change");
+            }
+            if (this.changes.size() > MAX_TEAM_ASSIGNMENT_CHANGES) {
+                throw new IllegalArgumentException(
+                        "TEAM_ASSIGNMENTS supports at most "
+                                + MAX_TEAM_ASSIGNMENT_CHANGES
                                 + " changes");
             }
         }
 
         @Override
         public Family family() {
-            return Family.RACE_DATA;
+            return Family.TEAM_ASSIGNMENTS;
         }
 
-        public LocationId locationId() {
-            return locationId;
+        public List<TeamAssignmentChange> changes() {
+            return changes;
+        }
+    }
+
+    /** One Central-to-node RegistrationId-scoped stage-start change set. */
+    public static final class StageStarts extends Message {
+        private final List<StageStartTimeChange> changes;
+
+        public StageStarts(List<StageStartTimeChange> changes) {
+
+            this.changes = copyStageStartTimeChanges(changes);
+            if (this.changes.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "STAGE_STARTS requires at least one change");
+            }
+            if (this.changes.size() > MAX_STAGE_START_CHANGES) {
+                throw new IllegalArgumentException(
+                        "STAGE_STARTS supports at most "
+                                + MAX_STAGE_START_CHANGES
+                                + " changes");
+            }
         }
 
-        public List<TeamAssignmentChange> teamAssignmentChanges() {
-            return teamAssignmentChanges;
+        @Override
+        public Family family() {
+            return Family.STAGE_STARTS;
         }
 
-        public List<StageStartTimeChange> stageStartTimeChanges() {
-            return stageStartTimeChanges;
+        public List<StageStartTimeChange> changes() {
+            return changes;
         }
     }
 
@@ -484,7 +493,8 @@ public final class UpstreamData {
                 return;
 
             case TIMING_DATA_REQ:
-            case RACE_DATA:
+            case TEAM_ASSIGNMENTS:
+            case STAGE_STARTS:
                 if (direction != Direction.DN_PACKET) {
                     throw new IllegalArgumentException(
                             family + " requires DN_PACKET");

@@ -20,9 +20,9 @@ Connection/client automation and Central-owned configuration do not require a se
 - `timing.simulate(regId, profile)`: send one simulated passage for selected TimingNode via IF-03, e.g. `timing.simulate("A0100", "simple")`. Profile defaults to `normal`.
 - `timing.batch{count=10, from=1, to=2000, order="linear", seed=1, intervalMs=500, profile="normal"}`: send repeatable batch. `count` is required (1–10000); remaining values shown are defaults. Order: `linear` or seeded `random`. Profiles: `simple`, `normal`, `edge`. Intervals: 0–60000 ms. Generated IDs: `ANNNN`.
 - `central.team_set(regId, teamId)` / `central.team_del(regId)`: mutate global Central Team Mapping state.
-- `central.stage_start_set(stageId, regId, start)` / `central.stage_start_del(stageId, regId)`: mutate Central-owned StageStartTimes for one StageId.
-- `central.stage_start_range{stage=1,prefix="A",from=1,to=100,start=timing.now(-600),intervalMs=0}`: bulk StageStartTimes authoring through the same Central state/range logic as the GUI.
-- `central.stage_start_range_del{stage=1,prefix="A",from=1,to=100}`: bulk delete.
+- `central.stage_start_set(regId, start)` / `central.stage_start_del(regId)`: mutate Central-owned RegistrationId-scoped StageStartTimes.
+- `central.stage_start_range{prefix="A",from=1,to=100,start=timing.now(-600),intervalMs=0}`: bulk StageStartTimes authoring through the same Central state/range logic as the GUI.
+- `central.stage_start_range_del{prefix="A",from=1,to=100}`: bulk delete.
 - `central.timing_data_req(fromSeq)`: node-specific TIMING_DATA_REQ using the TimingNode captured at Run start.
 - `client.reset()`: reset SI-02 to a clean disconnected state and clear Central simulator source/view state while retaining the configured target.
 - `client.events_connect()` / `client.events_disconnect()`: control the ordinary IF-03 Events session.
@@ -50,7 +50,7 @@ timing.batch{count=10, from=1, to=100, order="random",
 ```lua
 local start = timing.now(-600)
 central.stage_start_range{
-  stage=1, prefix="A", from=1, to=100,
+  prefix="A", from=1, to=100,
   start=start, intervalMs=0
 }
 ```

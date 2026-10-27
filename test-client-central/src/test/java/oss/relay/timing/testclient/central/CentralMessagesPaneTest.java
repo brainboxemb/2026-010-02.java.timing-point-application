@@ -1,6 +1,5 @@
 package oss.relay.timing.testclient.central;
 
-import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
@@ -342,20 +341,40 @@ final class CentralMessagesPaneTest {
     }
 
     @Test
-    void raceDataDetailFormatsEachChangeOnItsOwnLine() {
-        UpstreamData packet =
+    void currentStateDetailFormatsEachChangeOnItsOwnLine() {
+        UpstreamData assignments =
                 DefaultUpstreamData.createDnPacket(
                         NODE_A,
                         20L,
-                        DefaultUpstreamData.createRaceData(
-                                new LocationId(1),
+                        DefaultUpstreamData.createTeamAssignments(
                                 java.util.List.of(
                                         DefaultUpstreamData.createTeamAssignmentSet(
                                                 "A0001",
                                                 "T001"),
                                         DefaultUpstreamData.createTeamAssignmentSet(
                                                 "A0002",
-                                                "T002")),
+                                                "T002"))));
+        String assignmentRaw = CentralUpstreamJson.encode(assignments);
+        String assignmentDisplayed =
+                CentralMessagesPane.detailPayload(
+                        assignments,
+                        assignmentRaw);
+
+        assertTrue(
+                assignmentDisplayed.contains(
+                        "\"data\":[\n  {"));
+        assertTrue(
+                assignmentDisplayed.contains(
+                        "},\n  {\"op\":\"SET\",\"regId\":\"A0002\""));
+        assertEquals(
+                assignmentRaw,
+                assignmentDisplayed.replace("\n  ", "").replace("\n", ""));
+
+        UpstreamData stageStarts =
+                DefaultUpstreamData.createDnPacket(
+                        NODE_A,
+                        21L,
+                        DefaultUpstreamData.createStageStarts(
                                 java.util.List.of(
                                         DefaultUpstreamData.createStageStartSet(
                                                 "A0001",
@@ -365,53 +384,57 @@ final class CentralMessagesPaneTest {
                                                 "A0002",
                                                 oss.relay.timing.timingdata.TimingTimestamp.parse(
                                                         "10:00:30")))));
-        String raw = CentralUpstreamJson.encode(packet);
-
-        String displayed =
+        String stageRaw = CentralUpstreamJson.encode(stageStarts);
+        String stageDisplayed =
                 CentralMessagesPane.detailPayload(
-                        packet,
-                        raw);
+                        stageStarts,
+                        stageRaw);
 
         assertTrue(
-                displayed.contains(
-                        "\"teamAssignments\":[\n  {"));
-        assertTrue(
-                displayed.contains(
-                        "},\n  {\"op\":\"SET\",\"regId\":\"A0002\""));
-        assertTrue(
-                displayed.contains(
-                        "\"stageStartTimes\":[\n  {"));
-        assertTrue(
-                displayed.contains(
-                        "},\n  {\"op\":\"SET\",\"regId\":\"A0002\""));
+                stageDisplayed.contains(
+                        "\"data\":[\n  {"));
         assertEquals(
-                raw,
-                displayed.replace("\n  ", "").replace("\n", ""));
+                stageRaw,
+                stageDisplayed.replace("\n  ", "").replace("\n", ""));
     }
 
     @Test
-    void raceDataPositionUsesPacketNrNotSourceSequence() {
-        UpstreamData packet =
+    void currentStatePositionUsesOnlyPacketNr() {
+        UpstreamData assignments =
                 DefaultUpstreamData.createDnPacket(
                         NODE_A,
                         12L,
-                        DefaultUpstreamData.createRaceData(
-                                new LocationId(1),
+                        DefaultUpstreamData.createTeamAssignments(
                                 java.util.List.of(
                                         DefaultUpstreamData.createTeamAssignmentSet(
                                                 "A0001",
                                                 "T001"),
                                         DefaultUpstreamData.createTeamAssignmentSet(
                                                 "A0002",
-                                                "T002")),
-                                java.util.List.of()));
+                                                "T002"))));
 
         assertEquals(
-                "P12 · RACE_DATA L1",
-                CentralMessagesPane.positionText(packet));
+                "P12",
+                CentralMessagesPane.positionText(assignments));
         assertEquals(
-                "2 team change(s), 0 stage-start change(s)",
-                CentralMessagesPane.summaryText(packet));
+                "2 team assignment change(s)",
+                CentralMessagesPane.summaryText(assignments));
+
+        UpstreamData stageStarts =
+                DefaultUpstreamData.createDnPacket(
+                        NODE_A,
+                        13L,
+                        DefaultUpstreamData.createStageStarts(
+                                java.util.List.of(
+                                        DefaultUpstreamData.createStageStartDelete(
+                                                "A0001"))));
+
+        assertEquals(
+                "P13",
+                CentralMessagesPane.positionText(stageStarts));
+        assertEquals(
+                "1 stage-start change(s)",
+                CentralMessagesPane.summaryText(stageStarts));
     }
 
     @Test

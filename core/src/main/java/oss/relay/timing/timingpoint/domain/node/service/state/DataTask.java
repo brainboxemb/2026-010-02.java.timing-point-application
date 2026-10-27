@@ -7,7 +7,6 @@ import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQueries;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookQuery;
-import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
 import oss.relay.timing.timingpoint.platform.execution.tasks.AbstractTask;
 import oss.relay.timing.timingpoint.platform.execution.tasks.SerialTaskRunner;
@@ -129,12 +128,31 @@ final class DataTask extends AbstractTask {
         }
     }
 
-    /** Applies one validated bounded RaceData transaction to the active display projection. */
-    void raceDataApplied(RaceDataUpdate changes) {
+    /** Applies one normalized stage-start SET to the current active projection. */
+    void stageStartSet(
+            RegistrationId registrationId,
+            long stageStart) {
 
-        failIfInvalidArgument(changes != null, "changes must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         if (isCurrentProjection()) {
-            state.activeRegistrations().applyStageStartChanges(changes);
+            state.activeRegistrations().stageStartSet(registrationId, stageStart);
+        }
+    }
+
+    /** Applies one stage-start DEL to the current active projection. */
+    void stageStartDeleted(RegistrationId registrationId) {
+
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        if (isCurrentProjection()) {
+            state.activeRegistrations().stageStartDeleted(registrationId);
+        }
+    }
+
+    /** Finalizes one STAGE_STARTS message after all scalar changes have been applied. */
+    void stageStartChangesApplied() {
+
+        if (isCurrentProjection()) {
+            state.activeRegistrations().stageStartChangesApplied();
         }
     }
 

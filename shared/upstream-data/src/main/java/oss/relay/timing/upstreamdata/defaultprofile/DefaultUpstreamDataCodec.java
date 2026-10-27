@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import oss.relay.timing.eventdata.TeamId;
 import oss.relay.timing.timingdata.TimingDataCodec;
-import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.NodeId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
@@ -71,11 +70,6 @@ public final class DefaultUpstreamDataCodec
         generator.writeStartObject();
         generator.writeStringField("type", message.family().name());
 
-        if (message.family() == UpstreamData.Family.RACE_DATA) {
-            UpstreamData.RaceData raceData = (UpstreamData.RaceData) message;
-            generator.writeNumberField("locationId", raceData.locationId().value());
-        }
-
         generator.writeFieldName("data");
         switch (message.family()) {
             case TIMING_DATA:
@@ -87,8 +81,11 @@ public final class DefaultUpstreamDataCodec
             case SEQ:
                 writeSequence(generator, (UpstreamData.Sequence) message);
                 break;
-            case RACE_DATA:
-                writeRaceData(generator, (UpstreamData.RaceData) message);
+            case TEAM_ASSIGNMENTS:
+                writeTeamAssignments(generator, (UpstreamData.TeamAssignments) message);
+                break;
+            case STAGE_STARTS:
+                writeStageStarts(generator, (UpstreamData.StageStarts) message);
                 break;
             case RECV:
                 writeReceive(generator, (UpstreamData.Receive) message);
@@ -158,54 +155,51 @@ public final class DefaultUpstreamDataCodec
         generator.writeEndObject();
     }
 
-    private static void writeRaceData(
+    private static void writeTeamAssignments(
             JsonGenerator generator,
-            UpstreamData.RaceData raceData)
+            UpstreamData.TeamAssignments assignments)
             throws IOException, CodecException {
-        generator.writeStartObject();
 
-        if (!raceData.teamAssignmentChanges().isEmpty()) {
-            generator.writeArrayFieldStart("teamAssignments");
-            for (UpstreamData.TeamAssignmentChange change
-                    : raceData.teamAssignmentChanges()) {
-                generator.writeStartObject();
-                generator.writeStringField("op", change.operation().name());
-                generator.writeStringField("regId", change.registrationId().value());
-                if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                    if (change.teamId() == null) {
-                        throw encodeFailure("teamAssignments SET requires teamId", null);
-                    }
-                    generator.writeStringField("teamId", change.teamId().value());
-                } else if (change.teamId() != null) {
-                    throw encodeFailure("teamAssignments DEL must not carry teamId", null);
+        generator.writeStartArray();
+        for (UpstreamData.TeamAssignmentChange change : assignments.changes()) {
+            generator.writeStartObject();
+            generator.writeStringField("op", change.operation().name());
+            generator.writeStringField("regId", change.registrationId().value());
+            if (change.operation() == UpstreamData.ChangeOperation.SET) {
+                if (change.teamId() == null) {
+                    throw encodeFailure("TEAM_ASSIGNMENTS SET requires teamId", null);
                 }
-                generator.writeEndObject();
+                generator.writeStringField("teamId", change.teamId().value());
+            } else if (change.teamId() != null) {
+                throw encodeFailure("TEAM_ASSIGNMENTS DEL must not carry teamId", null);
             }
-            generator.writeEndArray();
+            generator.writeEndObject();
         }
+        generator.writeEndArray();
+    }
 
-        if (!raceData.stageStartTimeChanges().isEmpty()) {
-            generator.writeArrayFieldStart("stageStartTimes");
-            for (UpstreamData.StageStartTimeChange change
-                    : raceData.stageStartTimeChanges()) {
-                generator.writeStartObject();
-                generator.writeStringField("op", change.operation().name());
-                generator.writeStringField("regId", change.registrationId().value());
-                if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                    TimingTimestamp start = change.start();
-                    if (start == null) {
-                        throw encodeFailure("stageStartTimes SET requires start timestamp", null);
-                    }
-                    generator.writeStringField("start", start.toString());
-                } else if (change.start() != null) {
-                    throw encodeFailure("stageStartTimes DEL must not carry start timestamp", null);
+    private static void writeStageStarts(
+            JsonGenerator generator,
+            UpstreamData.StageStarts stageStarts)
+            throws IOException, CodecException {
+
+        generator.writeStartArray();
+        for (UpstreamData.StageStartTimeChange change : stageStarts.changes()) {
+            generator.writeStartObject();
+            generator.writeStringField("op", change.operation().name());
+            generator.writeStringField("regId", change.registrationId().value());
+            if (change.operation() == UpstreamData.ChangeOperation.SET) {
+                TimingTimestamp start = change.start();
+                if (start == null) {
+                    throw encodeFailure("STAGE_STARTS SET requires start timestamp", null);
                 }
-                generator.writeEndObject();
+                generator.writeStringField("start", start.toString());
+            } else if (change.start() != null) {
+                throw encodeFailure("STAGE_STARTS DEL must not carry start timestamp", null);
             }
-            generator.writeEndArray();
+            generator.writeEndObject();
         }
-
-        generator.writeEndObject();
+        generator.writeEndArray();
     }
 
     private static void writeReceive(
@@ -411,11 +405,13 @@ public final class DefaultUpstreamDataCodec
                 rejectLocationId(locationId, type);
                 return decodeSequence(data);
             }
-            if ("RACE_DATA".equals(type)) {
-                if (locationId == null) {
-                    throw invalid("RACE_DATA requires message locationId", null);
-                }
-                return decodeRaceData(locationId.intValue(), data);
+            if ("TEAM_ASSIGNMENTS".equals(type)) {
+                rejectLocationId(locationId, type);
+                return decodeTeamAssignments(data);
+            }
+            if ("STAGE_STARTS".equals(type)) {
+                rejectLocationId(locationId, type);
+                return decodeStageStarts(data);
             }
             if ("RECV".equals(type)) {
                 rejectLocationId(locationId, type);
@@ -542,47 +538,47 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
-    private static UpstreamData.RaceData decodeRaceData(
-            int locationId,
+    private static UpstreamData.TeamAssignments decodeTeamAssignments(
             byte[] payload)
             throws CodecException {
+
         try {
-            LocationId parsedLocationId = new LocationId(locationId);
             JsonFactory factory = new JsonFactory();
             JsonParser parser = factory.createParser(payload);
-            if (parser.nextToken() != JsonToken.START_OBJECT) {
-                throw invalid("RACE_DATA data must be an object", null);
-            }
-
-            List<UpstreamData.TeamAssignmentChange> teamChanges = null;
-            List<UpstreamData.StageStartTimeChange> startChanges = null;
-            while (parser.nextToken() != JsonToken.END_OBJECT) {
-                String field = requireFieldName(parser);
-                JsonToken value = parser.nextToken();
-                if ("teamAssignments".equals(field)) {
-                    if (teamChanges != null) {
-                        throw invalid("Duplicate teamAssignments", null);
-                    }
-                    teamChanges = readTeamAssignmentChanges(parser, value);
-                } else if ("stageStartTimes".equals(field)) {
-                    if (startChanges != null) {
-                        throw invalid("Duplicate stageStartTimes", null);
-                    }
-                    startChanges = readStageStartTimeChanges(parser, value);
-                } else {
-                    parser.skipChildren();
-                }
+            JsonToken token = parser.nextToken();
+            List<UpstreamData.TeamAssignmentChange> changes =
+                    readTeamAssignmentChanges(parser, token);
+            if (parser.nextToken() != null) {
+                throw invalid("TEAM_ASSIGNMENTS data has trailing content", null);
             }
             parser.close();
-
-            return DefaultUpstreamData.createRaceData(
-                    parsedLocationId,
-                    teamChanges,
-                    startChanges);
+            return DefaultUpstreamData.createTeamAssignments(changes);
         } catch (CodecException ex) {
             throw ex;
         } catch (IOException | IllegalArgumentException ex) {
-            throw invalid("Invalid RACE_DATA payload", ex);
+            throw invalid("Invalid TEAM_ASSIGNMENTS payload", ex);
+        }
+    }
+
+    private static UpstreamData.StageStarts decodeStageStarts(
+            byte[] payload)
+            throws CodecException {
+
+        try {
+            JsonFactory factory = new JsonFactory();
+            JsonParser parser = factory.createParser(payload);
+            JsonToken token = parser.nextToken();
+            List<UpstreamData.StageStartTimeChange> changes =
+                    readStageStartTimeChanges(parser, token);
+            if (parser.nextToken() != null) {
+                throw invalid("STAGE_STARTS data has trailing content", null);
+            }
+            parser.close();
+            return DefaultUpstreamData.createStageStarts(changes);
+        } catch (CodecException ex) {
+            throw ex;
+        } catch (IOException | IllegalArgumentException ex) {
+            throw invalid("Invalid STAGE_STARTS payload", ex);
         }
     }
 

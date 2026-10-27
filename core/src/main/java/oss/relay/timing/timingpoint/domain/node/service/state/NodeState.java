@@ -5,7 +5,6 @@ import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookAccessor;
 import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataState;
-import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 import oss.relay.timing.timingpoint.domain.node.registration.ActiveRegistrations;
 import oss.relay.timing.timingpoint.domain.node.registration.RegisteredTeams;
 import oss.relay.timing.timingpoint.domain.node.registration.StageTiming;
@@ -65,21 +64,50 @@ public final class NodeState implements NodeStateAccessor, NodeStateTestControl 
                         failureHandler);
     }
 
-    /** Applies one validated bounded RaceData transaction and keeps derived projections aligned. */
-    public void applyRaceDataChanges(RaceDataUpdate changes) {
+    /** Applies one already validated live assignment SET to retained state. */
+    public void teamAssignmentSet(
+            RegistrationId registrationId,
+            TeamId teamId) {
 
-        failIfInvalidArgument(changes != null, "changes must not be null");
-        raceData.applyChanges(changes);
-        dataTask.raceDataApplied(changes);
+        raceData.assignTeam(registrationId, teamId);
+    }
 
-        for (int index = 0; index < changes.teamAssignmentSetCount(); index++) {
-            RegistrationId registrationId = changes.teamAssignmentSetRegistrationId(index);
-            dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
-        }
-        for (int index = 0; index < changes.teamAssignmentDeleteCount(); index++) {
-            RegistrationId registrationId = changes.teamAssignmentDeleteRegistrationId(index);
-            dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
-        }
+    /** Applies one live assignment DEL to retained state. */
+    public void teamAssignmentDeleted(RegistrationId registrationId) {
+
+        raceData.removeTeam(registrationId);
+    }
+
+    /** Refreshes derived team membership from the final retained assignment state. */
+    public void teamAssignmentChanged(RegistrationId registrationId) {
+
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        dataTask.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
+    }
+
+    /** Applies one normalized stage-start SET and returns whether retained state changed. */
+    public boolean stageStartSet(
+            RegistrationId registrationId,
+            long stageStart) {
+
+        boolean changed = raceData.stageStartSet(registrationId, stageStart);
+        dataTask.stageStartSet(registrationId, stageStart);
+        return changed;
+    }
+
+    /** Applies one stage-start DEL and returns whether retained state changed. */
+    public boolean stageStartDeleted(RegistrationId registrationId) {
+
+        boolean changed = raceData.stageStartDeleted(registrationId);
+        dataTask.stageStartDeleted(registrationId);
+        return changed;
+    }
+
+    /** Finalizes one complete STAGE_STARTS message and recalculates ranking at most once. */
+    public void stageStartChangesApplied(boolean stateChanged) {
+
+        raceData.stageStartChangesApplied(stateChanged);
+        dataTask.stageStartChangesApplied();
     }
 
     /** Applies one absolute engineering override using the same compact UTC state as RaceData. */

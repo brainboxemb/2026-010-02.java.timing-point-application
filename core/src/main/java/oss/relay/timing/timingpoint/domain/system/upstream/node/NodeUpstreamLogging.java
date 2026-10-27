@@ -37,14 +37,19 @@ final class NodeUpstreamLogging {
                         + ", seq=" + firstSequence + ".." + lastSequence
                         + ", records=" + recordCount;
 
-            case RACE_DATA:
-                UpstreamData.RaceData raceData =
-                        (UpstreamData.RaceData) packet.message();
+            case TEAM_ASSIGNMENTS:
+                UpstreamData.TeamAssignments assignments =
+                        (UpstreamData.TeamAssignments) packet.message();
                 return prefix
-                        + ", location=" + raceData.locationId().value()
                         + ", changes="
-                        + (raceData.teamAssignmentChanges().size()
-                                + raceData.stageStartTimeChanges().size());
+                        + assignments.changes().size();
+
+            case STAGE_STARTS:
+                UpstreamData.StageStarts stageStarts =
+                        (UpstreamData.StageStarts) packet.message();
+                return prefix
+                        + ", changes="
+                        + stageStarts.changes().size();
 
             case TIMING_DATA_REQ:
                 UpstreamData.TimingDataRequest request =

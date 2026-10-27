@@ -252,7 +252,7 @@ The main window separates **engineering controls** from **viewers**:
 ```text
 left: navigation / controls / diagnostics       right: detachable viewers
 -----------------------------------------       -------------------------------
-System                                         [ Node A ] [ Central ] [ Stages ]
+System                                         [ Node A ] [ Central ] [ StartTimes ]
 Central: Nodes / Locations                      viewer content only
 Node Controls / Central Controls
 -----------------------------------------
@@ -264,15 +264,14 @@ Client Log
 ```
 
 The upper-left explorer keeps the direct API system view and Central node/location
-projections visible close to the controls. The separate right-side **Stages** viewer uses
-a **Stage** selector, matching the Central viewer's node-selection pattern, and shows the
-selected StageId's **StartTimes** as RegistrationId/start-time rows. Authored values remain
-visible even before any node opens. **Node Controls** contains TimingNode, API,
+projections visible close to the controls. The separate right-side **StartTimes** viewer shows
+Central-owned **StartTimes** directly as RegistrationId/start-time rows. Stage-start state
+has no StageId or LocationId; authored values remain visible even before any node opens. **Node Controls** contains TimingNode, API,
 Registration and Simulation. **Scripts** is a generic engineering tool beside
 **Terminal**, because it can automate client lifecycle, Central configuration and
-node-specific operations. **Central Controls** separates **RaceData** from
-**TimingData**: RaceData owns team/stage-start changes; TimingData shows Central's
-contiguous received sequence and lets an operator request TimingData from an explicit
+node-specific operations. **Central Controls** separates current **Team Assignments /
+Stage Starts** from **TimingData**: the two current-state families are authored independently,
+while TimingData shows Central's contiguous received sequence and lets an operator request TimingData from an explicit
 source sequence. The existing Central **LogBook** viewer remains the record-oriented view
 of received TimingData.
 
@@ -282,14 +281,14 @@ left-side docks, so all three can remain visible and be resized independently.
 The right side is reserved for viewer workspaces. The **Node A** title follows the
 API-selected NodeId. **Central** deliberately remains a global title because its Messages
 and LogBook tabs already provide their own node filtering/selection and are not scoped to
-the API-selected node. **Stages** is a separate global viewer beside Node and Central,
-because stage definitions are Central-owned race state rather than node state. This
+the API-selected node. **StartTimes** is a separate global viewer beside Node and Central,
+because stage-start definitions are Central-owned current state rather than LogBook history. This
 right-side viewer leaf can later grow with additional node viewers without moving the
 shared controls.
 
 The Node viewer contains **Registrations**, read-only **StartTimes**, LogBook, Raw Data,
-Events and HTTP. StartTimes is read directly from SI-01 applied RaceData through bounded
-IF-03 pages; it does not mirror the Central editor. A StageStart revision is shared with
+Events and HTTP. StartTimes is read directly from SI-01 applied STAGE_STARTS state through
+bounded IF-03 pages; it does not mirror the Central editor. A StageStart revision is shared with
 the Registrations projection so RunningTime is refreshed after an applied start-time
 SET/DEL. The Central viewer contains separate **Messages** and
 **LogBook** tabs: Messages inspects IF-06 message/batch boundaries, while Central LogBook
@@ -322,19 +321,19 @@ the latest 100 records and single-record command follow-ups remain single-record
 
 **Messages** is the Central semantic IF-06 inspector. It shows typed messages received
 from and sent to nodes, including `SEQ`, `TIMING_DATA_REQ`, `RECV`, `PING`,
-`TIMING_DATA` and `RACE_DATA`. Viewer time columns use the Engineering Client host's
+`TIMING_DATA`, `TEAM_ASSIGNMENTS` and `STAGE_STARTS`. Viewer time columns use the Engineering Client host's
 local timezone while the selected raw IF-06 JSON remains unchanged UTC wire data. For
 TIMING_DATA, **Time** uses IF-05 effective `time` (the last record for a batch); **Received**
-is the separate local WebSocket receive timestamp. The Packet / position column shows the packet number
-separately from any TIMING_DATA/LogBook sequence; RACE_DATA also shows its message-level
-LocationId. The shared IF-06 profile bounds TIMING_DATA to 16 TimingRecords per message
-and RACE_DATA to 16 combined changes per message. The table ends with one presentation-only
+is the separate local WebSocket receive timestamp. The Packet / position column shows the packet number separately from any
+TIMING_DATA/LogBook sequence. TEAM_ASSIGNMENTS and STAGE_STARTS carry no LocationId or
+source sequence. The shared IF-06 profile bounds TIMING_DATA to 16 TimingRecords,
+TEAM_ASSIGNMENTS to 16 assignment changes and STAGE_STARTS to 16 start changes per
+message. The table ends with one presentation-only
 `— Follow end —` row: while that row is selected, new messages keep the table scrolled
 to the end; selecting a real message suspends follow and preserves the inspected viewport
 while later messages arrive. The **End** button at the far right of the filters resumes
-follow. The simulator retains the latest 10,000 semantic messages as bounded diagnostic model state. The JavaFX table keeps only lightweight references/wrappers to that history and relies on TableView cell virtualization; it does not duplicate the raw payloads as rendered rows. Central RACE_DATA is current
-state plus at most one outstanding normal DN_PACKET for retry; there is no retained
-RACE_DATA source-sequence history.
+follow. The simulator retains the latest 10,000 semantic messages as bounded diagnostic model state. The JavaFX table keeps only lightweight references/wrappers to that history and relies on TableView cell virtualization; it does not duplicate the raw payloads as rendered rows. Central TEAM_ASSIGNMENTS and STAGE_STARTS are current state plus at most one outstanding
+normal DN_PACKET for retry; neither has retained source-sequence history.
 
 **Central LogBook** is independent from that bounded Messages journal. Every accepted
 contiguous TIMING_DATA record is retained once in receive order, regardless of whether it
@@ -417,7 +416,7 @@ The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/fil
 editor. The Engineering Client still does not expose arbitrary TagObservation injection,
 TagProcessor/filter mutation or node-side StageStartTimes/NextUpTeams editors. It does
 provide a read-only Node **StartTimes** view of the values actually applied in SI-01. The
-Central RACE_DATA editor remains separately available as **C|RaceData**.
+Central current-state editor remains separately available as **C|Current State**.
 
 The narrow explorer deliberately contains separate **System** and **Central** projections.
 System is the direct IF-03/API system view of SI-01. Central uses the complete IF-03
@@ -439,12 +438,13 @@ LocationId closes the previously active location in this projection.
 LogBook history only. They never restore current runtime OPEN state. In particular, after
 SI-01 restarts, an old unmatched `NODE_OPEN` may still exist in the LogBook while the
 new runtime correctly reports CLOSED; Central follows that CLOSED status and does not
-release RACE_DATA until a new runtime OPEN occurs.
+release current TEAM_ASSIGNMENTS/STAGE_STARTS delivery until a new runtime OPEN occurs.
 
-**Central Controls → RaceData** is an operator form rather than an explorer and authors
-Central-owned current RaceData independently from a selected node. Authored data may be
-retained while nodes are CLOSED, but LocationId-scoped RACE_DATA is emitted only when the
-current IF-03 runtime status reports the target node OPEN at that LocationId. Registration input
+**Central Controls → Current State** is an operator form rather than an explorer and
+authors Central-owned Team Assignments and Stage Starts independently from a selected
+node. Authored data may be retained while nodes are CLOSED. When a node becomes OPEN,
+Central routes the applicable current state through separate TEAM_ASSIGNMENTS and
+STAGE_STARTS messages; the messages themselves carry no LocationId or StageId. Registration input
 uses an explicit A-Z prefix selector plus numeric values: for example prefix `A` and
 number `8` becomes canonical RegistrationId `A0008`, and a range `8..100` becomes
 `A0008..A0100`. Stage-start time accepts the existing IF-06 TimingTimestamp forms and

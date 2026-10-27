@@ -25,7 +25,7 @@ public final class CentralClient implements AutoCloseable {
     private final CentralTransport transport;
     private final CentralSystemSimulator simulator;
     private final CentralPane centralPane;
-    private final CentralStagesPane stagesPane;
+    private final CentralStageStartsPane stageStartsPane;
     private final CentralMessagesPane messagesPane;
     private final CentralLogBookPane logBookPane;
     private final Actions actions = new Actions();
@@ -39,7 +39,7 @@ public final class CentralClient implements AutoCloseable {
         this.transport = transport;
         simulator = new CentralSystemSimulator(configuredLocationIds);
         centralPane = new CentralPane(simulator, actions);
-        stagesPane = new CentralStagesPane(simulator);
+        stageStartsPane = new CentralStageStartsPane(simulator);
         messagesPane = new CentralMessagesPane(simulator);
         logBookPane = new CentralLogBookPane(simulator);
     }
@@ -56,12 +56,12 @@ public final class CentralClient implements AutoCloseable {
         return centralPane.locationsPane();
     }
 
-    public Node stagesPane() {
-        return stagesPane.pane();
+    public Node stageStartsPane() {
+        return stageStartsPane.pane();
     }
 
-    public Node raceDataPane() {
-        return centralPane.raceDataPane();
+    public Node currentStatePane() {
+        return centralPane.currentStatePane();
     }
 
     public Node timingDataPane() {
@@ -130,7 +130,7 @@ public final class CentralClient implements AutoCloseable {
 
     public void refresh() {
         centralPane.refresh();
-        stagesPane.refresh();
+        stageStartsPane.refresh();
         messagesPane.refresh();
         logBookPane.refresh();
     }
@@ -192,14 +192,12 @@ public final class CentralClient implements AutoCloseable {
 
         @Override
         public MutationResult setStageStartRangeByNumber(
-                int stageId,
                 String registrationPrefix,
                 String firstRegistrationNumber,
                 String lastRegistrationNumber,
                 String start,
                 long intervalMillis) {
             return setStageStartRange(
-                    stageId,
                     registrationPrefix,
                     registrationNumber(firstRegistrationNumber),
                     registrationNumber(lastRegistrationNumber),
@@ -209,12 +207,10 @@ public final class CentralClient implements AutoCloseable {
 
         @Override
         public MutationResult deleteStageStartRangeByNumber(
-                int stageId,
                 String registrationPrefix,
                 String firstRegistrationNumber,
                 String lastRegistrationNumber) {
             return deleteStageStartRange(
-                    stageId,
                     registrationPrefix,
                     registrationNumber(firstRegistrationNumber),
                     registrationNumber(lastRegistrationNumber));
@@ -248,13 +244,11 @@ public final class CentralClient implements AutoCloseable {
 
         @Override
         public MutationResult setStageStart(
-                int stageId,
                 String registrationId,
                 String start) {
             int packets =
                     sendPacketsAndCount(
                             simulator.updateStageStarts(
-                                    stageId,
                                     List.of(
                                             DefaultUpstreamData.createStageStartSet(
                                                     registrationId,
@@ -264,13 +258,10 @@ public final class CentralClient implements AutoCloseable {
 
         @Override
         public MutationResult deleteStageStart(
-                int stageId,
                 String registrationId) {
             int packets =
                     sendPacketsAndCount(
-                            simulator.updateStageStarts(
-                                    stageId,
-                                    List.of(
+                            simulator.updateStageStarts(List.of(
                                             DefaultUpstreamData.createStageStartDelete(
                                                     registrationId))));
             return new MutationResult(1, packets);
@@ -278,7 +269,6 @@ public final class CentralClient implements AutoCloseable {
 
         @Override
         public MutationResult setStageStartRange(
-                int stageId,
                 String registrationPrefix,
                 int firstRegistrationNumber,
                 int lastRegistrationNumber,
@@ -310,7 +300,6 @@ public final class CentralClient implements AutoCloseable {
             int packets =
                     sendPacketsAndCount(
                             simulator.updateStageStarts(
-                                    stageId,
                                     changes));
             return new MutationResult(
                     registrations.size(),
@@ -319,7 +308,6 @@ public final class CentralClient implements AutoCloseable {
 
         @Override
         public MutationResult deleteStageStartRange(
-                int stageId,
                 String registrationPrefix,
                 int firstRegistrationNumber,
                 int lastRegistrationNumber) {
@@ -338,7 +326,6 @@ public final class CentralClient implements AutoCloseable {
             int packets =
                     sendPacketsAndCount(
                             simulator.updateStageStarts(
-                                    stageId,
                                     changes));
             return new MutationResult(
                     registrations.size(),

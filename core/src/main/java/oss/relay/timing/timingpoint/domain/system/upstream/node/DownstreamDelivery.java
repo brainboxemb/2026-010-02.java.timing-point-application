@@ -135,16 +135,19 @@ final class DownstreamDelivery {
         }
 
         switch (first.family()) {
-            case RACE_DATA:
-                UpstreamData.RaceData firstRace =
-                        (UpstreamData.RaceData) first.message();
-                UpstreamData.RaceData secondRace =
-                        (UpstreamData.RaceData) second.message();
-                return firstRace.locationId().equals(secondRace.locationId())
-                        && firstRace.teamAssignmentChanges()
-                                .equals(secondRace.teamAssignmentChanges())
-                        && firstRace.stageStartTimeChanges()
-                                .equals(secondRace.stageStartTimeChanges());
+            case TEAM_ASSIGNMENTS:
+                return ((UpstreamData.TeamAssignments) first.message())
+                        .changes()
+                        .equals(
+                                ((UpstreamData.TeamAssignments) second.message())
+                                        .changes());
+
+            case STAGE_STARTS:
+                return ((UpstreamData.StageStarts) first.message())
+                        .changes()
+                        .equals(
+                                ((UpstreamData.StageStarts) second.message())
+                                        .changes());
 
             case TIMING_DATA_REQ:
                 return ((UpstreamData.TimingDataRequest) first.message())
