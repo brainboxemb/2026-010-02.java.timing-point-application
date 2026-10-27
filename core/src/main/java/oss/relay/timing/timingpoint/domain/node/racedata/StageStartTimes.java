@@ -12,7 +12,8 @@ import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalid
  * Package-private RegistrationId-to-stage-start state owned by RaceDataState.
  *
  * <p>Values use compact UTC longs: time-only HHmmsscc remains below 100000000, while dated
- * values use yyyyMMddHHmmsscc. RaceDataState validates a transaction before mutation.</p>
+ * values use yyyyMMddHHmmsscc. NodeService validates each complete STAGE_STARTS message before
+ * mutating retained state.</p>
  */
 final class StageStartTimes {
     private final Map<RegistrationId, Long> starts;
