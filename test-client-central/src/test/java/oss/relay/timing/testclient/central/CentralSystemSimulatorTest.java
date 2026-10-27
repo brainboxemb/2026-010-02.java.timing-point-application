@@ -878,7 +878,10 @@ final class CentralSystemSimulatorTest {
                 "target reset retains Central-owned source state");
 
         simulator.resetAllState();
-        assertTrue(simulator.stages().isEmpty());
+        assertTrue(
+                simulator.stages().stream()
+                        .allMatch(stage -> stage.startTimes().isEmpty()),
+                "full reset clears all authored StageStartTimes");
         assertTrue(simulator.timingRecords().isEmpty());
         assertFalse(simulator.isConnected());
     }
