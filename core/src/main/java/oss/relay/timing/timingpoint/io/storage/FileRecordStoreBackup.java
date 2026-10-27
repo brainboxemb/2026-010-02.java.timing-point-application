@@ -73,7 +73,7 @@ public final class FileRecordStoreBackup {
         return backup;
     }
 
-    public static boolean hasPendingClear(Path file) {
+    public static boolean hasPendingBackupAndClear(Path file) {
         requireFile(file);
         return Files.exists(marker(file));
     }
