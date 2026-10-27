@@ -60,8 +60,8 @@ public final class CentralClient implements AutoCloseable {
         return stagesPane.pane();
     }
 
-    public Node raceDataPane() {
-        return centralPane.raceDataPane();
+    public Node currentStatePane() {
+        return centralPane.currentStatePane();
     }
 
     public Node timingDataPane() {
