@@ -24,7 +24,6 @@ final class StageStartTimes {
     }
 
     /** Sets one already-normalized compact UTC stage start. */
-    /** Sets one already-normalized compact UTC stage start. */
     boolean set(RegistrationId registrationId, long stageStart) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
@@ -55,6 +54,4 @@ final class StageStartTimes {
         return starts.remove(registrationId) != null;
     }
 
-
-}
 }
