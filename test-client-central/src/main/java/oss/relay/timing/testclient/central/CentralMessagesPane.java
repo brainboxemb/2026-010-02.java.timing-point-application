@@ -430,14 +430,9 @@ final class CentralMessagesPane {
                     ? rawPayloadJson
                     : formatCompactArray(rawPayloadJson, "data");
         }
-        if (data.family() == UpstreamData.Family.RACE_DATA) {
-            String formatted =
-                    formatCompactArray(
-                            rawPayloadJson,
-                            "teamAssignments");
-            return formatCompactArray(
-                    formatted,
-                    "stageStartTimes");
+        if (data.family() == UpstreamData.Family.TEAM_ASSIGNMENTS
+                || data.family() == UpstreamData.Family.STAGE_STARTS) {
+            return formatCompactArray(rawPayloadJson, "data");
         }
         return rawPayloadJson;
     }
@@ -620,12 +615,7 @@ final class CentralMessagesPane {
             case TIMING_DATA -> packet + " · "
                     + timingDataPosition(
                             (UpstreamData.TimingDataTransfer) data.message());
-            case RACE_DATA -> {
-                UpstreamData.RaceData raceData =
-                        (UpstreamData.RaceData) data.message();
-                yield packet + " · RACE_DATA L"
-                        + raceData.locationId().value();
-            }
+            case TEAM_ASSIGNMENTS, STAGE_STARTS -> packet;
             case TIMING_DATA_REQ -> packet + " · from "
                     + ((UpstreamData.TimingDataRequest) data.message())
                             .fromSequence();
@@ -651,9 +641,16 @@ final class CentralMessagesPane {
                         (UpstreamData.TimingDataTransfer) data.message();
                 yield transfer.records().size() + " TimingData record(s)";
             }
-            case RACE_DATA ->
-                    raceDataSummary(
-                            (UpstreamData.RaceData) data.message());
+            case TEAM_ASSIGNMENTS ->
+                    ((UpstreamData.TeamAssignments) data.message())
+                            .changes()
+                            .size()
+                            + " team assignment change(s)";
+            case STAGE_STARTS ->
+                    ((UpstreamData.StageStarts) data.message())
+                            .changes()
+                            .size()
+                            + " stage-start change(s)";
             case TIMING_DATA_REQ -> "request retained TimingData";
             case SEQ -> {
                 UpstreamData.Sequence sequence =
@@ -705,13 +702,6 @@ final class CentralMessagesPane {
             case NODE_OPEN -> "NODE_OPEN";
             case NODE_CLOSE -> "NODE_CLOSE";
         };
-    }
-
-    private static String raceDataSummary(UpstreamData.RaceData raceData) {
-        int teamChanges = raceData.teamAssignmentChanges().size();
-        int startChanges = raceData.stageStartTimeChanges().size();
-        return teamChanges + " team change(s), "
-                + startChanges + " stage-start change(s)";
     }
 
     private static <T> TableColumn<T, String> column(
