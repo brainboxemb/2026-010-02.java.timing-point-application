@@ -139,6 +139,9 @@ public final class NodeService extends LifecycleComponent {
                                                 + change.operation());
                         }
                     }
+                    for (UpstreamData.TeamAssignmentChange change : changes.changes()) {
+                        state.teamAssignmentChanged(change.registrationId());
+                    }
                     return TaskStep.done();
                 });
     }
