@@ -7,13 +7,6 @@ import oss.relay.timing.timingpoint.domain.node.logbook.LogBook;
 import oss.relay.timing.timingpoint.domain.node.logbook.LogBookBackup;
 import oss.relay.timing.timingpoint.domain.node.service.NodeService;
 
-/**
- * Runtime-only construction result for one TimingNode.
- *
- * <p>The Domain exposes TimingNode as the system child. Runtime retains the
- * already constructed NodeService and LogBook only long enough to compose the
- * separate TimingSystem-owned upstream protocol component.</p>
- */
 final class TimingNodeComposition {
     private final TimingNode node;
     private final NodeService nodeService;
@@ -43,7 +36,6 @@ final class TimingNodeComposition {
         return logBook;
     }
 
-    /** Returns explicit application-facing component boundaries for this node. */
     TimingNodeProxyComponents presentationComponents(EventData eventData) {
 
         return new TimingNodeProxyComponents(
