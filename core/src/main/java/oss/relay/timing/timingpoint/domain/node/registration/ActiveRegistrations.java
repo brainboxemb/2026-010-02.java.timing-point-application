@@ -3,7 +3,6 @@ package oss.relay.timing.timingpoint.domain.node.registration;
 import oss.relay.timing.timingdata.TimingDataTypes.LocationId;
 import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
-import oss.relay.timing.timingpoint.domain.node.racedata.RaceDataUpdate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +36,7 @@ public final class ActiveRegistrations {
 
     private int locationId;
     private boolean rebuilding;
+    private boolean stageStartRankingDirty;
     private long lastMutationSequence;
     private long lastRevokeSequence;
 
@@ -47,6 +47,7 @@ public final class ActiveRegistrations {
         this.locationId = locationId.value();
         registrations.clear();
         rebuilding = true;
+        stageStartRankingDirty = false;
         lastMutationSequence = 0L;
         lastRevokeSequence = 0L;
     }
@@ -57,6 +58,7 @@ public final class ActiveRegistrations {
         failIfIllegalState(locationId != 0, "registration projection is not active");
         recalculateRanks();
         rebuilding = false;
+        stageStartRankingDirty = false;
     }
 
     /** Deactivates the projection and discards all derived rows. */
@@ -65,6 +67,7 @@ public final class ActiveRegistrations {
         locationId = 0;
         registrations.clear();
         rebuilding = false;
+        stageStartRankingDirty = false;
         lastMutationSequence = 0L;
         lastRevokeSequence = 0L;
     }
@@ -121,31 +124,38 @@ public final class ActiveRegistrations {
         return change;
     }
 
-    /**
-     * Applies one bounded normalized stage-start transaction to retained display rows.
-     *
-     * <p>Ranking is recalculated at most once after every changed row has been updated.</p>
-     */
-    public void applyStageStartChanges(RaceDataUpdate changes) {
+    /** Applies one normalized stage-start SET without recalculating ranking yet. */
+    public void stageStartSet(
+            RegistrationId registrationId,
+            long stageStart) {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
-        failIfInvalidArgument(changes != null, "changes must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        stageStartRankingDirty |=
+                replaceStageStart(
+                        registrationId.packedValue(),
+                        stageStart);
+    }
 
-        boolean changed = false;
-        for (int index = 0; index < changes.stageStartSetCount(); index++) {
-            changed |= replaceStageStart(
-                    changes.stageStartSetRegistrationId(index).packedValue(),
-                    changes.stageStartSetValue(index));
-        }
-        for (int index = 0; index < changes.stageStartDeleteCount(); index++) {
-            changed |= replaceStageStart(
-                    changes.stageStartDeleteRegistrationId(index).packedValue(),
-                    NO_STAGE_START);
-        }
+    /** Applies one stage-start DEL without recalculating ranking yet. */
+    public void stageStartDeleted(RegistrationId registrationId) {
 
-        if (changed && !rebuilding) {
+        failIfIllegalState(locationId != 0, "registration projection is not active");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        stageStartRankingDirty |=
+                replaceStageStart(
+                        registrationId.packedValue(),
+                        NO_STAGE_START);
+    }
+
+    /** Recalculates ranking once after one complete STAGE_STARTS message, when needed. */
+    public void stageStartChangesApplied() {
+
+        failIfIllegalState(locationId != 0, "registration projection is not active");
+        if (stageStartRankingDirty && !rebuilding) {
             recalculateRanks();
         }
+        stageStartRankingDirty = false;
     }
 
     /** Applies one engineering stage-start update to all passages of one RegistrationId. */
