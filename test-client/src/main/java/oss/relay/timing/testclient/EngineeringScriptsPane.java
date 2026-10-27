@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -146,8 +147,74 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         chooser.setTitle("Open Engineering Lua Script");
         chooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Lua scripts (*.lua)", "*.lua"));
+        Path defaultDirectory = defaultScriptsDirectory();
+        if (defaultDirectory != null) {
+            chooser.setInitialDirectory(
+                    defaultDirectory.toFile());
+        }
         java.io.File file = chooser.showOpenDialog(getScene().getWindow());
         if (file != null) loadFile(file.toPath());
+    }
+
+    private static Path defaultScriptsDirectory() {
+        String packagedAppPath =
+                System.getProperty("jpackage.app-path");
+        Path packagedApplication =
+                packagedAppPath == null || packagedAppPath.isBlank()
+                        ? null
+                        : Paths.get(packagedAppPath);
+        return defaultScriptsDirectory(
+                Paths.get(
+                        System.getProperty(
+                                "user.dir",
+                                ".")),
+                packagedApplication);
+    }
+
+    static Path defaultScriptsDirectory(
+            Path workingDirectory,
+            Path packagedApplication) {
+        if (workingDirectory == null) {
+            throw new IllegalArgumentException(
+                    "workingDirectory must not be null");
+        }
+
+        java.util.List<Path> candidates =
+                new java.util.ArrayList<>();
+        if (packagedApplication != null
+                && packagedApplication.getParent() != null) {
+            candidates.add(
+                    packagedApplication
+                            .getParent()
+                            .resolve("scripts"));
+        }
+
+        Path working =
+                workingDirectory
+                        .toAbsolutePath()
+                        .normalize();
+        candidates.add(
+                working.resolve(
+                        Paths.get(
+                                "test-client",
+                                "scripts")));
+        candidates.add(
+                working.resolve("scripts"));
+        Path parent = working.getParent();
+        if (parent != null) {
+            candidates.add(
+                    parent.resolve(
+                            Paths.get(
+                                    "test-client",
+                                    "scripts")));
+        }
+
+        for (Path candidate : candidates) {
+            if (Files.isDirectory(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private boolean loadFile(Path path) {
