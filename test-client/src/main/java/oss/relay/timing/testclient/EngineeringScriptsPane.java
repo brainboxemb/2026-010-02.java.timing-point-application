@@ -239,16 +239,16 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     /** Called from the FX owner after status, selection or capability changes. */
     void refresh(boolean live, boolean simulationEnabled, String nodeId) {
         simulationAvailable = simulationEnabled;
-        available = canRun(live, nodeId, guiBatchRunning.getAsBoolean());
+        available = canRun(live, guiBatchRunning.getAsBoolean());
         if (!running) {
             state.setText(!live ? "Scripts require Events LIVE (connect and sync)"
-                    : nodeId == null || nodeId.isBlank() ? "Select a TimingNode"
                     : guiBatchRunning.getAsBoolean() ? "GUI simulation batch is running"
+                    : nodeId == null || nodeId.isBlank()
+                            ? "Lua ready; node-specific commands unavailable until a node is selected"
                     : !simulationEnabled ? "Lua ready; simulation unavailable (TAG_SCENARIO_SIMULATION)"
                     : "Lua ready (simulation available)");
         }
-        if (running && (!live
-                || !java.util.Objects.equals(nodeId, runningNode))) {
+        if (running && !live) {
             stopScript();
         }
         run.setDisable(running || !available);
@@ -257,34 +257,47 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         source.setEditable(!running);
     }
 
-    static boolean canRun(boolean live, String nodeId, boolean guiBatchRunning) {
-        return live && nodeId != null && !nodeId.isBlank() && !guiBatchRunning;
+    static boolean canRun(boolean live, boolean guiBatchRunning) {
+        return live && !guiBatchRunning;
     }
 
     private void runScript() {
         if (running || !available) return;
-        String nodeId = selectedNode.get(); // FX-thread snapshot.
-        if (nodeId == null || nodeId.isBlank() || guiBatchRunning.getAsBoolean()) return;
+        String nodeId = selectedNode.get(); // Optional FX-thread snapshot for node-specific calls.
+        if (guiBatchRunning.getAsBoolean()) return;
         if (source.getText().getBytes(StandardCharsets.UTF_8).length > MAX_SCRIPT_BYTES) {
             state.setText("Script must be <= 128 KiB");
             return;
         }
         final ApiClient client = clientSupplier.get(); // target is fixed for this run.
         final String script = source.getText();
-        final boolean canSimulate = simulationAvailable;
+        final boolean canSimulate =
+                nodeId != null
+                        && !nodeId.isBlank()
+                        && simulationAvailable;
         final long currentGeneration = ++generation;
         runningNode = nodeId;
         running = true;
         validRun.set(true);
         output.clear();
-        state.setText("Running on node " + nodeId);
-        clientLog.info("Running Engineering Lua script on node " + nodeId);
+        state.setText(
+                nodeId == null || nodeId.isBlank()
+                        ? "Running generic Engineering Lua script"
+                        : "Running Engineering Lua script (node " + nodeId + ")");
+        clientLog.info(
+                nodeId == null || nodeId.isBlank()
+                        ? "Running generic Engineering Lua script"
+                        : "Running Engineering Lua script with captured node " + nodeId);
         refreshControls.run();
         job = runner.submit(() -> {
             try {
                 EngineeringLuaEngine.run(script,
                         (regId, profile) -> {
                             if (!validRun.get()) throw new EngineeringLuaEngine.Stopped();
+                            if (nodeId == null || nodeId.isBlank()) {
+                                throw new EngineeringLuaEngine.CapabilityUnavailable(
+                                        "select a TimingNode before Run for timing.simulate/timing.batch");
+                            }
                             if (!canSimulate) {
                                 throw new EngineeringLuaEngine.CapabilityUnavailable("TAG_SCENARIO_SIMULATION disabled on connected SI-01. "
                                         + "Check API > Capabilities, verify the SI-01 startup configuration "
@@ -313,47 +326,75 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     private CentralActions scriptCentralActions() {
         return new CentralActions() {
             @Override
-            public long setTeamAssignment(
-                    String nodeId,
+            public MutationResult setTeamAssignment(
                     String registrationId,
                     String teamId) {
                 return callOnFx(() ->
                         centralActions.setTeamAssignment(
-                                nodeId,
                                 registrationId,
                                 teamId));
             }
 
             @Override
-            public long deleteTeamAssignment(
-                    String nodeId,
+            public MutationResult deleteTeamAssignment(
                     String registrationId) {
                 return callOnFx(() ->
                         centralActions.deleteTeamAssignment(
-                                nodeId,
                                 registrationId));
             }
 
             @Override
-            public long setStageStart(
-                    String nodeId,
+            public MutationResult setStageStart(
+                    int stageId,
                     String registrationId,
                     String start) {
                 return callOnFx(() ->
                         centralActions.setStageStart(
-                                nodeId,
+                                stageId,
                                 registrationId,
                                 start));
             }
 
             @Override
-            public long deleteStageStart(
-                    String nodeId,
+            public MutationResult deleteStageStart(
+                    int stageId,
                     String registrationId) {
                 return callOnFx(() ->
                         centralActions.deleteStageStart(
-                                nodeId,
+                                stageId,
                                 registrationId));
+            }
+
+            @Override
+            public MutationResult setStageStartRange(
+                    int stageId,
+                    String registrationPrefix,
+                    int firstRegistrationNumber,
+                    int lastRegistrationNumber,
+                    String start,
+                    long intervalMillis) {
+                return callOnFx(() ->
+                        centralActions.setStageStartRange(
+                                stageId,
+                                registrationPrefix,
+                                firstRegistrationNumber,
+                                lastRegistrationNumber,
+                                start,
+                                intervalMillis));
+            }
+
+            @Override
+            public MutationResult deleteStageStartRange(
+                    int stageId,
+                    String registrationPrefix,
+                    int firstRegistrationNumber,
+                    int lastRegistrationNumber) {
+                return callOnFx(() ->
+                        centralActions.deleteStageStartRange(
+                                stageId,
+                                registrationPrefix,
+                                firstRegistrationNumber,
+                                lastRegistrationNumber));
             }
 
             @Override
@@ -361,19 +402,21 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                     String nodeId,
                     long fromSequence) {
                 return callOnFx(() ->
-                        centralActions.requestTimingData(
-                                nodeId,
-                                fromSequence));
+                        Long.valueOf(
+                                centralActions.requestTimingData(
+                                        nodeId,
+                                        fromSequence)))
+                        .longValue();
             }
         };
     }
 
-    private long callOnFx(Supplier<Long> action) {
+    private <T> T callOnFx(Supplier<T> action) {
         if (Platform.isFxApplicationThread()) {
-            return action.get().longValue();
+            return action.get();
         }
 
-        CompletableFuture<Long> result = new CompletableFuture<>();
+        CompletableFuture<T> result = new CompletableFuture<>();
         Platform.runLater(() -> {
             try {
                 result.complete(action.get());
@@ -383,7 +426,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         });
 
         try {
-            return result.get().longValue();
+            return result.get();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new EngineeringLuaEngine.Stopped();
