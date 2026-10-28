@@ -5,7 +5,6 @@ import oss.relay.timing.timingdata.TimingDataTypes.RegistrationId;
 import oss.relay.timing.timingdata.TimingRecord;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -25,14 +24,16 @@ import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalid
  * RegistrationId and recalculates ranking. Only valid rows with an unambiguous runtime rank.</p>
  *
  * <p>Historical rebuild defers ranking until catch-up completes, avoiding repeated whole-list
- * ranking work while LogBook rows are replayed. Later live ADD/REV and RaceData stage-start
- * changes update ranking immediately on the NodeService Task Lane.</p>
+ * ranking work while LogBook rows are replayed. Later live ADD/REV and stage-start changes
+ * update ranking immediately on the NodeService Task Lane. CompetitionRanking owns the ranking
+ * algorithm and its reusable primitive scratch buffer; this class only decides when a recalculation
+ * is required.</p>
  */
 public final class ActiveRegistrations {
     private static final long NO_STAGE_START = Long.MIN_VALUE;
 
     private final List<Registration> registrations = new ArrayList<Registration>();
-    private long[] rankingElapsedMillis = new long[0];
+    private final CompetitionRanking ranking = new CompetitionRanking();
 
     private int locationId;
     private boolean rebuilding;
@@ -56,7 +57,7 @@ public final class ActiveRegistrations {
     public void completeRebuild() {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
-        recalculateRanks();
+        ranking.recalculate(registrations);
         rebuilding = false;
         stageStartRankingDirty = false;
     }
@@ -119,7 +120,7 @@ public final class ActiveRegistrations {
         }
 
         if (change != null && !rebuilding) {
-            recalculateRanks();
+            ranking.recalculate(registrations);
         }
         return change;
     }
@@ -153,7 +154,7 @@ public final class ActiveRegistrations {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
         if (stageStartRankingDirty && !rebuilding) {
-            recalculateRanks();
+            ranking.recalculate(registrations);
         }
         stageStartRankingDirty = false;
     }
@@ -172,7 +173,7 @@ public final class ActiveRegistrations {
                         : stageStart.longValue();
         if (replaceStageStart(registrationId.packedValue(), value)
                 && !rebuilding) {
-            recalculateRanks();
+            ranking.recalculate(registrations);
         }
     }
 
@@ -269,75 +270,10 @@ public final class ActiveRegistrations {
 
         Change change = null;
         if (match != null) {
-            match.valid = false;
+            match.invalidate();
             change = new Change(Change.Action.REMOVED, match);
         }
         return change;
-    }
-
-    /**
-     * Recalculates competition rank from compact primitive elapsed times.
-     *
-     * <p>The reusable primitive buffer avoids a retained duplicate ranking model. Sorting at most
-     * a few thousand long values is bounded display-projection work and keeps equal elapsed times
-     * on the same rank: rank = one plus the number of strictly faster valid passages.</p>
-     */
-    private void recalculateRanks() {
-
-        ensureRankingCapacity(registrations.size());
-
-        int rankableCount = 0;
-        for (Registration registration : registrations) {
-            registration.rank = 0;
-            long elapsed = registration.elapsedMillisOrMissing();
-            if (registration.valid && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
-                rankingElapsedMillis[rankableCount++] = elapsed;
-            }
-        }
-
-        Arrays.sort(rankingElapsedMillis, 0, rankableCount);
-
-        for (Registration registration : registrations) {
-            long elapsed = registration.elapsedMillisOrMissing();
-            if (registration.valid && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
-                registration.rank =
-                        firstIndexOf(
-                                rankingElapsedMillis,
-                                rankableCount,
-                                elapsed)
-                                + 1;
-            }
-        }
-    }
-
-    /** Grows the reusable primitive ranking buffer only when the retained list grows. */
-    private void ensureRankingCapacity(int required) {
-
-        if (rankingElapsedMillis.length >= required) {
-            return;
-        }
-
-        int grown = Math.max(required, Math.max(16, rankingElapsedMillis.length * 2));
-        rankingElapsedMillis = Arrays.copyOf(rankingElapsedMillis, grown);
-    }
-
-    /** Returns the first index containing value in one sorted prefix. */
-    private static int firstIndexOf(
-            long[] values,
-            int length,
-            long value) {
-
-        int low = 0;
-        int high = length;
-        while (low < high) {
-            int middle = (low + high) >>> 1;
-            if (values[middle] < value) {
-                low = middle + 1;
-            } else {
-                high = middle;
-            }
-        }
-        return low;
     }
 
     /** Reports whether this record changes registration state. */
@@ -362,7 +298,7 @@ public final class ActiveRegistrations {
         private int rank;
         private boolean valid = true;
 
-        private Registration(
+        Registration(
                 long sequenceNumber,
                 long effectiveTimeMillis,
                 int registrationId,
@@ -421,13 +357,25 @@ public final class ActiveRegistrations {
             return elapsed;
         }
 
-        private long elapsedMillisOrMissing() {
+        long elapsedMillisOrMissing() {
 
             return hasStageStart()
                     ? StageTiming.elapsedMillisOrMissing(
                             stageStart,
                             effectiveTimeMillis)
                     : StageTiming.NO_ELAPSED_MILLIS;
+        }
+
+        /** Invalidates this row while preserving its chronological projection position. */
+        void invalidate() {
+
+            valid = false;
+        }
+
+        /** Updates the derived competition rank. */
+        void setRank(int rank) {
+
+            this.rank = rank;
         }
 
         /** Returns competition rank, or zero when this row is not currently rankable. */
