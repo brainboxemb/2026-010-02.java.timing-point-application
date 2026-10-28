@@ -57,7 +57,7 @@ public final class ActiveRegistrations {
     public void completeRebuild() {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
-        recalculateRanks();
+        ranking.recalculate(registrations);
         rebuilding = false;
         stageStartRankingDirty = false;
     }
@@ -120,7 +120,7 @@ public final class ActiveRegistrations {
         }
 
         if (change != null && !rebuilding) {
-            recalculateRanks();
+            ranking.recalculate(registrations);
         }
         return change;
     }
@@ -154,7 +154,7 @@ public final class ActiveRegistrations {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
         if (stageStartRankingDirty && !rebuilding) {
-            recalculateRanks();
+            ranking.recalculate(registrations);
         }
         stageStartRankingDirty = false;
     }
@@ -173,7 +173,7 @@ public final class ActiveRegistrations {
                         : stageStart.longValue();
         if (replaceStageStart(registrationId.packedValue(), value)
                 && !rebuilding) {
-            recalculateRanks();
+            ranking.recalculate(registrations);
         }
     }
 
@@ -270,40 +270,10 @@ public final class ActiveRegistrations {
 
         Change change = null;
         if (match != null) {
-            match.valid = false;
+            match.invalidate();
             change = new Change(Change.Action.REMOVED, match);
         }
         return change;
-    }
-
-    /**
-     * Rebuilds competition ranking from the current valid, unambiguous elapsed times.
-     *
-     * <p>Projection-specific filtering stays here; CompetitionRanking owns only the primitive
-     * competition-rank calculation and its reusable scratch storage.</p>
-     */
-    private void recalculateRanks() {
-
-        ranking.begin(registrations.size());
-
-        for (Registration registration : registrations) {
-            registration.rank = 0;
-            long elapsed = registration.elapsedMillisOrMissing();
-            if (registration.valid
-                    && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
-                ranking.add(elapsed);
-            }
-        }
-
-        ranking.complete();
-
-        for (Registration registration : registrations) {
-            long elapsed = registration.elapsedMillisOrMissing();
-            if (registration.valid
-                    && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
-                registration.rank = ranking.rankOf(elapsed);
-            }
-        }
     }
 
     /** Reports whether this record changes registration state. */
@@ -328,7 +298,7 @@ public final class ActiveRegistrations {
         private int rank;
         private boolean valid = true;
 
-        private Registration(
+        Registration(
                 long sequenceNumber,
                 long effectiveTimeMillis,
                 int registrationId,
@@ -387,13 +357,25 @@ public final class ActiveRegistrations {
             return elapsed;
         }
 
-        private long elapsedMillisOrMissing() {
+        long elapsedMillisOrMissing() {
 
             return hasStageStart()
                     ? StageTiming.elapsedMillisOrMissing(
                             stageStart,
                             effectiveTimeMillis)
                     : StageTiming.NO_ELAPSED_MILLIS;
+        }
+
+        /** Invalidates this row while preserving its chronological projection position. */
+        void invalidate() {
+
+            valid = false;
+        }
+
+        /** Updates the derived competition rank. */
+        void setRank(int rank) {
+
+            this.rank = rank;
         }
 
         /** Returns competition rank, or zero when this row is not currently rankable. */
