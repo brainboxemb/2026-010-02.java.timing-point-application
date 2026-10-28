@@ -1,62 +1,56 @@
 package oss.relay.timing.timingpoint.domain.node.registration;
 
 import java.util.Arrays;
+import java.util.List;
 
-import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static oss.relay.timing.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Reusable primitive competition-ranking index.
+ * Calculates competition rank for the retained rows of one active registration projection.
  *
- * <p>Rank is one plus the number of strictly faster elapsed times. Equal elapsed times therefore
- * share the same rank. The class knows nothing about registrations, validity, stage starts or
- * projection lifecycle; callers decide which elapsed times participate.</p>
+ * <p>Rank is one plus the number of strictly faster valid passages. Equal elapsed times therefore
+ * share the same rank. Invalid rows and rows without an unambiguous elapsed time receive rank zero.</p>
  *
- * <p>One primitive scratch buffer is retained and reused. A ranking rebuild allocates no temporary
- * collections; capacity grows only when a larger population is presented.</p>
+ * <p>The class owns one reusable primitive scratch buffer. Recalculation allocates no temporary
+ * collections; the buffer grows only when the retained projection exceeds its previous capacity.</p>
  */
 final class CompetitionRanking {
     private long[] elapsedMillis = new long[0];
-    private int count;
-    private boolean ready;
 
-    /** Starts one new ranking rebuild and reserves reusable capacity for its maximum population. */
-    void begin(int expectedCount) {
+    /** Recalculates all derived ranks for one retained registration population. */
+    void recalculate(
+            List<ActiveRegistrations.Registration> registrations) {
 
-        failIfInvalidArgument(expectedCount >= 0, "expectedCount must not be negative");
-        ensureCapacity(expectedCount);
-        count = 0;
-        ready = false;
+        failIfInvalidArgument(registrations != null, "registrations must not be null");
+        ensureCapacity(registrations.size());
+
+        int rankableCount = 0;
+        for (ActiveRegistrations.Registration registration : registrations) {
+            registration.setRank(0);
+            long elapsed = registration.elapsedMillisOrMissing();
+            if (registration.isValid()
+                    && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
+                elapsedMillis[rankableCount++] = elapsed;
+            }
+        }
+
+        Arrays.sort(elapsedMillis, 0, rankableCount);
+
+        for (ActiveRegistrations.Registration registration : registrations) {
+            long elapsed = registration.elapsedMillisOrMissing();
+            if (registration.isValid()
+                    && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
+                registration.setRank(
+                        firstIndexOf(
+                                elapsedMillis,
+                                rankableCount,
+                                elapsed)
+                                + 1);
+            }
+        }
     }
 
-    /** Adds one elapsed time that participates in the current competition ranking. */
-    void add(long elapsedMillis) {
-
-        failIfInvalidArgument(elapsedMillis >= 0L, "elapsedMillis must not be negative");
-        failIfIllegalState(count < this.elapsedMillis.length, "ranking capacity exceeded");
-        this.elapsedMillis[count++] = elapsedMillis;
-    }
-
-    /** Sorts the current population and makes rankOf available. */
-    void complete() {
-
-        Arrays.sort(elapsedMillis, 0, count);
-        ready = true;
-    }
-
-    /** Returns competition rank for one elapsed time in the completed population. */
-    int rankOf(long elapsedMillis) {
-
-        failIfIllegalState(ready, "ranking rebuild is not complete");
-        failIfInvalidArgument(elapsedMillis >= 0L, "elapsedMillis must not be negative");
-        return firstIndexOf(
-                this.elapsedMillis,
-                count,
-                elapsedMillis)
-                + 1;
-    }
-
-    /** Grows the reusable primitive scratch buffer only when population size grows. */
+    /** Grows the reusable primitive scratch buffer only when projection size grows. */
     private void ensureCapacity(int required) {
 
         if (elapsedMillis.length >= required) {
