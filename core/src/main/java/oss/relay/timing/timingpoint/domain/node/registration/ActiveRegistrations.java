@@ -57,7 +57,7 @@ public final class ActiveRegistrations {
     public void completeRebuild() {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
-        ranking.recalculate(registrations);
+        recalculateRanks();
         rebuilding = false;
         stageStartRankingDirty = false;
     }
@@ -120,7 +120,7 @@ public final class ActiveRegistrations {
         }
 
         if (change != null && !rebuilding) {
-            ranking.recalculate(registrations);
+            recalculateRanks();
         }
         return change;
     }
@@ -154,7 +154,7 @@ public final class ActiveRegistrations {
 
         failIfIllegalState(locationId != 0, "registration projection is not active");
         if (stageStartRankingDirty && !rebuilding) {
-            ranking.recalculate(registrations);
+            recalculateRanks();
         }
         stageStartRankingDirty = false;
     }
@@ -173,7 +173,7 @@ public final class ActiveRegistrations {
                         : stageStart.longValue();
         if (replaceStageStart(registrationId.packedValue(), value)
                 && !rebuilding) {
-            ranking.recalculate(registrations);
+            recalculateRanks();
         }
     }
 
@@ -246,7 +246,7 @@ public final class ActiveRegistrations {
         for (Registration registration : registrations) {
             if (registration.registrationId == registrationId
                     && registration.stageStart != stageStart) {
-                registration.setStageStart(stageStart);
+                registration.stageStart = stageStart;
                 changed = true;
             }
         }
@@ -270,10 +270,40 @@ public final class ActiveRegistrations {
 
         Change change = null;
         if (match != null) {
-            match.invalidate();
+            match.valid = false;
             change = new Change(Change.Action.REMOVED, match);
         }
         return change;
+    }
+
+    /**
+     * Rebuilds competition ranking from the current valid, unambiguous elapsed times.
+     *
+     * <p>Projection-specific filtering stays here; CompetitionRanking owns only the primitive
+     * competition-rank calculation and its reusable scratch storage.</p>
+     */
+    private void recalculateRanks() {
+
+        ranking.begin(registrations.size());
+
+        for (Registration registration : registrations) {
+            registration.rank = 0;
+            long elapsed = registration.elapsedMillisOrMissing();
+            if (registration.valid
+                    && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
+                ranking.add(elapsed);
+            }
+        }
+
+        ranking.complete();
+
+        for (Registration registration : registrations) {
+            long elapsed = registration.elapsedMillisOrMissing();
+            if (registration.valid
+                    && elapsed != StageTiming.NO_ELAPSED_MILLIS) {
+                registration.rank = ranking.rankOf(elapsed);
+            }
+        }
     }
 
     /** Reports whether this record changes registration state. */
@@ -298,7 +328,7 @@ public final class ActiveRegistrations {
         private int rank;
         private boolean valid = true;
 
-        Registration(
+        private Registration(
                 long sequenceNumber,
                 long effectiveTimeMillis,
                 int registrationId,
@@ -357,31 +387,13 @@ public final class ActiveRegistrations {
             return elapsed;
         }
 
-        long elapsedMillisOrMissing() {
+        private long elapsedMillisOrMissing() {
 
             return hasStageStart()
                     ? StageTiming.elapsedMillisOrMissing(
                             stageStart,
                             effectiveTimeMillis)
                     : StageTiming.NO_ELAPSED_MILLIS;
-        }
-
-        /** Updates the retained stage-start scalar without allocating replacement state. */
-        void setStageStart(long stageStart) {
-
-            this.stageStart = stageStart;
-        }
-
-        /** Invalidates this retained ADD row while preserving chronological position. */
-        void invalidate() {
-
-            valid = false;
-        }
-
-        /** Updates the derived competition rank. */
-        void setRank(int rank) {
-
-            this.rank = rank;
         }
 
         /** Returns competition rank, or zero when this row is not currently rankable. */
