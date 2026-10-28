@@ -1,107 +1,71 @@
 package oss.relay.timing.timingpoint.domain.node.registration;
 
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-/** Verifies competition ranking independently from active-WP lifecycle and LogBook replay. */
+/** Verifies competition ranking independently from registration projection state. */
 public class CompetitionRankingTest {
 
     @Test
     public void equalElapsedTimesShareCompetitionRank() {
         CompetitionRanking ranking = new CompetitionRanking();
-        long start =
-                StageTiming.compactUtc(
-                        Instant.parse("2026-10-13T12:00:00Z"));
-        List<ActiveRegistrations.Registration> rows =
-                new ArrayList<ActiveRegistrations.Registration>();
-        rows.add(registration(1L, "2026-10-13T12:00:20Z", start));
-        rows.add(registration(2L, "2026-10-13T12:00:10Z", start));
-        rows.add(registration(3L, "2026-10-13T12:00:10Z", start));
-        rows.add(registration(4L, "2026-10-13T12:00:30Z", start));
 
-        ranking.recalculate(rows);
+        ranking.begin(4);
+        ranking.add(20_000L);
+        ranking.add(10_000L);
+        ranking.add(10_000L);
+        ranking.add(30_000L);
+        ranking.complete();
 
-        assertEquals(3, rows.get(0).rank());
-        assertEquals(1, rows.get(1).rank());
-        assertEquals(1, rows.get(2).rank());
-        assertEquals(4, rows.get(3).rank());
+        assertEquals(3, ranking.rankOf(20_000L));
+        assertEquals(1, ranking.rankOf(10_000L));
+        assertEquals(4, ranking.rankOf(30_000L));
     }
 
     @Test
-    public void invalidAndUnrankableRowsGetZeroAndDoNotAffectOthers() {
+    public void slowerRanksCountAllStrictlyFasterEntries() {
         CompetitionRanking ranking = new CompetitionRanking();
-        long start =
-                StageTiming.compactUtc(
-                        Instant.parse("2026-10-13T12:00:00Z"));
-        List<ActiveRegistrations.Registration> rows =
-                new ArrayList<ActiveRegistrations.Registration>();
-        ActiveRegistrations.Registration invalid =
-                registration(1L, "2026-10-13T12:00:05Z", start);
-        ActiveRegistrations.Registration first =
-                registration(2L, "2026-10-13T12:00:10Z", start);
-        ActiveRegistrations.Registration second =
-                registration(3L, "2026-10-13T12:00:20Z", start);
-        ActiveRegistrations.Registration missingStart =
-                registration(
-                        4L,
-                        "2026-10-13T12:00:01Z",
-                        Long.MIN_VALUE);
-        rows.add(invalid);
-        rows.add(first);
-        rows.add(second);
-        rows.add(missingStart);
 
-        invalid.invalidate();
-        ranking.recalculate(rows);
+        ranking.begin(5);
+        ranking.add(5_000L);
+        ranking.add(5_000L);
+        ranking.add(7_000L);
+        ranking.add(9_000L);
+        ranking.add(9_000L);
+        ranking.complete();
 
-        assertEquals(0, invalid.rank());
-        assertEquals(1, first.rank());
-        assertEquals(2, second.rank());
-        assertEquals(0, missingStart.rank());
+        assertEquals(1, ranking.rankOf(5_000L));
+        assertEquals(3, ranking.rankOf(7_000L));
+        assertEquals(4, ranking.rankOf(9_000L));
     }
 
     @Test
-    public void recalculationReusesObjectAndReplacesPreviousRanks() {
+    public void sameInstanceCanBeRebuiltForAnotherPopulation() {
         CompetitionRanking ranking = new CompetitionRanking();
-        long start =
-                StageTiming.compactUtc(
-                        Instant.parse("2026-10-13T12:00:00Z"));
-        List<ActiveRegistrations.Registration> rows =
-                new ArrayList<ActiveRegistrations.Registration>();
-        ActiveRegistrations.Registration first =
-                registration(1L, "2026-10-13T12:00:10Z", start);
-        ActiveRegistrations.Registration second =
-                registration(2L, "2026-10-13T12:00:20Z", start);
-        rows.add(first);
-        rows.add(second);
 
-        ranking.recalculate(rows);
-        assertEquals(1, first.rank());
-        assertEquals(2, second.rank());
+        ranking.begin(3);
+        ranking.add(10_000L);
+        ranking.add(20_000L);
+        ranking.add(30_000L);
+        ranking.complete();
+        assertEquals(3, ranking.rankOf(30_000L));
 
-        first.invalidate();
-        ranking.recalculate(rows);
+        ranking.begin(2);
+        ranking.add(20_000L);
+        ranking.add(30_000L);
+        ranking.complete();
 
-        assertEquals(0, first.rank());
-        assertEquals(1, second.rank());
+        assertEquals(1, ranking.rankOf(20_000L));
+        assertEquals(2, ranking.rankOf(30_000L));
     }
 
-    private static ActiveRegistrations.Registration registration(
-            long sequence,
-            String passage,
-            long stageStart) {
+    @Test(expected = IllegalStateException.class)
+    public void rankIsUnavailableUntilPopulationIsCompleted() {
+        CompetitionRanking ranking = new CompetitionRanking();
 
-        return new ActiveRegistrations.Registration(
-                sequence,
-                Instant.parse(passage).toEpochMilli(),
-                sequence > Integer.MAX_VALUE
-                        ? 1
-                        : (int) sequence,
-                stageStart);
+        ranking.begin(1);
+        ranking.add(10_000L);
+        ranking.rankOf(10_000L);
     }
 }
