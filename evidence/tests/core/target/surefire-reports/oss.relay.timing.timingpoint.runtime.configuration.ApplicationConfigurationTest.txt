@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: oss.relay.timing.timingpoint.runtime.configuration.ApplicationConfigurationTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.063 s -- in oss.relay.timing.timingpoint.runtime.configuration.ApplicationConfigurationTest

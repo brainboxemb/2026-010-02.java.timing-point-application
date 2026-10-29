@@ -1,0 +1,15 @@
+{
+  "files": [
+    "core/src/test/java/oss/relay/timing/timingpoint/domain/node/ActiveRegistrationsIntegrationTest.java",
+    "core/src/test/java/oss/relay/timing/timingpoint/domain/node/registration/ActiveRegistrationsTest.java"
+  ],
+  "options": {
+    "base": "0bda66147c5a096b560c9bff546211a947936938",
+    "defaultBranch": true,
+    "head": "483da15e6e693ab213503744f43e0d419d337bce",
+    "local": false,
+    "status": [],
+    "stdin": false
+  },
+  "shallow": false
+}
