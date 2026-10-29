@@ -1,0 +1,98 @@
+10:49:26.953 - [INFO] - Application identity - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] -   Application: timing-application - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] -   Version: 0.2.4-SNAPSHOT - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] -   API version: 1 - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] -   Revision: 483da15e6e693ab213503744f43e0d419d337bce - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] -   SourceRef: main - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] -   BuildOrigin: github-actions - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] -   Dirty: false - [app.ApplicationLauncher.announceStartupIdentity]
+10:49:26.953 - [INFO] - Startup configuration - [app.ApplicationLauncher.announceStartupConfiguration]
+10:49:26.953 - [INFO] -   Action: START - [app.ApplicationLauncher.announceStartupConfiguration]
+10:49:26.953 - [INFO] -   Config: /home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/system-test/target/evidence/VC-ST1-004/application.yml - [app.ApplicationLauncher.announceStartupConfiguration]
+10:49:26.953 - [INFO] -   SystemId: A - [app.ApplicationLauncher.announceStartupConfiguration]
+10:49:26.953 - [INFO] -     NodeId: A - [app.ApplicationLauncher.announceStartupConfiguration]
+10:49:26.953 - [INFO] -     EventDataProvider: reference - [app.ApplicationLauncher.announceStartupConfiguration]
+10:49:26.953 - [INFO] -     TimingDataProvider: reference - [app.ApplicationLauncher.announceStartupConfiguration]
+10:49:26.971 - [INFO] - TimingSystem A selected EventDataProvider id=reference implementation=oss.relay.timing.eventdata.defaultprofile.DefaultEventDataProvider - [runtime.TimingSystemDataResolver.resolveConfigured]
+10:49:26.971 - [INFO] - TimingSystem A selected TimingDataProvider id=reference implementation=oss.relay.timing.timingdata.defaultprofile.DefaultTimingDataProvider - [runtime.TimingSystemDataResolver.resolveConfigured]
+10:49:27.058 - [INFO] - Starting application - [application.ApplicationConductor.activate]
+10:49:27.059 - [INFO] - Activating TimingSystem - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.059 - [INFO] - Activating TimingSystemConductor - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.059 - [INFO] - Starting TimingSystemConductor - [lifecycle.AbstractConductor.onActivate]
+10:49:27.059 - [INFO] - Activating TimingNode A - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.059 - [INFO] - Activating NodeService - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.059 - [INFO] - NodeService activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.059 - [INFO] - Activating LogBook - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.059 - [INFO] - LogBook activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.059 - [INFO] - Activating TagProcessor - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.060 - [INFO] - TagProcessor activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.063 - [INFO] - TimingNode A persisted TimingData load started - [logbook.LogBook.loadPersistedData]
+10:49:27.063 - [INFO] - TimingNode A activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.063 - [INFO] - TimingSystemConductor started - [lifecycle.AbstractConductor.onActivate]
+10:49:27.063 - [INFO] - TimingSystemConductor activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.063 - [INFO] - Activating Upstream - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.063 - [INFO] - Activating NodeUpstream A - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.064 - [INFO] - NodeUpstream A activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.064 - [INFO] - Upstream activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.064 - [INFO] - TimingSystem activated - [lifecycle.ComponentLifecycleManager.activateAll]
+10:49:27.064 - [INFO] - Application started - [application.ApplicationConductor.activate]
+10:49:27.072 - [INFO] - HTTP IF-03 listening on 127.0.0.1:34829 - [api.HttpEndpoint.start]
+10:49:27.084 - [ERROR] - Persisted TimingData load failed for A - [logbook.LogBook.loadPersistedData]
+oss.relay.timing.timingpoint.domain.node.logbook.persistence.TimingDataPersistence$PersistenceException: Timing record 1 belongs to B but persistence owns A
+	at oss.relay.timing.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence.validateStreamRecord(DefaultTimingDataPersistence.java:94)
+	at oss.relay.timing.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence.load(DefaultTimingDataPersistence.java:47)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBookOperations.loadLogBookData(LogBookOperations.java:205)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBook.loadPersistedData(LogBook.java:330)
+	at oss.relay.timing.timingpoint.domain.node.TimingNode$MainTask.runStep(TimingNode.java:329)
+	at oss.relay.timing.timingpoint.platform.execution.tasks.SerialTaskRunner$TaskRun.runStep(SerialTaskRunner.java:104)
+	at oss.relay.timing.timingpoint.platform.execution.tasks.SerialTaskRunner$TaskRun.access$500(SerialTaskRunner.java:63)
+	at oss.relay.timing.timingpoint.platform.execution.tasks.SerialTaskRunner.executeStep(SerialTaskRunner.java:385)
+	at oss.relay.timing.timingpoint.platform.execution.tasks.SerialTaskRunner.lambda$queueStep$2(SerialTaskRunner.java:371)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+10:49:27.084 - [INFO] - TimingNode A LogBook status ERROR - [logbook.LogBook.publishStatus]
+10:49:27.097 - [INFO] - WebSocket IF-03 listening on 127.0.0.1:34747/api/v1/events - [api.WebSocketEndpoint.start]
+10:49:27.098 - [INFO] - Remote terminal listening on 127.0.0.1:38889 - [shell.RemoteShellServer.start]
+10:49:27.164 - [ERROR] - Queued LogBook command commitNodeOpen failed during Data Lane execution - [logbook.LogBook.processCommandItem]
+java.lang.IllegalStateException: Persisted timing-record load failed for A: Timing record 1 belongs to B but persistence owns A
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBookState.ensureOperational(LogBookState.java:42)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBookOperations.commitNodeOpen(LogBookOperations.java:63)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBookCommands.lambda$commitNodeOpen$0(LogBookCommands.java:29)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBookCommand.apply(LogBookCommand.java:46)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBook.applyCommand(LogBook.java:537)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBook.processCommandItem(LogBook.java:502)
+	at oss.relay.timing.timingpoint.domain.node.logbook.LogBook.processDataLaneItem(LogBook.java:489)
+	at oss.relay.timing.timingpoint.platform.execution.lanes.SerialLane.process(SerialLane.java:163)
+	at oss.relay.timing.timingpoint.platform.execution.lanes.SerialLane.runQueueWorker(SerialLane.java:151)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.access$201(ScheduledThreadPoolExecutor.java:180)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:293)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+10:49:27.183 - [INFO] - Stopping application - [application.ApplicationConductor.deactivate]
+10:49:27.183 - [INFO] - Deactivating TimingSystem - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.183 - [INFO] - Deactivating Upstream - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.183 - [INFO] - Deactivating NodeUpstream A - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.183 - [INFO] - NodeUpstream A deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.183 - [INFO] - Upstream deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - Deactivating TimingSystemConductor - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - Stopping TimingSystemConductor - [lifecycle.AbstractConductor.onDeactivate]
+10:49:27.184 - [INFO] - Deactivating TimingNode A - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - Deactivating TagProcessor - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - TagProcessor deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - Deactivating LogBook - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - LogBook deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - Deactivating NodeService - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - NodeService deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - TimingNode A deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - TimingSystemConductor stopped - [lifecycle.AbstractConductor.onDeactivate]
+10:49:27.184 - [INFO] - TimingSystemConductor deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - TimingSystem deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+10:49:27.184 - [INFO] - Application stopped - [application.ApplicationConductor.deactivate]
