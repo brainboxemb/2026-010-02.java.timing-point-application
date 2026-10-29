@@ -39,6 +39,46 @@ public class ActiveRegistrationsTest {
     }
 
     @Test
+    public void manualRegistrationsUseTheSameLocationAndRevokeRules() {
+        ActiveRegistrations registrations = activeAt(1);
+        Instant passage = Instant.parse("2026-10-13T12:00:30Z");
+
+        ActiveRegistrations.Change added =
+                registrations.apply(
+                        manualRegistrationAt(
+                                1L,
+                                1,
+                                "M0001",
+                                passage,
+                                TimingRecord.Action.ADD));
+        assertEquals(ActiveRegistrations.Change.Action.ADDED, added.action());
+
+        assertNull(
+                registrations.apply(
+                        manualRegistrationAt(
+                                2L,
+                                2,
+                                "M0002",
+                                passage,
+                                TimingRecord.Action.ADD)));
+
+        ActiveRegistrations.Change removed =
+                registrations.apply(
+                        manualRegistrationAt(
+                                3L,
+                                1,
+                                "M0001",
+                                passage,
+                                TimingRecord.Action.REV));
+        assertEquals(ActiveRegistrations.Change.Action.REMOVED, removed.action());
+
+        List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+        assertEquals(1, registrations.visit(10, rows::add));
+        assertEquals(new RegistrationId("M0001"), rows.get(0).registrationId());
+        assertFalse(rows.get(0).isValid());
+    }
+
+    @Test
     public void displayCanPageByOriginalSequenceAfterRevoke() {
         ActiveRegistrations registrations = activeAt(1);
         registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
@@ -286,6 +326,25 @@ public class ActiveRegistrationsTest {
                 "A0001",
                 Instant.parse("2026-10-13T12:00:00Z"),
                 action);
+    }
+
+    private static TimingRecord manualRegistrationAt(
+            long sequence,
+            int location,
+            String registrationId,
+            Instant effectiveTime,
+            TimingRecord.Action action) {
+
+        long time = effectiveTime.toEpochMilli();
+        return TimingRecord.createManualRegistration(
+                'A',
+                sequence,
+                location,
+                time,
+                time,
+                new RegistrationId(registrationId).packedValue(),
+                action,
+                TimingRecord.ManualTimeSource.OPERATOR_ENTERED);
     }
 
     private static TimingRecord registrationAt(

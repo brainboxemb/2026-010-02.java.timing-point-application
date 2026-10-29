@@ -128,6 +128,50 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
     @Test
+    public void openingUsesCurrentRaceDataStartForHistoricalRegistrations() {
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
+                        new NodeId("A"),
+                        new StaticPersistence(
+                                registrationAt(
+                                        1L,
+                                        1,
+                                        "A0001",
+                                        Instant.parse("2026-10-13T12:00:20Z"))),
+                        () -> Instant.parse("2026-10-13T12:05:00Z"),
+                        new DefaultEventData(),
+                        new InMemoryUpstreamStream()
+                                .bind(
+                                        new NodeId("A")));
+
+        long currentStart =
+                oss.relay.timing.timingpoint.domain.node.registration.StageTiming.compactUtc(
+                        Instant.parse("2026-10-13T12:00:00Z"));
+        components.raceData().setStageStart(
+                new RegistrationId("A0001"),
+                currentStart);
+
+        activate(components.node());
+        try {
+            awaitOperational(components.node());
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    components.node().open(new LocationId(1)));
+
+            List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+            assertEquals(
+                    1,
+                    components.nodeService().state().visitRegistrations(10, rows::add));
+
+            assertEquals(currentStart, rows.get(0).stageStart());
+            assertEquals(20_000L, rows.get(0).elapsedMillis());
+            assertEquals(1, rows.get(0).rank());
+        } finally {
+            deactivate(components.node());
+        }
+    }
+
+    @Test
     public void duplicatePassagesRemainSeparateRegistrationRows() {
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
